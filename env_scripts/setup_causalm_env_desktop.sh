@@ -54,10 +54,10 @@ echo "export CAUASLM_REPO=\$HOME/dev/CausaLM/" >> ~/.bash_profile
 # echo "export PATH=\$PATH:\$GOROOT/bin:\$GOPATH/bin" >> ~/.bash_profile
 # echo "alias 'mood_env'='source ~/env/mood/bin/activate && export PYTHONPATH=\$MOOD_REPO:\$PYTHONPATH && cd \$MOOD_REPO'" >> ~/.bash_profile
 echo "alias 'conda_env'='source \$HOME/anaconda3/etc/profile.d/conda.sh'" >> ~/.bash_profile
-echo "alias 'causalm_pytorch'='conda_env && conda activate mood_pytorch && export PYTHONPATH=\$MOOD_REPO:\$PYTHONPATH && cd \$MOOD_REPO'" >> ~/.bash_profile
-echo "alias 'causalm_keras'='conda_env && conda activate mood_keras && export PYTHONPATH=\$MOOD_REPO:\$PYTHONPATH && cd \$MOOD_REPO'" >> ~/.bash_profile
-echo "alias 'causalm_allennlp'='conda_env && conda activate mood_allennlp && export PYTHONPATH=\$MOOD_REPO:\$PYTHONPATH && cd \$MOOD_REPO'" >> ~/.bash_profile
-echo "alias 'causalm_bert'='conda_env && conda activate mood_bert && export PYTHONPATH=\$MOOD_REPO:\$PYTHONPATH && cd \$MOOD_REPO'" >> ~/.bash_profile
+echo "alias 'causalm_pytorch'='conda_env && conda activate causalm_pytorch && export PYTHONPATH=\$CAUSALM_REPO:\$PYTHONPATH && cd \$CAUSALM_REPO'" >> ~/.bash_profile
+echo "alias 'causalm_keras'='conda_env && conda activate causalm_keras && export PYTHONPATH=\$CAUSALM_REPO:\$PYTHONPATH && cd \$CAUSALM_REPO'" >> ~/.bash_profile
+echo "alias 'causalm_allennlp'='conda_env && conda activate causalm_allennlp && export PYTHONPATH=\$CAUSALM_REPO:\$PYTHONPATH && cd \$CAUSALM_REPO'" >> ~/.bash_profile
+echo "alias 'causalm_bert'='conda_env && conda activate causalm_bert && export PYTHONPATH=\$CAUSALM_REPO:\$PYTHONPATH && cd \$CAUSALM_REPO'" >> ~/.bash_profile
 source ~/.bash_profile
 # go get -u -v github.com/odeke-em/drive/cmd/drive
 # drive init ~/GoogleDrive
