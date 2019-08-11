@@ -1,6 +1,5 @@
 from argparse import ArgumentParser
 from pathlib import Path
-import os
 import torch
 import logging
 import json
@@ -12,16 +11,21 @@ from tempfile import TemporaryDirectory
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
+from utils import timer, send_email
 
-from pytorch_transformers import WEIGHTS_NAME, CONFIG_NAME
-from pytorch_transformers.modeling_bert import BertForPreTraining
-from pytorch_transformers.tokenization_bert import BertTokenizer
-from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
+from pytorch_pretrained_bert.modeling import BertForPreTraining
+from pytorch_pretrained_bert.tokenization import BertTokenizer
+from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
+from bert_constants import BERT_QA_FINE_TUNE_DATA_DIR, BERT_PRETRAINED_MODEL
 
 InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
 
 log_format = '%(asctime)-10s: %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_format)
+
+GRADIENT_STEPS = 12  # 12 for large model, 4 for base model
+EPOCHS = 1
+REDUCE_MEMORY = False
 
 
 def convert_example_to_features(example, tokenizer, max_seq_length):
@@ -61,8 +65,8 @@ class PregeneratedDataset(Dataset):
         self.tokenizer = tokenizer
         self.epoch = epoch
         self.data_epoch = epoch % num_data_epochs
-        data_file = training_path / f"epoch_{self.data_epoch}.json"
-        metrics_file = training_path / f"epoch_{self.data_epoch}_metrics.json"
+        data_file = training_path / f"{BERT_PRETRAINED_MODEL}_epoch_{self.data_epoch}.json"
+        metrics_file = training_path / f"{BERT_PRETRAINED_MODEL}_epoch_{self.data_epoch}_metrics.json"
         assert data_file.is_file() and metrics_file.is_file()
         metrics = json.loads(metrics_file.read_text())
         num_samples = metrics['num_training_examples']
@@ -121,11 +125,12 @@ class PregeneratedDataset(Dataset):
                 torch.tensor(self.is_nexts[item].astype(np.int64)))
 
 
+@timer(logger=logging)
 def main():
     parser = ArgumentParser()
-    parser.add_argument('--pregenerated_data', type=Path, required=True)
-    parser.add_argument('--output_dir', type=Path, required=True)
-    parser.add_argument("--bert_model", type=str, required=True, help="Bert pre-trained model selected in the list: bert-base-uncased, "
+    parser.add_argument('--pregenerated_data', type=Path, required=False)
+    parser.add_argument('--output_dir', type=Path, required=False)
+    parser.add_argument("--bert_model", type=str, required=False, help="Bert pre-trained model selected in the list: bert-base-uncased, "
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
     parser.add_argument("--do_lower_case", action="store_true")
     parser.add_argument("--reduce_memory", action="store_true",
@@ -155,14 +160,11 @@ def main():
                         help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
                         "0 (default value): dynamic loss scaling.\n"
                         "Positive power of 2: static loss scaling value.\n")
-    parser.add_argument("--warmup_steps", 
-                        default=0, 
-                        type=int,
-                        help="Linear warmup over warmup_steps.")
-    parser.add_argument("--adam_epsilon", 
-                        default=1e-8, 
+    parser.add_argument("--warmup_proportion",
+                        default=0.1,
                         type=float,
-                        help="Epsilon for Adam optimizer.")
+                        help="Proportion of training to perform linear learning rate warmup for. "
+                             "E.g., 0.1 = 10%% of training.")
     parser.add_argument("--learning_rate",
                         default=3e-5,
                         type=float,
@@ -173,13 +175,22 @@ def main():
                         help="random seed for initialization")
     args = parser.parse_args()
 
+    # Override arguments with constatns
+    args.pregenerated_data = Path(BERT_QA_FINE_TUNE_DATA_DIR)
+    args.output_dir = args.pregenerated_data / "Model"
+    args.bert_model = BERT_PRETRAINED_MODEL
+    args.do_lower_case = bool(BERT_PRETRAINED_MODEL.endswith("uncased"))
+    args.gradient_accumulation_steps = GRADIENT_STEPS
+    args.reduce_memory = REDUCE_MEMORY
+    args.epochs = EPOCHS
+
     assert args.pregenerated_data.is_dir(), \
         "--pregenerated_data should point to the folder of files made by pregenerate_training_data.py!"
 
     samples_per_epoch = []
     for i in range(args.epochs):
-        epoch_file = args.pregenerated_data / f"epoch_{i}.json"
-        metrics_file = args.pregenerated_data / f"epoch_{i}_metrics.json"
+        epoch_file = args.pregenerated_data / f"{BERT_PRETRAINED_MODEL}_epoch_{i}.json"
+        metrics_file = args.pregenerated_data / f"{BERT_PRETRAINED_MODEL}_epoch_{i}_metrics.json"
         if epoch_file.is_file() and metrics_file.is_file():
             metrics = json.loads(metrics_file.read_text())
             samples_per_epoch.append(metrics['num_training_examples'])
@@ -273,9 +284,13 @@ def main():
             optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
         else:
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
+        warmup_linear = WarmupLinearSchedule(warmup=args.warmup_proportion,
+                                             t_total=num_train_optimization_steps)
     else:
-        optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
-    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=num_train_optimization_steps)
+        optimizer = BertAdam(optimizer_grouped_parameters,
+                             lr=args.learning_rate,
+                             warmup=args.warmup_proportion,
+                             t_total=num_train_optimization_steps)
 
     global_step = 0
     logging.info("***** Running training *****")
@@ -297,8 +312,7 @@ def main():
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, segment_ids, lm_label_ids, is_next = batch
-                outputs = model(input_ids, segment_ids, input_mask, lm_label_ids, is_next)
-                loss = outputs[0]
+                loss = model(input_ids, segment_ids, input_mask, lm_label_ids, is_next)
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
                 if args.gradient_accumulation_steps > 1:
@@ -314,16 +328,22 @@ def main():
                 mean_loss = tr_loss * args.gradient_accumulation_steps / nb_tr_steps
                 pbar.set_postfix_str(f"Loss: {mean_loss:.5f}")
                 if (step + 1) % args.gradient_accumulation_steps == 0:
-                    scheduler.step()  # Update learning rate schedule
+                    if args.fp16:
+                        # modify learning rate with special warm up BERT uses
+                        # if args.fp16 is False, BertAdam is used that handles this automatically
+                        lr_this_step = args.learning_rate * warmup_linear.get_lr(global_step, args.warmup_proportion)
+                        for param_group in optimizer.param_groups:
+                            param_group['lr'] = lr_this_step
                     optimizer.step()
                     optimizer.zero_grad()
                     global_step += 1
 
     # Save a trained model
-    if  n_gpu > 1 and torch.distributed.get_rank() == 0  or n_gpu <=1 :
-        logging.info("** ** * Saving fine-tuned model ** ** * ")
-        model.save_pretrained(args.output_dir)
-        tokenizer.save_pretrained(args.output_dir)
+    logging.info("** ** * Saving fine-tuned model ** ** * ")
+    model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
+    output_model_file = args.output_dir / f"{BERT_PRETRAINED_MODEL}_{args.epochs}epochs_fine-tuned-model.pt"
+    torch.save(model_to_save.state_dict(), str(output_model_file))
+    send_email([f"Saved fine-tuned model to: {output_model_file}"], "BERT Fine-tuning")
 
 
 if __name__ == '__main__':

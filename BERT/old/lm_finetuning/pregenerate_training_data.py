@@ -3,18 +3,12 @@ from pathlib import Path
 from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
-from multiprocessing import Pool
-from xml.etree import ElementTree as ET
 
 from random import random, randrange, randint, shuffle, choice
-from pytorch_transformers.tokenization_bert import BertTokenizer
+from pytorch_pretrained_bert.tokenization import BertTokenizer
 import numpy as np
 import json
 import collections
-from BERT.constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, IMA_DATA_DIR
-
-DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN.txt"
-EPOCHS = 3
 
 class DocumentDatabase:
     def __init__(self, reduce_memory=False):
@@ -104,11 +98,8 @@ def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens):
         else:
             trunc_tokens.pop()
 
-
-MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"])
-
-MaskedAdjInstance = collections.namedtuple("MaskedAdjInstance", ["index", "label"])
-
+MaskedLmInstance = collections.namedtuple("MaskedLmInstance",
+                                          ["index", "label"])
 
 def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list):
     """Creates the predictions for the masked LM objective. This is mostly copied from the Google BERT repo, but
@@ -131,19 +122,6 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
         else:
             cand_indices.append([i])
 
-    # TODO: - list of indices 0 not adj 1 is adj (sum is num_adj in sentence)
-    # Positive examples: M is on Adj x num_adj + word is Adj x num_adj
-    # Negative examples: M is not on Adj x num_adj + word is not Adj x num_adj
-
-    ## cand_indices needs to reflect the indices where adjectives are in the review
-    # tagged_text = pos_tagger(rev.text)
-    # mod_adj_text = list()
-    # for token in tagged_text:
-    #     if token.pos_ is 'ADJ':
-    #         no_adj_text.append()
-    #     else:
-    #         token_text = token.text
-
     num_to_mask = min(max_predictions_per_seq,
                       max(1, int(round(len(tokens) * masked_lm_prob))))
     shuffle(cand_indices)
@@ -165,7 +143,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
             continue
         for index in index_set:
             covered_indexes.add(index)
-            ## check if index is and adjective
+
             masked_token = None
             # 80% of the time, replace with [MASK]
             if random() < 0.8:
@@ -268,7 +246,7 @@ def create_instances_from_document(
                 # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
                 # They are 1 for the B tokens and the final [SEP]
                 segment_ids = [0 for _ in range(len(tokens_a) + 2)] + [1 for _ in range(len(tokens_b) + 1)]
-                # We don't need NSP task, all our tasks are in sentence level, every instance is a sentence
+
                 tokens, masked_lm_positions, masked_lm_labels = create_masked_lm_predictions(
                     tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list)
 
@@ -286,32 +264,6 @@ def create_instances_from_document(
     return instances
 
 
-def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
-    epoch_filename = output_dir / f"{BERT_PRETRAINED_MODEL}_epoch_{epoch_num}.json"
-    num_instances = 0
-    with epoch_filename.open('w') as epoch_file:
-        for doc_idx in trange(len(docs), desc="Document"):
-            doc_instances = create_instances_from_document(
-                docs, doc_idx, max_seq_length=args.max_seq_len, short_seq_prob=args.short_seq_prob,
-                masked_lm_prob=args.masked_lm_prob, max_predictions_per_seq=args.max_predictions_per_seq,
-                whole_word_mask=args.do_whole_word_mask, vocab_list=vocab_list)
-            doc_instances = [json.dumps(instance) for instance in doc_instances]
-            for instance in doc_instances:
-                epoch_file.write(instance + '\n')
-                num_instances += 1
-    metrics_file = output_dir / f"{BERT_PRETRAINED_MODEL}_epoch_{epoch_num}_metrics.json"
-    with metrics_file.open('w') as metrics_file:
-        metrics = {
-            "num_training_examples": num_instances,
-            "max_seq_len": args.max_seq_len
-        }
-        metrics_file.write(json.dumps(metrics))
-    print("\nTotal Number of training instances:", num_instances)
-    print("Number of Real instances:", num_instances - num_random_instances)
-    print("Number of Random instances:", num_random_instances)
-    print(f"Random instances ratio: {num_random_instances / num_instances:.4f}")
-
-
 def main():
     parser = ArgumentParser()
     parser.add_argument('--train_corpus', type=Path, required=True)
@@ -325,8 +277,6 @@ def main():
     parser.add_argument("--reduce_memory", action="store_true",
                         help="Reduce memory usage for large datasets by keeping data on disc rather than in memory")
 
-    parser.add_argument("--num_workers", type=int, default=1,
-                        help="The number of workers to use to write the files")
     parser.add_argument("--epochs_to_generate", type=int, default=3,
                         help="Number of epochs of data to pregenerate")
     parser.add_argument("--max_seq_len", type=int, default=128)
@@ -339,18 +289,19 @@ def main():
 
     args = parser.parse_args()
 
-    if args.num_workers > 1 and args.reduce_memory:
-        raise ValueError("Cannot use multiple workers while reducing memory")
-    args.epochs_to_generate = EPOCHS
-    tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
+    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
     vocab_list = list(tokenizer.vocab.keys())
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-        rev_tree = ET.parse(DATASET_FILE)
-        rev_root = rev_tree.getroot()
-        for rev in tqdm(rev_root.iter('review')):
-            rev_text = rev.text.strip()
-            # TODO: Need to tokenize review by sentences such that all instances of document are on sentence level
-            doc = tokenizer.tokenize(rev_text)
+        with args.train_corpus.open() as f:
+            doc = []
+            for line in tqdm(f, desc="Loading Dataset", unit=" lines"):
+                line = line.strip()
+                if line == "":
+                    docs.add_document(doc)
+                    doc = []
+                else:
+                    tokens = tokenizer.tokenize(line)
+                    doc.append(tokens)
             if doc:
                 docs.add_document(doc)  # If the last doc didn't end on a newline, make sure it still gets added
         if len(docs) <= 1:
@@ -360,16 +311,27 @@ def main():
                  "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
                  "sections or paragraphs.")
 
-        output_dir = Path(IMA_DATA_DIR)
-        output_dir.mkdir(exist_ok=True, parents=True)
-
-        if args.num_workers > 1:
-            writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))
-            arguments = [(docs, vocab_list, args, idx) for idx in range(args.epochs_to_generate)]
-            writer_workers.starmap(create_training_file, arguments)
-        else:
-            for epoch in trange(args.epochs_to_generate, desc="Epoch"):
-                create_training_file(docs, vocab_list, args, epoch, output_dir)
+        args.output_dir.mkdir(exist_ok=True)
+        for epoch in trange(args.epochs_to_generate, desc="Epoch"):
+            epoch_filename = args.output_dir / f"epoch_{epoch}.json"
+            num_instances = 0
+            with epoch_filename.open('w') as epoch_file:
+                for doc_idx in trange(len(docs), desc="Document"):
+                    doc_instances = create_instances_from_document(
+                        docs, doc_idx, max_seq_length=args.max_seq_len, short_seq_prob=args.short_seq_prob,
+                        masked_lm_prob=args.masked_lm_prob, max_predictions_per_seq=args.max_predictions_per_seq,
+                        whole_word_mask=args.do_whole_word_mask, vocab_list=vocab_list)
+                    doc_instances = [json.dumps(instance) for instance in doc_instances]
+                    for instance in doc_instances:
+                        epoch_file.write(instance + '\n')
+                        num_instances += 1
+            metrics_file = args.output_dir / f"epoch_{epoch}_metrics.json"
+            with metrics_file.open('w') as metrics_file:
+                metrics = {
+                    "num_training_examples": num_instances,
+                    "max_seq_len": args.max_seq_len
+                }
+                metrics_file.write(json.dumps(metrics))
 
 
 if __name__ == '__main__':
