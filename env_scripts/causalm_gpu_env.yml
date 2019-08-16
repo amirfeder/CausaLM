@@ -191,7 +191,7 @@ dependencies:
     - regex==2019.6.8
     - sentencepiece==0.1.82
     - spacy==2.1.8
-    - spacy-pytorch-transformers==0.1.1
+    - spacy-pytorch-transformers==0.2.0
     - srsly==0.0.7
     - thinc==7.0.8
     - thinc-gpu-ops==0.0.4
