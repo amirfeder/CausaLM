@@ -177,9 +177,9 @@ dependencies:
     - cupy-cuda100==7.0.0b2
     - cymem==2.0.2
     - docutils==0.14
-    - en-core-web-lg==2.1.0
-    - en-pytt-bertbaseuncased-lg==2.1.1
-    - en-pytt-xlnetbasecased-lg==2.1.1
+    # - en-core-web-lg==2.1.0
+    # - en-pytt-bertbaseuncased-lg==2.1.1
+    # - en-pytt-xlnetbasecased-lg==2.1.1
     - fastrlock==0.4
     - ftfy==5.6
     - idna==2.8
@@ -195,7 +195,7 @@ dependencies:
     - srsly==0.0.7
     - thinc==7.0.8
     - thinc-gpu-ops==0.0.4
-    - timer==0.1
+    # - timer==0.1
     - torch==1.2.0
     - torchcontrib==0.0.2
     - wasabi==0.2.2
