@@ -7,7 +7,7 @@ from multiprocessing import Pool
 from xml.etree import ElementTree as ET
 
 from random import random, randrange, randint, shuffle, choice
-from pytorch_transformers.tokenization_bert import BertTokenizer
+from transformers.tokenization_bert import BertTokenizer
 import numpy as np
 import json
 import collections
@@ -15,6 +15,7 @@ from BERT.constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, IMA_DATA_D
 
 DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN.txt"
 EPOCHS = 3
+
 
 class DocumentDatabase:
     def __init__(self, reduce_memory=False):
@@ -145,7 +146,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
     #         token_text = token.text
 
     num_to_mask = min(max_predictions_per_seq,
-                      max(1, int(round(len(tokens) * masked_lm_prob))))
+                      max(1, int(round(len(tokens) * masked_lm_prob)))) # masked_lm_prob should reflect ratio of adjectives in dataset
     shuffle(cand_indices)
     masked_lms = []
     covered_indexes = set()
@@ -165,7 +166,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
             continue
         for index in index_set:
             covered_indexes.add(index)
-            ## check if index is and adjective
+            ## if index is adjective
             masked_token = None
             # 80% of the time, replace with [MASK]
             if random() < 0.8:
@@ -179,6 +180,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
                     masked_token = choice(vocab_list)
             masked_lms.append(MaskedLmInstance(index=index, label=tokens[index]))
             tokens[index] = masked_token
+            ## if index not adjective
 
     assert len(masked_lms) <= num_to_mask
     masked_lms = sorted(masked_lms, key=lambda x: x.index)
