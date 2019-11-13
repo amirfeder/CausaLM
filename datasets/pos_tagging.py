@@ -6,6 +6,13 @@ from utils import init_logger
 import spacy
 import numpy as np
 
+## MOVIES
+#TODO: Implement preprocessing (with POS tagging) for movies dataset
+#TODO: Create stratified train, dev and test sets for movies dataset
+
+## DOMAINS
+#TODO: Fix _SPACE bug
+#TODO: Create stratified train, dev and test sets per domain and combined
 
 LOGGER = init_logger(__name__, __file__)
 
