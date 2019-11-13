@@ -114,6 +114,10 @@ MaskedAdjInstance = collections.namedtuple("MaskedAdjInstance", ["index", "label
 def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list):
     """Creates the predictions for the masked LM objective. This is mostly copied from the Google BERT repo, but
     with several refactors to clean it up and remove a lot of unnecessary variables."""
+    ##TODO: cand_indices_construction
+    ## get num_adj in sentence
+    ## add all adj
+    ## sample randomly (choice) from non-adj stem tokens
     cand_indices = []
     for (i, token) in enumerate(tokens):
         if token == "[CLS]" or token == "[SEP]":
@@ -127,6 +131,10 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
         # Note that Whole Word Masking does *not* change the training code
         # at all -- we still predict each WordPiece independently, softmaxed
         # over the entire vocabulary.
+        # if token.pos in ("ADJ", "ADV"):
+        #     num_adj += 1
+        # elif random() > 1 - adj_prob:
+        #     num_all += 1
         if (whole_word_mask and len(cand_indices) >= 1 and token.startswith("##")):
             cand_indices[-1].append(i)
         else:
