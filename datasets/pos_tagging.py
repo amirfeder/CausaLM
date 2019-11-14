@@ -41,8 +41,8 @@ def tag_xml_dataset(dataset_file, tagger):
     review_lengths = []
     for review in tqdm(data_tree.iter("review")):
         review_text = re.sub("\n", "", review.text)
-        review_text = re.sub(";", ",", review_text)
-        review_text = re.sub("  ", " ", review_text).strip()
+        review_text = re.sub("\s+", TOKEN_SEPARATOR, review_text)
+        review_text = re.sub(";", ",", review_text).strip()
         tagged_review_text = []
         for token in tagger(review_text):
             tagged_review_text.append(f"{token.text}{WORD_POS_SEPARATOR}{token.pos_}")
