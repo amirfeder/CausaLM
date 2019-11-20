@@ -4,20 +4,20 @@ from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
 from multiprocessing import Pool
-from xml.etree import ElementTree as ET
-
+from datasets.pos_tagging import TOKEN_SEPARATOR, WORD_POS_SEPARATOR
+from BERT.constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, IMA_DATA_DIR
 from random import random, randrange, randint, shuffle, choice
 from transformers.tokenization_bert import BertTokenizer
 import numpy as np
 import json
 import collections
-from BERT.constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, IMA_DATA_DIR
+import re
 
 DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN.txt"
 EPOCHS = 3
 
 
-class DocumentDatabase:
+class POSTaggedDocumentDatabase:
     def __init__(self, reduce_memory=False):
         if reduce_memory:
             self.temp_dir = TemporaryDirectory()
@@ -28,15 +28,17 @@ class DocumentDatabase:
             self.documents = None
         else:
             self.documents = []
+            self.documents_pos_idx = []
             self.document_shelf = None
             self.document_shelf_filepath = None
             self.temp_dir = None
         self.doc_lengths = []
+        self.doc_pos_lengths = []
         self.doc_cumsum = None
         self.cumsum_max = None
         self.reduce_memory = reduce_memory
 
-    def add_document(self, document):
+    def add_document(self, document, doc_pos_idx):
         if not document:
             return
         if self.reduce_memory:
@@ -44,7 +46,9 @@ class DocumentDatabase:
             self.document_shelf[str(current_idx)] = document
         else:
             self.documents.append(document)
+            self.documents_pos_idx.append(doc_pos_idx)
         self.doc_lengths.append(len(document))
+        self.doc_pos_lengths.append(len(doc_pos_idx))
 
     def _precalculate_doc_weights(self):
         self.doc_cumsum = np.cumsum(self.doc_lengths)
@@ -76,7 +80,7 @@ class DocumentDatabase:
         if self.reduce_memory:
             return self.document_shelf[str(item)]
         else:
-            return self.documents[item]
+            return self.documents[item], self.documents_pos_idx[item]
 
     def __enter__(self):
         return self
@@ -354,21 +358,27 @@ def main():
     args.epochs_to_generate = EPOCHS
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
-    with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-        rev_tree = ET.parse(DATASET_FILE)
-        rev_root = rev_tree.getroot()
-        for rev in tqdm(rev_root.iter('review')):
-            rev_text = rev.text.strip()
-            # TODO: Need to tokenize review by sentences such that all instances of document are on sentence level
-            doc = tokenizer.tokenize(rev_text)
-            if doc:
-                docs.add_document(doc)  # If the last doc didn't end on a newline, make sure it still gets added
-        if len(docs) <= 1:
-            exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
-                 "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
-                 "indicate breaks between documents in your input file. If your dataset does not contain multiple "
-                 "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
-                 "sections or paragraphs.")
+    with POSTaggedDocumentDatabase(reduce_memory=args.reduce_memory) as docs:
+        with open(DATASET_FILE, "r") as dataset:
+            for line in tqdm(dataset):
+                tagged_tokens = [token_pos.split(WORD_POS_SEPARATOR)
+                                 for token_pos in line.strip().split(TOKEN_SEPARATOR)]
+                num_words = 0
+                adj_adv_idx = []
+                for i, (token, pos) in enumerate(tagged_tokens):
+                    num_words += 1
+                    if pos in ("ADJ", "ADV"):
+                        adj_adv_idx.append(i)
+                line_words = re.sub("_[A-Z]+", "", line)
+                doc = tokenizer.tokenize(line_words)
+                if doc:
+                    docs.add_document(doc, (adj_adv_idx, num_words))  # If the last doc didn't end on a newline, make sure it still gets added
+            if len(docs) <= 1:
+                exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
+                     "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
+                     "indicate breaks between documents in your input file. If your dataset does not contain multiple "
+                     "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
+                     "sections or paragraphs.")
 
         output_dir = Path(IMA_DATA_DIR)
         output_dir.mkdir(exist_ok=True, parents=True)
