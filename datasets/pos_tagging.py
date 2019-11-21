@@ -15,9 +15,10 @@ import re
 ## DOMAINS
 #TODO: Create stratified train, dev and test sets per domain and combined
 
-LOGGER = init_logger(__name__)
 TOKEN_SEPARATOR = " "
 WORD_POS_SEPARATOR = "_"
+
+LOGGER = init_logger(__name__)
 
 
 @timer(logger=LOGGER)
