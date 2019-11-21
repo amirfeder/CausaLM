@@ -13,7 +13,7 @@ import json
 import collections
 import re
 
-DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN.txt"
+DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN_tagged.txt"
 EPOCHS = 3
 
 
@@ -92,22 +92,26 @@ class POSTaggedDocumentDatabase:
             self.temp_dir.cleanup()
 
 
-def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens):
+def truncate_seq(tokens, max_num_tokens, doc_pos_idx):
     """Truncates a pair of sequences to a maximum sequence length. Lifted from Google's BERT repo."""
-    while True:
-        total_length = len(tokens_a) + len(tokens_b)
-        if total_length <= max_num_tokens:
-            break
-
-        trunc_tokens = tokens_a if len(tokens_a) > len(tokens_b) else tokens_b
-        assert len(trunc_tokens) >= 1
-
+    l = 0
+    r = len(tokens)
+    trunc_tokens = tokens
+    trunc_doc_pos_idx = doc_pos_idx
+    assert len(trunc_tokens) >= 1
+    assert len(trunc_doc_pos_idx) >= 1
+    while r - l > max_num_tokens:
         # We want to sometimes truncate from the front and sometimes from the
         # back to add more randomness and avoid biases.
         if random() < 0.5:
-            del trunc_tokens[0]
+            if l in trunc_doc_pos_idx:
+                trunc_doc_pos_idx.remove(l)
+            l += 1
         else:
-            trunc_tokens.pop()
+            if r in trunc_doc_pos_idx:
+                trunc_doc_pos_idx.remove(r)
+            r -= 1
+    return trunc_tokens[l:r], trunc_doc_pos_idx
 
 
 MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"])
@@ -115,51 +119,26 @@ MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"]
 MaskedAdjInstance = collections.namedtuple("MaskedAdjInstance", ["index", "label"])
 
 
-def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list):
+def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list, tokens_pos_idx):
     """Creates the predictions for the masked LM objective. This is mostly copied from the Google BERT repo, but
     with several refactors to clean it up and remove a lot of unnecessary variables."""
     ##TODO: cand_indices_construction
     ## get num_adj in sentence
     ## add all adj
     ## sample randomly (choice) from non-adj stem tokens
-    cand_indices = []
-    for (i, token) in enumerate(tokens):
-        if token == "[CLS]" or token == "[SEP]":
-            continue
-        # Whole Word Masking means that if we mask all of the wordpieces
-        # corresponding to an original word. When a word has been split into
-        # WordPieces, the first token does not have any marker and any subsequence
-        # tokens are prefixed with ##. So whenever we see the ## token, we
-        # append it to the previous set of word indexes.
-        #
-        # Note that Whole Word Masking does *not* change the training code
-        # at all -- we still predict each WordPiece independently, softmaxed
-        # over the entire vocabulary.
-        # if token.pos in ("ADJ", "ADV"):
-        #     num_adj += 1
-        # elif random() > 1 - adj_prob:
-        #     num_all += 1
-        if (whole_word_mask and len(cand_indices) >= 1 and token.startswith("##")):
-            cand_indices[-1].append(i)
-        else:
-            cand_indices.append([i])
+    num_adj = len(tokens_pos_idx)
+    non_adj_idx = set(range(1, len(tokens)-1, 1)) - set(tokens_pos_idx)
+    num_to_mask = max(num_adj, int(round(len(tokens) * masked_lm_prob)), max_predictions_per_seq)
+    # masked_lm_prob should reflect ratio of adjectives in dataset
+    cand_indices = [list(i) for i in tokens_pos_idx]
+    cand_indices += list(np.random.choice(non_adj_idx, size=num_to_mask - num_adj, replace=False))
 
     # TODO: - list of indices 0 not adj 1 is adj (sum is num_adj in sentence)
     # Positive examples: M is on Adj x num_adj + word is Adj x num_adj
     # Negative examples: M is not on Adj x num_adj + word is not Adj x num_adj
 
     ## cand_indices needs to reflect the indices where adjectives are in the review
-    # tagged_text = pos_tagger(rev.text)
-    # mod_adj_text = list()
-    # for token in tagged_text:
-    #     if token.pos_ is 'ADJ':
-    #         no_adj_text.append()
-    #     else:
-    #         token_text = token.text
 
-    num_to_mask = min(max_predictions_per_seq,
-                      max(1, int(round(len(tokens) * masked_lm_prob)))) # masked_lm_prob should reflect ratio of adjectives in dataset
-    shuffle(cand_indices)
     masked_lms = []
     covered_indexes = set()
     for index_set in cand_indices:
@@ -198,8 +177,9 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
     masked_lms = sorted(masked_lms, key=lambda x: x.index)
     mask_indices = [p.index for p in masked_lms]
     masked_token_labels = [p.label for p in masked_lms]
+    is_masked_token_adj = [bool(p.index in tokens_pos_idx) for p in masked_lms]
 
-    return tokens, mask_indices, masked_token_labels
+    return tokens, mask_indices, masked_token_labels, is_masked_token_adj
 
 
 def create_instances_from_document(
@@ -209,7 +189,7 @@ def create_instances_from_document(
     However, we make some changes and improvements. Sampling is improved and no longer requires a loop in this function.
     Also, documents are sampled proportionally to the number of sentences they contain, which means each sentence
     (rather than each document) has an equal chance of being sampled as a false example for the NextSentence task."""
-    document = doc_database[doc_idx]
+    document, doc_pos_idx = doc_database[doc_idx]
     # Account for [CLS], [SEP], [SEP]
     max_num_tokens = max_seq_length - 3
 
@@ -222,13 +202,8 @@ def create_instances_from_document(
     # `max_seq_length` is a hard limit.
     target_seq_length = max_num_tokens
     if random() < short_seq_prob:
-        target_seq_length = randint(2, max_num_tokens)
+        target_seq_length = max_num_tokens / 2
 
-    # We DON'T just concatenate all of the tokens from a document into a long
-    # sequence and choose an arbitrary split point because this would make the
-    # next sentence prediction task too easy. Instead, we split the input into
-    # segments "A" and "B" based on the actual "sentences" provided by the user
-    # input.
     instances = []
     current_chunk = []
     current_length = 0
@@ -249,49 +224,26 @@ def create_instances_from_document(
                 for j in range(a_end):
                     tokens_a.extend(current_chunk[j])
 
-                tokens_b = []
-
-                # Random next
-                if len(current_chunk) == 1 or random() < 0.5:
-                    is_random_next = True
-                    target_b_length = target_seq_length - len(tokens_a)
-
-                    # Sample a random document, with longer docs being sampled more frequently
-                    random_document = doc_database.sample_doc(current_idx=doc_idx, sentence_weighted=True)
-
-                    random_start = randrange(0, len(random_document))
-                    for j in range(random_start, len(random_document)):
-                        tokens_b.extend(random_document[j])
-                        if len(tokens_b) >= target_b_length:
-                            break
-                    # We didn't actually use these segments so we "put them back" so
-                    # they don't go to waste.
-                    num_unused_segments = len(current_chunk) - a_end
-                    i -= num_unused_segments
-                # Actual next
-                else:
-                    is_random_next = False
-                    for j in range(a_end, len(current_chunk)):
-                        tokens_b.extend(current_chunk[j])
-                truncate_seq_pair(tokens_a, tokens_b, max_num_tokens)
+                truncate_seq(tokens_a, max_num_tokens)
 
                 assert len(tokens_a) >= 1
-                assert len(tokens_b) >= 1
 
-                tokens = ["[CLS]"] + tokens_a + ["[SEP]"] + tokens_b + ["[SEP]"]
+                tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
                 # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
                 # They are 1 for the B tokens and the final [SEP]
-                segment_ids = [0 for _ in range(len(tokens_a) + 2)] + [1 for _ in range(len(tokens_b) + 1)]
+                segment_ids = [0 for _ in range(len(tokens_a) + 2)]
                 # We don't need NSP task, all our tasks are in sentence level, every instance is a sentence
+                tokens_pos_idx = [i+1 for i in doc_pos_idx]
                 tokens, masked_lm_positions, masked_lm_labels = create_masked_lm_predictions(
-                    tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list)
+                    tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list, tokens_pos_idx)
 
                 instance = {
                     "tokens": tokens,
                     "segment_ids": segment_ids,
                     "is_random_next": is_random_next,
                     "masked_lm_positions": masked_lm_positions,
-                    "masked_lm_labels": masked_lm_labels}
+                    "masked_lm_labels": masked_lm_labels
+                }
                 instances.append(instance)
             current_chunk = []
             current_length = 0
@@ -341,14 +293,14 @@ def main():
 
     parser.add_argument("--num_workers", type=int, default=1,
                         help="The number of workers to use to write the files")
-    parser.add_argument("--epochs_to_generate", type=int, default=3,
+    parser.add_argument("--epochs_to_generate", type=int, default=1,
                         help="Number of epochs of data to pregenerate")
-    parser.add_argument("--max_seq_len", type=int, default=128)
+    parser.add_argument("--max_seq_len", type=int, default=200)
     parser.add_argument("--short_seq_prob", type=float, default=0.1,
                         help="Probability of making a short sentence as a training example")
-    parser.add_argument("--masked_lm_prob", type=float, default=0.15,
+    parser.add_argument("--masked_lm_prob", type=float, default=0.2,
                         help="Probability of masking each token for the LM task")
-    parser.add_argument("--max_predictions_per_seq", type=int, default=20,
+    parser.add_argument("--max_predictions_per_seq", type=int, default=30,
                         help="Maximum number of tokens to mask in each sequence")
 
     args = parser.parse_args()
@@ -363,16 +315,31 @@ def main():
             for line in tqdm(dataset):
                 tagged_tokens = [token_pos.split(WORD_POS_SEPARATOR)
                                  for token_pos in line.strip().split(TOKEN_SEPARATOR)]
-                num_words = 0
                 adj_adv_idx = []
+                adj_adv_tokens = []
                 for i, (token, pos) in enumerate(tagged_tokens):
-                    num_words += 1
                     if pos in ("ADJ", "ADV"):
-                        adj_adv_idx.append(i)
+                        adj_adv_tokens.append((i, token))
                 line_words = re.sub("_[A-Z]+", "", line)
                 doc = tokenizer.tokenize(line_words)
                 if doc:
-                    docs.add_document(doc, (adj_adv_idx, num_words))  # If the last doc didn't end on a newline, make sure it still gets added
+                    if len(doc) == len(tagged_tokens):
+                        adj_adv_idx = [i for i, _ in adj_adv_tokens]
+                    else:
+                        adj_token_idx = 0
+                        for j, bert_token in enumerate(doc):
+                            adj_token = adj_adv_tokens[adj_token_idx][1]
+                            if bert_token == adj_token:
+                                adj_adv_idx.append(j)
+                                adj_token_idx += 1
+                            elif bert_token in adj_token:
+                                adj_adv_idx.append(j)
+                                k = 1
+                                while doc[j+k].startswith("##"):
+                                    adj_adv_idx.append(j+k)
+                                    k += 1
+                                adj_token_idx += 1
+                    docs.add_document(doc, adj_adv_idx)  # If the last doc didn't end on a newline, make sure it still gets added
             if len(docs) <= 1:
                 exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
                      "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
