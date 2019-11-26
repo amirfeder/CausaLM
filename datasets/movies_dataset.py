@@ -1,19 +1,10 @@
-from os import getenv
+from datasets.pos_tagging import clean_text, WORD_POS_SEPARATOR, TOKEN_SEPARATOR
+from constants import SENTIMENT_DATA_DIR
 import pandas as pd
-from os.path import splitext
-from tqdm import tqdm
 import spacy
-import numpy as np
-import re
 
-HOME_DIR = getenv('HOME', "/home/{}".format(getenv('USER', "/home/amirf")))
-DATA_DIR = f"{HOME_DIR}/GoogleDrive/AmirNadav/CausaLM/Data"
-SENTIMENT_DATA_DIR = f"{DATA_DIR}/Sentiment"
-IMA_DATA_DIR = f"{DATA_DIR}/Sentiment/iMA"
+
 MOVIES_DATASET = f"{SENTIMENT_DATA_DIR}/movie_data"
-
-TOKEN_SEPARATOR = " "
-WORD_POS_SEPARATOR = "_"
 
 tagger = spacy.load("en_core_web_lg")
 
@@ -29,9 +20,7 @@ output_datasets = {0:'negative', 1:'positive'}
 for key in output_datasets.keys():
     cur_df = df[df['sentiment'] == key].reset_index()
     for i in range(len(cur_df)):
-        review_text = re.sub("\n", "", cur_df['review'][i])
-        review_text = re.sub("\s+", TOKEN_SEPARATOR, review_text)
-        review_text = re.sub(";", ",", review_text).strip()
+        review_text = clean_text(cur_df['review'][i])
         tagged_review_text = []
         for token in tagger(review_text):
             tagged_review_text.append(f"{token.text}{WORD_POS_SEPARATOR}{token.pos_}")

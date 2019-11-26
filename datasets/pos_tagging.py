@@ -1,6 +1,6 @@
 from Timer import timer
 from xml.etree import ElementTree
-from BERT.constants import SENTIMENT_DATA_DIR
+from constants import SENTIMENT_DATA_DIR
 from os.path import splitext
 from utils import init_logger
 from tqdm import tqdm
@@ -9,7 +9,6 @@ import numpy as np
 import re
 
 ## MOVIES
-#TODO: Implement preprocessing (with POS tagging) for movies dataset
 #TODO: Create stratified train, dev and test sets for movies dataset
 
 ## DOMAINS
@@ -19,6 +18,14 @@ TOKEN_SEPARATOR = " "
 WORD_POS_SEPARATOR = "_"
 
 LOGGER = init_logger(__name__)
+
+
+def clean_text(text: str) -> str:
+    review_text = re.sub("\n", "", text)
+    review_text = re.sub(WORD_POS_SEPARATOR, "", review_text)
+    review_text = re.sub("\s+", TOKEN_SEPARATOR, review_text)
+    review_text = re.sub(";", ",", review_text)
+    return review_text.strip()
 
 
 @timer(logger=LOGGER)
@@ -41,9 +48,7 @@ def tag_xml_dataset(dataset_file, tagger):
     num_words = 0
     review_lengths = []
     for review in tqdm(data_tree.iter("review")):
-        review_text = re.sub("\n", "", review.text)
-        review_text = re.sub("\s+", TOKEN_SEPARATOR, review_text)
-        review_text = re.sub(";", ",", review_text).strip()
+        review_text = clean_text(review.text)
         tagged_review_text = []
         for token in tagger(review_text):
             tagged_review_text.append(f"{token.text}{WORD_POS_SEPARATOR}{token.pos_}")

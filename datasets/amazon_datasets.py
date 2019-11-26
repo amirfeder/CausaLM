@@ -3,11 +3,8 @@ import json
 import spacy
 import pandas as pd
 from pandas.io.json import json_normalize
-
-home_dir = '/home/amirf/Downloads/'
-
-TOKEN_SEPARATOR = " "
-WORD_POS_SEPARATOR = "_"
+from datasets.pos_tagging import clean_text, TOKEN_SEPARATOR, WORD_POS_SEPARATOR
+from constants import SENTIMENT_DATA_DIR
 
 tagger = spacy.load("en_core_web_lg")
 
@@ -19,8 +16,8 @@ review_lengths = []
 
 dataset_types = ['Amazon_Instant_Video']
 
-for datset_type in dataset_types:
-    json_data = home_dir + 'reviews_' + datset_type + '_5.json'
+for dataset_type in dataset_types:
+    json_data = SENTIMENT_DATA_DIR + 'reviews_' + dataset_type + '_5.json'
 
     reviews = []
     with open(json_data, 'r') as f:
@@ -38,9 +35,7 @@ for datset_type in dataset_types:
     for key in output_datasets.keys():
         cur_df = df[df['sentiment'] == key].reset_index()
         for i in range(len(cur_df)):
-            review_text = re.sub("\n", "", cur_df['review'][i])
-            review_text = re.sub("\s+", TOKEN_SEPARATOR, review_text)
-            review_text = re.sub(";", ",", review_text).strip()
+            review_text = clean_text(cur_df['review'][i])
             tagged_review_text = []
             for token in tagger(review_text):
                 tagged_review_text.append(f"{token.text}{WORD_POS_SEPARATOR}{token.pos_}")
@@ -52,6 +47,6 @@ for datset_type in dataset_types:
             review_lengths.append(len(tagged_review_text))
             tagged_dataset.append(TOKEN_SEPARATOR.join(tagged_review_text))
 
-        tagged_dataset_file = datset_type + '_' + output_datasets[key] + '.txt'
+        tagged_dataset_file = dataset_type + '_' + output_datasets[key] + '.txt'
         with open(tagged_dataset_file, "w") as tagged_file:
             tagged_file.write("\n".join(tagged_dataset))

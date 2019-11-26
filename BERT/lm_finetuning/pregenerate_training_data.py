@@ -3,10 +3,10 @@ from pathlib import Path
 from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
-from BERT.constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, IMA_DATA_DIR, MAX_SEQ_LENGTH
-from datasets.pos_tagging import TOKEN_SEPARATOR, WORD_POS_SEPARATOR
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, IMA_DATA_DIR, MAX_SEQ_LENGTH
+from datasets.pos_tagging import TOKEN_SEPARATOR
 from multiprocessing import Pool
-from random import random, randrange, randint, shuffle, choice
+from random import random, randrange, choice
 from transformers.tokenization_bert import BertTokenizer
 from itertools import zip_longest
 from Timer import timer

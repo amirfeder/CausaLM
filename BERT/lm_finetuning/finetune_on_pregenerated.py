@@ -1,6 +1,5 @@
 from argparse import ArgumentParser
 from pathlib import Path
-import os
 import torch
 import logging
 import json
@@ -13,12 +12,10 @@ from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
-from transformers import WEIGHTS_NAME, CONFIG_NAME
-from transformers.modeling_bert import BertForPreTraining
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, WarmupLinearSchedule
 
-from BERT.constants import BERT_PRETRAINED_MODEL, RANDOM_SEED
+from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED
 from BERT.lm_finetuning.pregenerate_training_data import EPOCHS, DATA_OUTPUT_DIR
 from BERT.lm_finetuning.bert_ima_head import BertForIMAPreTraining
 
