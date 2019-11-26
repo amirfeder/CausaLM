@@ -5,7 +5,7 @@ import pandas as pd
 import spacy
 
 
-MOVIES_DATASET = f"{SENTIMENT_DATA_DIR}/movie_data"
+MOVIES_DATASET = f"{SENTIMENT_DATA_DIR}/movies/movie_data"
 
 tagger = spacy.load("en_core_web_lg")
 

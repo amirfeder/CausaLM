@@ -22,8 +22,6 @@ SEP_TOKEN = "[SEP]"
 MASK_TOKEN = "[MASK]"
 ADJ_POS_TAGS = ("ADJ", "ADV")
 
-DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN_tagged.txt"
-DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / "books"
 EPOCHS = 3
 MLM_PROB = 0.15
 MAX_PRED_PER_SEQ = 30
@@ -308,8 +306,8 @@ def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
 @timer
 def main():
     parser = ArgumentParser()
-    parser.add_argument('--train_corpus', type=Path, required=False, default=DATASET_FILE)
-    parser.add_argument("--output_dir", type=Path, required=False, default=DATA_OUTPUT_DIR)
+    parser.add_argument('--train_corpus', type=Path, required=False)
+    parser.add_argument("--output_dir", type=Path, required=False)
     parser.add_argument("--bert_model", type=str, required=False, default=BERT_PRETRAINED_MODEL,
                         choices=["bert-base-uncased", "bert-large-uncased", "bert-base-cased",
                                  "bert-base-multilingual-uncased", "bert-base-chinese", "bert-base-multilingual-cased"])
@@ -338,61 +336,65 @@ def main():
     args.epochs_to_generate = EPOCHS
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
-    with POSTaggedDocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-        with open(DATASET_FILE, "r") as dataset:
-            for line in tqdm(dataset):
-                tagged_tokens = []
-                adj_adv_idx = []
-                adj_adv_tokens = []
-                line_tokens = []
-                for i, token_pos in enumerate(line.strip().split(TOKEN_SEPARATOR)):
-                    token_pos_match = re.match("(.*)_([A-Z]+)", token_pos)
-                    if token_pos_match:
-                        token, pos = token_pos_match.group(1), token_pos_match.group(2)
-                        tagged_tokens.append((token, pos))
-                        if pos in ADJ_POS_TAGS:
-                            adj_adv_tokens.append((i, token))
-                        line_tokens.append(token)
-                # line_words = re.sub("_[A-Z]+", "", line)
-                doc = tokenizer.tokenize(TOKEN_SEPARATOR.join(line_tokens))
-                if doc:
-                    if len(doc) == len(tagged_tokens):
-                        adj_adv_idx = [i for i, _ in adj_adv_tokens]
-                    else:
-                        adj_token_idx = 0
-                        for j, bert_token in enumerate(doc):
-                            if adj_token_idx == len(adj_adv_tokens):
-                                break
-                            adj_token = adj_adv_tokens[adj_token_idx][1]
-                            if bert_token == adj_token:
-                                adj_adv_idx.append(j)
-                                adj_token_idx += 1
-                            elif bert_token in adj_token:
-                                adj_adv_idx.append(j)
-                                # if args.do_whole_word_mask:
-                                k = 1
-                                while j + k < len(doc) and doc[j + k].startswith(WORDPIECE_PREFIX):
-                                    adj_adv_idx.append(j + k)
-                                    k += 1
-                                adj_token_idx += 1
-                    docs.add_document(tuple(doc), tuple(adj_adv_idx))  # If the last doc didn't end on a newline, make sure it still gets added
-            if len(docs) <= 1:
-                exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
-                     "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
-                     "indicate breaks between documents in your input file. If your dataset does not contain multiple "
-                     "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
-                     "sections or paragraphs.")
+    for domain in ("books", "dvd", "electronics", "kitchen", "movies"):
+        print(f"\nGenerating data for domain: {domain}")
+        DATASET_FILE = f"{SENTIMENT_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
+        DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / domain
+        with POSTaggedDocumentDatabase(reduce_memory=args.reduce_memory) as docs:
+            with open(DATASET_FILE, "r") as dataset:
+                for line in tqdm(dataset):
+                    tagged_tokens = []
+                    adj_adv_idx = []
+                    adj_adv_tokens = []
+                    line_tokens = []
+                    for i, token_pos in enumerate(line.strip().split(TOKEN_SEPARATOR)):
+                        token_pos_match = re.match("(.*)_([A-Z]+)", token_pos)
+                        if token_pos_match:
+                            token, pos = token_pos_match.group(1), token_pos_match.group(2)
+                            tagged_tokens.append((token, pos))
+                            if pos in ADJ_POS_TAGS:
+                                adj_adv_tokens.append((i, token))
+                            line_tokens.append(token)
+                    # line_words = re.sub("_[A-Z]+", "", line)
+                    doc = tokenizer.tokenize(TOKEN_SEPARATOR.join(line_tokens))
+                    if doc:
+                        if len(doc) == len(tagged_tokens):
+                            adj_adv_idx = [i for i, _ in adj_adv_tokens]
+                        else:
+                            adj_token_idx = 0
+                            for j, bert_token in enumerate(doc):
+                                if adj_token_idx == len(adj_adv_tokens):
+                                    break
+                                adj_token = adj_adv_tokens[adj_token_idx][1]
+                                if bert_token == adj_token:
+                                    adj_adv_idx.append(j)
+                                    adj_token_idx += 1
+                                elif bert_token in adj_token:
+                                    adj_adv_idx.append(j)
+                                    # if args.do_whole_word_mask:
+                                    k = 1
+                                    while j + k < len(doc) and doc[j + k].startswith(WORDPIECE_PREFIX):
+                                        adj_adv_idx.append(j + k)
+                                        k += 1
+                                    adj_token_idx += 1
+                        docs.add_document(tuple(doc), tuple(adj_adv_idx))  # If the last doc didn't end on a newline, make sure it still gets added
+                if len(docs) <= 1:
+                    exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
+                         "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
+                         "indicate breaks between documents in your input file. If your dataset does not contain multiple "
+                         "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
+                         "sections or paragraphs.")
 
-        output_dir = DATA_OUTPUT_DIR
-        output_dir.mkdir(exist_ok=True, parents=True)
+            output_dir = DATA_OUTPUT_DIR
+            output_dir.mkdir(exist_ok=True, parents=True)
 
-        if args.num_workers > 1:
-            writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))
-            arguments = [(docs, vocab_list, args, idx, output_dir) for idx in range(args.epochs_to_generate)]
-            writer_workers.starmap(create_training_file, arguments)
-        else:
-            for epoch in trange(args.epochs_to_generate, desc="Epoch"):
-                create_training_file(docs, vocab_list, args, epoch, output_dir)
+            if args.num_workers > 1:
+                writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))
+                arguments = [(docs, vocab_list, args, idx, output_dir) for idx in range(args.epochs_to_generate)]
+                writer_workers.starmap(create_training_file, arguments)
+            else:
+                for epoch in trange(args.epochs_to_generate, desc="Epoch"):
+                    create_training_file(docs, vocab_list, args, epoch, output_dir)
 
 
 if __name__ == '__main__':
