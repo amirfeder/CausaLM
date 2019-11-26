@@ -2,8 +2,6 @@ from transformers.modeling_bert import BertLMPredictionHead, BertPredictionHeadT
 from BERT.lm_finetuning.functions import ReverseLayerF
 from torch.nn import CrossEntropyLoss
 import torch.nn as nn
-import torch
-import numpy as np
 
 
 class BertIMAPredictionHead(nn.Module):
@@ -87,8 +85,8 @@ class BertForIMAPreTraining(BertPreTrainedModel):
         self._tie_or_clone_weights(self.cls.predictions.decoder,
                                    self.bert.embeddings.word_embeddings)
 
-    def forward(self, input_ids, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
-                masked_lm_labels=None, masked_adj_labels=None):
+    def forward(self, input_ids, attention_mask=None, token_type_ids=None, position_ids=None,
+                head_mask=None, masked_lm_labels=None, masked_adj_labels=None):
 
         outputs = self.bert(input_ids,
                             attention_mask=attention_mask,

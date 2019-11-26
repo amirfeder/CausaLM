@@ -15,11 +15,15 @@ from tqdm import tqdm
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, WarmupLinearSchedule
 
-from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED
-from BERT.lm_finetuning.pregenerate_training_data import EPOCHS, DATA_OUTPUT_DIR
+from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_DATA_DIR, IMA_DATA_DIR
+from BERT.lm_finetuning.pregenerate_training_data import EPOCHS
 from BERT.lm_finetuning.bert_ima_head import BertForIMAPreTraining
 
+DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN_tagged.txt"
+DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / "books"
 MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
+
+BATCH_SIZE = 6
 
 # InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
 AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids adj_labels")
@@ -124,7 +128,6 @@ class PregeneratedPOSTaggedDataset(Dataset):
     def __getitem__(self, item):
         return (torch.tensor(self.input_ids[item].astype(np.int64)),
                 torch.tensor(self.input_masks[item].astype(np.int64)),
-                torch.tensor(self.segment_ids[item].astype(np.int64)),
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
                 torch.tensor(self.adj_labels[item].astype(np.int64)))
 
@@ -152,7 +155,7 @@ def main():
                         default=1,
                         help="Number of updates steps to accumulate before performing a backward/update pass.")
     parser.add_argument("--train_batch_size",
-                        default=32,
+                        default=BATCH_SIZE,
                         type=int,
                         help="Total batch size for training.")
     parser.add_argument('--fp16',
@@ -253,8 +256,8 @@ def main():
             raise ImportError(
                 "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
         model = DDP(model)
-    elif n_gpu > 1:
-        model = torch.nn.DataParallel(model)
+    # elif n_gpu > 1:
+    #     model = torch.nn.DataParallel(model)
 
     # Prepare optimizer
     param_optimizer = list(model.named_parameters())
@@ -293,7 +296,7 @@ def main():
     model.train()
     for epoch in range(args.epochs):
         epoch_dataset = PregeneratedPOSTaggedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
-                                            num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
+                                                     num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
         if args.local_rank == -1:
             train_sampler = RandomSampler(epoch_dataset)
         else:
@@ -304,12 +307,12 @@ def main():
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, segment_ids, lm_label_ids, adj_labels = batch
-                outputs = model(input_ids=input_ids, attention_mask=input_mask, token_type_ids=segment_ids,
+                input_ids, input_mask, lm_label_ids, adj_labels = batch
+                outputs = model(input_ids=input_ids, attention_mask=input_mask,
                                 masked_lm_labels=lm_label_ids, masked_adj_labels=adj_labels)
                 loss = outputs[0]
-                if n_gpu > 1:
-                    loss = loss.mean() # mean() to average on multi-gpu.
+                # if n_gpu > 1:
+                #     loss = loss.mean() # mean() to average on multi-gpu.
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
@@ -323,8 +326,8 @@ def main():
                 mean_loss = tr_loss * args.gradient_accumulation_steps / nb_tr_steps
                 pbar.set_postfix_str(f"Loss: {mean_loss:.5f}")
                 if (step + 1) % args.gradient_accumulation_steps == 0:
-                    scheduler.step()  # Update learning rate schedule
                     optimizer.step()
+                    scheduler.step()  # Update learning rate schedule
                     optimizer.zero_grad()
                     global_step += 1
 
