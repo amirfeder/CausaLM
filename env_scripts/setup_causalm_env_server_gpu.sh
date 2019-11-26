@@ -15,7 +15,7 @@ echo "export CAUSALM_REPO=\$HOME/dev/CausaLM/" >> ~/.bash_profile
 # conda env create --file ~/dev/CausaLM/causalm_gpu_env.yml
 conda create --name causalm
 conda activate causalm
-conda install pip
+conda install -y pip
 pip install --upgrade numpy scipy matplotlib pandas seaborn scikit-learn gensim nltk pyLDAvis ray jupyter mkl pytest torch torchvision torchtext tensorflow-gpu spacy[cuda] tensorboard tensorboardx streamlit tabulate tqdm statsmodels transformers ignite jupyter_contrib_nbextensions jupyterlab captum cython
 pip install git+https://github.com/nadavo/Timer.git
 pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-2.2.5/en_core_web_lg-2.2.5.tar.gz
@@ -36,7 +36,6 @@ echo "alias 'conda_env'='source \$HOME/anaconda3/etc/profile.d/conda.sh'" >> ~/.
 echo "alias 'causalm_env'='conda_env && conda activate causalm && export PYTHONPATH=\$CAUSALM_REPO:\$PYTHONPATH && cd \$CAUSALM_REPO'" >> ~/.bash_profile
 source ~/.bash_profile
 go get -u -v github.com/odeke-em/drive/cmd/drive
-drive init ~/GoogleDrive
 mkdir -p ~/GoogleDrive/AmirNadav/CausaLM/
 echo "export CAUSALM_HOME=\$HOME/GoogleDrive/AmirNadav/CausaLM/" >> ~/.bash_profile
 # echo "export MOOD_RESULTS=\$NBA_DATA/Results/Play-By-Play/" >> ~/.bash_profile
@@ -50,5 +49,6 @@ source ~/.bash_profile
 cd ~/GoogleDrive/AmirNadav/CausaLM/
 # drive pull -verbose -no-prompt -id 1tcyR7J0_bvnTjCjkBf3_L-Ay5RQ8N4nS # sync Resources from Google Drive
 # drive pull -verbose -no-prompt -id 1MD85gp8wMkFLe2Xhe_5GlofQbe1xY4FM # sync Results from Google Drive
+drive init
 drive pull -verbose -no-prompt -id 1KVYzv23Pay0UmPz077kFq42QX7EzvjTn # sync Datasets from Google Drive
 echo "Finished setting up CausaLM environment!"
