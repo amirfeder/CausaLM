@@ -23,7 +23,7 @@ DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN_tagged.txt"
 DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / "books"
 MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
 
-BATCH_SIZE = 6
+BATCH_SIZE = 10
 
 # InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
 AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids adj_labels")
