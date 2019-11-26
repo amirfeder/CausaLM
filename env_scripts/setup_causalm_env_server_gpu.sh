@@ -13,11 +13,11 @@ cd ~/dev/
 git clone https://github.com/amirfeder/CausaLM.git
 echo "export CAUSALM_REPO=\$HOME/dev/CausaLM/" >> ~/.bash_profile
 # conda env create --file ~/dev/CausaLM/causalm_gpu_env.yml
-conda create --name causalm
+conda create --name causalm -y python=3.7.5
 conda activate causalm
 conda install -y pip
-pip install --upgrade numpy scipy matplotlib pandas seaborn scikit-learn gensim nltk pyLDAvis ray jupyter mkl pytest torch torchvision torchtext tensorflow-gpu spacy[cuda] tensorboard tensorboardx streamlit tabulate tqdm statsmodels transformers ignite jupyter_contrib_nbextensions jupyterlab captum cython
 pip install git+https://github.com/nadavo/Timer.git
+pip install --upgrade numpy scipy matplotlib pandas seaborn scikit-learn gensim nltk pyLDAvis jupyter mkl pytest torch torchvision torchtext tensorflow-gpu spacy[cuda] tensorboard tensorboardx streamlit tabulate tqdm statsmodels transformers ignite jupyter_contrib_nbextensions jupyterlab captum cython ray
 pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-2.2.5/en_core_web_lg-2.2.5.tar.gz
 cd ~/dev/
 git clone https://github.com/NVIDIA/apex
