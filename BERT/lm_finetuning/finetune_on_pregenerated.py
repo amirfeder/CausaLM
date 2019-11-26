@@ -18,7 +18,14 @@ from transformers.modeling_bert import BertForPreTraining
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, WarmupLinearSchedule
 
-InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
+from BERT.constants import BERT_PRETRAINED_MODEL, RANDOM_SEED
+from BERT.lm_finetuning.pregenerate_training_data import EPOCHS, DATA_OUTPUT_DIR
+from BERT.lm_finetuning.bert_ima_head import BertForIMAPreTraining
+
+MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
+
+# InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
+AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids adj_labels")
 
 log_format = '%(asctime)-10s: %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -26,12 +33,12 @@ logging.basicConfig(level=logging.INFO, format=log_format)
 
 def convert_example_to_features(example, tokenizer, max_seq_length):
     tokens = example["tokens"]
-    segment_ids = example["segment_ids"]
-    is_random_next = example["is_random_next"]
-    masked_lm_positions = example["masked_lm_positions"]
+    segment_ids = [int(i) for i in example["segment_ids"]]
+    masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
     masked_lm_labels = example["masked_lm_labels"]
+    masked_adj_labels = [int(i) for i in example["masked_adj_labels"]]
 
-    assert len(tokens) == len(segment_ids) <= max_seq_length  # The preprocessed data should be already truncated
+    assert len(tokens) <= max_seq_length  # The preprocessed data should be already truncated
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
     masked_label_ids = tokenizer.convert_tokens_to_ids(masked_lm_labels)
 
@@ -47,22 +54,25 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
     lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
     lm_label_array[masked_lm_positions] = masked_label_ids
 
-    features = InputFeatures(input_ids=input_array,
-                             input_mask=mask_array,
-                             segment_ids=segment_array,
-                             lm_label_ids=lm_label_array,
-                             is_next=is_random_next)
+    adj_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+    adj_label_array[masked_lm_positions] = masked_adj_labels
+
+    features = AdjInputFeatures(input_ids=input_array,
+                                input_mask=mask_array,
+                                segment_ids=segment_array,
+                                lm_label_ids=lm_label_array,
+                                adj_labels=adj_label_array)
     return features
 
 
-class PregeneratedDataset(Dataset):
+class PregeneratedPOSTaggedDataset(Dataset):
     def __init__(self, training_path, epoch, tokenizer, num_data_epochs, reduce_memory=False):
         self.vocab = tokenizer.vocab
         self.tokenizer = tokenizer
         self.epoch = epoch
         self.data_epoch = epoch % num_data_epochs
-        data_file = training_path / f"epoch_{self.data_epoch}.json"
-        metrics_file = training_path / f"epoch_{self.data_epoch}_metrics.json"
+        data_file = training_path / f"{BERT_PRETRAINED_MODEL}_epoch_{self.data_epoch}.json"
+        metrics_file = training_path / f"{BERT_PRETRAINED_MODEL}_epoch_{self.data_epoch}_metrics.json"
         assert data_file.is_file() and metrics_file.is_file()
         metrics = json.loads(metrics_file.read_text())
         num_samples = metrics['num_training_examples']
@@ -76,19 +86,20 @@ class PregeneratedDataset(Dataset):
                                   mode='w+', dtype=np.int32, shape=(num_samples, seq_len))
             input_masks = np.memmap(filename=self.working_dir/'input_masks.memmap',
                                     shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
-            segment_ids = np.memmap(filename=self.working_dir/'segment_ids.memmap',
+            segment_ids = np.memmap(filename=self.working_dir / 'segment_ids.memmap',
                                     shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
             lm_label_ids = np.memmap(filename=self.working_dir/'lm_label_ids.memmap',
                                      shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
             lm_label_ids[:] = -1
-            is_nexts = np.memmap(filename=self.working_dir/'is_nexts.memmap',
-                                 shape=(num_samples,), mode='w+', dtype=np.bool)
+            adj_labels = np.memmap(filename=self.working_dir/'adj_labels.memmap',
+                                   shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
+            adj_labels[:] = -1
         else:
             input_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.int32)
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
             segment_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
             lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
-            is_nexts = np.zeros(shape=(num_samples,), dtype=np.bool)
+            adj_labels = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
         logging.info(f"Loading training examples for epoch {epoch}")
         with data_file.open() as f:
             for i, line in enumerate(tqdm(f, total=num_samples, desc="Training examples")):
@@ -99,7 +110,7 @@ class PregeneratedDataset(Dataset):
                 segment_ids[i] = features.segment_ids
                 input_masks[i] = features.input_mask
                 lm_label_ids[i] = features.lm_label_ids
-                is_nexts[i] = features.is_next
+                adj_labels[i] = features.adj_labels
         assert i == num_samples - 1  # Assert that the sample count metric was true
         logging.info("Loading complete!")
         self.num_samples = num_samples
@@ -108,7 +119,7 @@ class PregeneratedDataset(Dataset):
         self.input_masks = input_masks
         self.segment_ids = segment_ids
         self.lm_label_ids = lm_label_ids
-        self.is_nexts = is_nexts
+        self.adj_labels = adj_labels
 
     def __len__(self):
         return self.num_samples
@@ -118,20 +129,20 @@ class PregeneratedDataset(Dataset):
                 torch.tensor(self.input_masks[item].astype(np.int64)),
                 torch.tensor(self.segment_ids[item].astype(np.int64)),
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
-                torch.tensor(self.is_nexts[item].astype(np.int64)))
+                torch.tensor(self.adj_labels[item].astype(np.int64)))
 
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument('--pregenerated_data', type=Path, required=True)
-    parser.add_argument('--output_dir', type=Path, required=True)
-    parser.add_argument("--bert_model", type=str, required=True, help="Bert pre-trained model selected in the list: bert-base-uncased, "
+    parser.add_argument('--pregenerated_data', type=Path, required=False, default=DATA_OUTPUT_DIR)
+    parser.add_argument("--output_dir", type=Path, required=False, default=MODEL_OUTPUT_DIR)
+    parser.add_argument("--bert_model", type=str, required=False, default=BERT_PRETRAINED_MODEL, help="Bert pre-trained model selected in the list: bert-base-uncased, "
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
     parser.add_argument("--do_lower_case", action="store_true")
     parser.add_argument("--reduce_memory", action="store_true",
                         help="Store training data as on-disc memmaps to massively reduce memory usage")
 
-    parser.add_argument("--epochs", type=int, default=3, help="Number of epochs to train for")
+    parser.add_argument("--epochs", type=int, default=EPOCHS, help="Number of epochs to train for")
     parser.add_argument("--local_rank",
                         type=int,
                         default=-1,
@@ -169,7 +180,7 @@ def main():
                         help="The initial learning rate for Adam.")
     parser.add_argument('--seed',
                         type=int,
-                        default=42,
+                        default=RANDOM_SEED,
                         help="random seed for initialization")
     args = parser.parse_args()
 
@@ -178,8 +189,8 @@ def main():
 
     samples_per_epoch = []
     for i in range(args.epochs):
-        epoch_file = args.pregenerated_data / f"epoch_{i}.json"
-        metrics_file = args.pregenerated_data / f"epoch_{i}_metrics.json"
+        epoch_file = args.pregenerated_data / f"{BERT_PRETRAINED_MODEL}_epoch_{i}.json"
+        metrics_file = args.pregenerated_data / f"{BERT_PRETRAINED_MODEL}_epoch_{i}_metrics.json"
         if epoch_file.is_file() and metrics_file.is_file():
             metrics = json.loads(metrics_file.read_text())
             samples_per_epoch.append(metrics['num_training_examples'])
@@ -234,7 +245,7 @@ def main():
         num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
     # Prepare model
-    model = BertForPreTraining.from_pretrained(args.bert_model)
+    model = BertForIMAPreTraining.from_pretrained(args.bert_model)
     if args.fp16:
         model.half()
     model.to(device)
@@ -284,7 +295,7 @@ def main():
     logging.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
     for epoch in range(args.epochs):
-        epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
+        epoch_dataset = PregeneratedPOSTaggedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
                                             num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
         if args.local_rank == -1:
             train_sampler = RandomSampler(epoch_dataset)
@@ -296,8 +307,9 @@ def main():
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, segment_ids, lm_label_ids, is_next = batch
-                outputs = model(input_ids, segment_ids, input_mask, lm_label_ids, is_next)
+                input_ids, input_mask, segment_ids, lm_label_ids, adj_labels = batch
+                outputs = model(input_ids=input_ids, attention_mask=input_mask, token_type_ids=segment_ids,
+                                masked_lm_labels=lm_label_ids, masked_adj_labels=adj_labels)
                 loss = outputs[0]
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.

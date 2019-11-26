@@ -23,7 +23,7 @@ MASK_TOKEN = "[MASK]"
 ADJ_POS_TAGS = ("ADJ", "ADV")
 
 DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN_tagged.txt"
-OUTPUT_DIR = Path(IMA_DATA_DIR) / "books"
+DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / "books"
 EPOCHS = 3
 MLM_PROB = 0.15
 MAX_PRED_PER_SEQ = 30
@@ -237,7 +237,7 @@ def create_instances_from_document(
     tokens = tuple([CLS_TOKEN] + tokens_a + [SEP_TOKEN])
     # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
     # They are 1 for the B tokens and the final [SEP]
-    # segment_ids = [0 for _ in range(len(tokens_a) + 2)]
+    segment_ids = [0 for _ in range(len(tokens_a) + 2)]
     tokens_pos_idx = [i + 1 for i in tokens_pos_idx_list]
     num_adj = len(tokens_pos_idx)
     num_tokens = len(tokens) - 2
@@ -269,6 +269,7 @@ def create_instances_from_document(
 
         instance = {
             "tokens": [str(i) for i in instance_tokens],
+            "segment_ids": [str(i) for i in segment_ids],
             "masked_lm_positions": [str(i) for i in masked_lm_positions],
             "masked_lm_labels": [str(i) for i in masked_lm_labels],
             "masked_adj_labels": [str(i) for i in masked_adj_labels]
@@ -308,7 +309,7 @@ def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
 def main():
     parser = ArgumentParser()
     parser.add_argument('--train_corpus', type=Path, required=False, default=DATASET_FILE)
-    parser.add_argument("--output_dir", type=Path, required=False, default=OUTPUT_DIR)
+    parser.add_argument("--output_dir", type=Path, required=False, default=DATA_OUTPUT_DIR)
     parser.add_argument("--bert_model", type=str, required=False, default=BERT_PRETRAINED_MODEL,
                         choices=["bert-base-uncased", "bert-large-uncased", "bert-base-cased",
                                  "bert-base-multilingual-uncased", "bert-base-chinese", "bert-base-multilingual-cased"])
@@ -382,7 +383,7 @@ def main():
                      "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
                      "sections or paragraphs.")
 
-        output_dir = OUTPUT_DIR
+        output_dir = DATA_OUTPUT_DIR
         output_dir.mkdir(exist_ok=True, parents=True)
 
         if args.num_workers > 1:

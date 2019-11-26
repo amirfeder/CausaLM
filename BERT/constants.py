@@ -7,3 +7,4 @@ IMA_DATA_DIR = f"{DATA_DIR}/Sentiment/IMA"
 SENTIMENT_DOMAINS = ["books", "electronics", "kitchen", "dvd"]
 BERT_PRETRAINED_MODEL = 'bert-base-cased'
 MAX_SEQ_LENGTH = 512
+RANDOM_SEED = 212
