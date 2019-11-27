@@ -15,7 +15,7 @@ from Timer import timer
 from utils import init_logger
 
 from transformers.tokenization_bert import BertTokenizer
-from transformers.optimization import AdamW, WarmupLinearSchedule
+from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 
 from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, IMA_DATA_DIR
 from BERT.lm_finetuning.pregenerate_training_data import EPOCHS
@@ -228,7 +228,9 @@ def pretrain_on_domain(args):
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
     else:
         optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
-    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=num_train_optimization_steps)
+    scheduler = get_linear_schedule_with_warmup(optimizer,
+                                                num_warmup_steps=args.warmup_steps,
+                                                num_training_steps=num_train_optimization_steps)
 
     global_step = 0
     logging.info("***** Running training *****")
