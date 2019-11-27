@@ -11,30 +11,31 @@ from tempfile import TemporaryDirectory
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
+from Timer import timer
+from utils import init_logger
 
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, WarmupLinearSchedule
 
-from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_DATA_DIR, IMA_DATA_DIR
+from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, IMA_DATA_DIR
 from BERT.lm_finetuning.pregenerate_training_data import EPOCHS
 from BERT.lm_finetuning.bert_ima_head import BertForIMAPreTraining
 
-DATASET_FILE = f"{SENTIMENT_DATA_DIR}/books/booksUN_tagged.txt"
-DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / "books"
-MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
 
-BATCH_SIZE = 10
+BATCH_SIZE = 8
+FP16 = False
 
 # InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
-AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids adj_labels")
+AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids adj_labels")
 
-log_format = '%(asctime)-10s: %(message)s'
-logging.basicConfig(level=logging.INFO, format=log_format)
+# log_format = '%(asctime)-10s: %(message)s'
+# logging.basicConfig(level=logging.INFO, format=log_format)
+
+logger = init_logger("pretraining", f"{IMA_DATA_DIR}/pretraining.log")
 
 
 def convert_example_to_features(example, tokenizer, max_seq_length):
     tokens = example["tokens"]
-    segment_ids = [int(i) for i in example["segment_ids"]]
     masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
     masked_lm_labels = example["masked_lm_labels"]
     masked_adj_labels = [int(i) for i in example["masked_adj_labels"]]
@@ -49,9 +50,6 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
     mask_array = np.zeros(max_seq_length, dtype=np.bool)
     mask_array[:len(input_ids)] = 1
 
-    segment_array = np.zeros(max_seq_length, dtype=np.bool)
-    segment_array[:len(segment_ids)] = segment_ids
-
     lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
     lm_label_array[masked_lm_positions] = masked_label_ids
 
@@ -60,7 +58,6 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
 
     features = AdjInputFeatures(input_ids=input_array,
                                 input_mask=mask_array,
-                                segment_ids=segment_array,
                                 lm_label_ids=lm_label_array,
                                 adj_labels=adj_label_array)
     return features
@@ -87,8 +84,6 @@ class PregeneratedPOSTaggedDataset(Dataset):
                                   mode='w+', dtype=np.int32, shape=(num_samples, seq_len))
             input_masks = np.memmap(filename=self.working_dir/'input_masks.memmap',
                                     shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
-            segment_ids = np.memmap(filename=self.working_dir / 'segment_ids.memmap',
-                                    shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
             lm_label_ids = np.memmap(filename=self.working_dir/'lm_label_ids.memmap',
                                      shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
             lm_label_ids[:] = -1
@@ -98,7 +93,6 @@ class PregeneratedPOSTaggedDataset(Dataset):
         else:
             input_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.int32)
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
-            segment_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
             lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
             adj_labels = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
         logging.info(f"Loading training examples for epoch {epoch}")
@@ -108,7 +102,6 @@ class PregeneratedPOSTaggedDataset(Dataset):
                 example = json.loads(line)
                 features = convert_example_to_features(example, tokenizer, seq_len)
                 input_ids[i] = features.input_ids
-                segment_ids[i] = features.segment_ids
                 input_masks[i] = features.input_mask
                 lm_label_ids[i] = features.lm_label_ids
                 adj_labels[i] = features.adj_labels
@@ -118,7 +111,6 @@ class PregeneratedPOSTaggedDataset(Dataset):
         self.seq_len = seq_len
         self.input_ids = input_ids
         self.input_masks = input_masks
-        self.segment_ids = segment_ids
         self.lm_label_ids = lm_label_ids
         self.adj_labels = adj_labels
 
@@ -132,58 +124,8 @@ class PregeneratedPOSTaggedDataset(Dataset):
                 torch.tensor(self.adj_labels[item].astype(np.int64)))
 
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument('--pregenerated_data', type=Path, required=False, default=DATA_OUTPUT_DIR)
-    parser.add_argument("--output_dir", type=Path, required=False, default=MODEL_OUTPUT_DIR)
-    parser.add_argument("--bert_model", type=str, required=False, default=BERT_PRETRAINED_MODEL, help="Bert pre-trained model selected in the list: bert-base-uncased, "
-                             "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
-    parser.add_argument("--do_lower_case", action="store_true")
-    parser.add_argument("--reduce_memory", action="store_true",
-                        help="Store training data as on-disc memmaps to massively reduce memory usage")
-
-    parser.add_argument("--epochs", type=int, default=EPOCHS, help="Number of epochs to train for")
-    parser.add_argument("--local_rank",
-                        type=int,
-                        default=-1,
-                        help="local_rank for distributed training on gpus")
-    parser.add_argument("--no_cuda",
-                        action='store_true',
-                        help="Whether not to use CUDA when available")
-    parser.add_argument('--gradient_accumulation_steps',
-                        type=int,
-                        default=1,
-                        help="Number of updates steps to accumulate before performing a backward/update pass.")
-    parser.add_argument("--train_batch_size",
-                        default=BATCH_SIZE,
-                        type=int,
-                        help="Total batch size for training.")
-    parser.add_argument('--fp16',
-                        action='store_true',
-                        help="Whether to use 16-bit float precision instead of 32-bit")
-    parser.add_argument('--loss_scale',
-                        type=float, default=0,
-                        help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
-                        "0 (default value): dynamic loss scaling.\n"
-                        "Positive power of 2: static loss scaling value.\n")
-    parser.add_argument("--warmup_steps", 
-                        default=0, 
-                        type=int,
-                        help="Linear warmup over warmup_steps.")
-    parser.add_argument("--adam_epsilon", 
-                        default=1e-8, 
-                        type=float,
-                        help="Epsilon for Adam optimizer.")
-    parser.add_argument("--learning_rate",
-                        default=3e-5,
-                        type=float,
-                        help="The initial learning rate for Adam.")
-    parser.add_argument('--seed',
-                        type=int,
-                        default=RANDOM_SEED,
-                        help="random seed for initialization")
-    args = parser.parse_args()
-
+@timer(logger=logger)
+def pretrain_on_domain(args):
     assert args.pregenerated_data.is_dir(), \
         "--pregenerated_data should point to the folder of files made by pregenerate_training_data.py!"
 
@@ -218,7 +160,7 @@ def main():
 
     if args.gradient_accumulation_steps < 1:
         raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
-                            args.gradient_accumulation_steps))
+            args.gradient_accumulation_steps))
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
@@ -295,7 +237,8 @@ def main():
     logging.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
     for epoch in range(args.epochs):
-        epoch_dataset = PregeneratedPOSTaggedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
+        epoch_dataset = PregeneratedPOSTaggedDataset(epoch=epoch, training_path=args.pregenerated_data,
+                                                     tokenizer=tokenizer,
                                                      num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
         if args.local_rank == -1:
             train_sampler = RandomSampler(epoch_dataset)
@@ -332,10 +275,74 @@ def main():
                     global_step += 1
 
     # Save a trained model
-    if  n_gpu > 1 and torch.distributed.get_rank() == 0  or n_gpu <=1 :
+    if n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1:
         logging.info("** ** * Saving fine-tuned model ** ** * ")
         model.save_pretrained(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
+
+
+@timer(logger=logger)
+def main():
+    parser = ArgumentParser()
+    parser.add_argument('--pregenerated_data', type=Path, required=False,)
+    parser.add_argument("--output_dir", type=Path, required=False,)
+    parser.add_argument("--bert_model", type=str, required=False, default=BERT_PRETRAINED_MODEL,
+                        help="Bert pre-trained model selected in the list: bert-base-uncased, "
+                             "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
+    parser.add_argument("--do_lower_case", action="store_true")
+    parser.add_argument("--reduce_memory", action="store_true",
+                        help="Store training data as on-disc memmaps to massively reduce memory usage")
+
+    parser.add_argument("--epochs", type=int, default=EPOCHS, help="Number of epochs to train for")
+    parser.add_argument("--local_rank",
+                        type=int,
+                        default=-1,
+                        help="local_rank for distributed training on gpus")
+    parser.add_argument("--no_cuda",
+                        action='store_true',
+                        help="Whether not to use CUDA when available")
+    parser.add_argument('--gradient_accumulation_steps',
+                        type=int,
+                        default=1,
+                        help="Number of updates steps to accumulate before performing a backward/update pass.")
+    parser.add_argument("--train_batch_size",
+                        default=BATCH_SIZE,
+                        type=int,
+                        help="Total batch size for training.")
+    parser.add_argument('--fp16',
+                        action='store_true',
+                        help="Whether to use 16-bit float precision instead of 32-bit")
+    parser.add_argument('--loss_scale',
+                        type=float, default=0,
+                        help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
+                             "0 (default value): dynamic loss scaling.\n"
+                             "Positive power of 2: static loss scaling value.\n")
+    parser.add_argument("--warmup_steps",
+                        default=0,
+                        type=int,
+                        help="Linear warmup over warmup_steps.")
+    parser.add_argument("--adam_epsilon",
+                        default=1e-8,
+                        type=float,
+                        help="Epsilon for Adam optimizer.")
+    parser.add_argument("--learning_rate",
+                        default=3e-5,
+                        type=float,
+                        help="The initial learning rate for Adam.")
+    parser.add_argument('--seed',
+                        type=int,
+                        default=RANDOM_SEED,
+                        help="random seed for initialization")
+    args = parser.parse_args()
+
+    for domain in ("books", "dvd", "electronics", "kitchen", "movies"):
+        print(f"\nPretraining on domain: {domain}")
+        DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / domain
+        MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
+        args.pregenerated_data = DATA_OUTPUT_DIR
+        args.output_dir = MODEL_OUTPUT_DIR
+        args.fp16 = FP16
+        pretrain_on_domain(args)
 
 
 if __name__ == '__main__':
