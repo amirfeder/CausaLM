@@ -95,7 +95,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
             lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
             adj_labels = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
-        logging.info(f"Loading training examples for epoch {epoch}")
+        logger.info(f"Loading training examples for epoch {epoch}")
         with data_file.open() as f:
             for i, line in enumerate(tqdm(f, total=num_samples, desc="Training examples")):
                 line = line.strip()
@@ -106,7 +106,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
                 lm_label_ids[i] = features.lm_label_ids
                 adj_labels[i] = features.adj_labels
         assert i == num_samples - 1  # Assert that the sample count metric was true
-        logging.info("Loading complete!")
+        logger.info("Loading complete!")
         self.num_samples = num_samples
         self.seq_len = seq_len
         self.input_ids = input_ids
@@ -155,7 +155,7 @@ def pretrain_on_domain(args):
         n_gpu = 1
         # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.distributed.init_process_group(backend='nccl')
-    logging.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
+    logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
         device, n_gpu, bool(args.local_rank != -1), args.fp16))
 
     if args.gradient_accumulation_steps < 1:
@@ -171,7 +171,7 @@ def pretrain_on_domain(args):
         torch.cuda.manual_seed_all(args.seed)
 
     if args.output_dir.is_dir() and list(args.output_dir.iterdir()):
-        logging.warning(f"Output directory ({args.output_dir}) already exists and is not empty!")
+        logger.warning(f"Output directory ({args.output_dir}) already exists and is not empty!")
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
@@ -233,10 +233,10 @@ def pretrain_on_domain(args):
                                                 num_training_steps=num_train_optimization_steps)
 
     global_step = 0
-    logging.info("***** Running training *****")
-    logging.info(f"  Num examples = {total_train_examples}")
-    logging.info("  Batch size = %d", args.train_batch_size)
-    logging.info("  Num steps = %d", num_train_optimization_steps)
+    logger.info("***** Running training *****")
+    logger.info(f"  Num examples = {total_train_examples}")
+    logger.info("  Batch size = %d", args.train_batch_size)
+    logger.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
     for epoch in range(args.epochs):
         epoch_dataset = PregeneratedPOSTaggedDataset(epoch=epoch, training_path=args.pregenerated_data,
@@ -278,7 +278,7 @@ def pretrain_on_domain(args):
 
     # Save a trained model
     if n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1:
-        logging.info("** ** * Saving fine-tuned model ** ** * ")
+        logger.info("** ** * Saving fine-tuned model ** ** * ")
         model.save_pretrained(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
 
