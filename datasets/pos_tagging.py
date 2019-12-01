@@ -1,4 +1,3 @@
-from Timer import timer
 from xml.etree import ElementTree
 from constants import SENTIMENT_DATA_DIR
 from os.path import splitext
@@ -8,17 +7,10 @@ import spacy
 import numpy as np
 import re
 
-## MOVIES
-#TODO: Create stratified train, dev and test sets for movies dataset
-
-## DOMAINS
-#TODO: Create stratified train, dev and test sets per domain and combined
-
 TOKEN_SEPARATOR = " "
 WORD_POS_SEPARATOR = "_"
 
 LOGGER = init_logger(__name__)
-
 
 def clean_text(text: str) -> str:
     review_text = re.sub("\n", "", text)
@@ -28,7 +20,6 @@ def clean_text(text: str) -> str:
     return review_text.strip()
 
 
-@timer(logger=LOGGER)
 def main():
     tagger = spacy.load("en_core_web_lg")
     for dataset_type in ("books", "dvd", "electronics", "kitchen"):
@@ -38,7 +29,6 @@ def main():
             tag_xml_dataset(f"{dataset_dir}/{file}", tagger)
 
 
-@timer(logger=LOGGER)
 def tag_xml_dataset(dataset_file, tagger):
     LOGGER.info(f"Tagging {dataset_file}")
     data_tree = ElementTree.parse(dataset_file)
