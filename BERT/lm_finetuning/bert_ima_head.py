@@ -1,5 +1,5 @@
 from transformers.modeling_bert import BertLMPredictionHead, BertPredictionHeadTransform, BertPreTrainedModel, BertModel
-from BERT.lm_finetuning.functions import ReverseLayerF
+from BERT.lm_finetuning.grad_reverse_layer import GradReverseLayerFunction
 from torch.nn import CrossEntropyLoss
 import torch.nn as nn
 
@@ -15,7 +15,7 @@ class BertIMAPredictionHead(nn.Module):
 
     def forward(self, hidden_states):
         # hidden_states = self.transform(hidden_states)
-        reversed_hidden_states = ReverseLayerF.apply(hidden_states, self.alpha)
+        reversed_hidden_states = GradReverseLayerFunction.apply(hidden_states, self.alpha)
         output = self.decoder(reversed_hidden_states)
         return output
 

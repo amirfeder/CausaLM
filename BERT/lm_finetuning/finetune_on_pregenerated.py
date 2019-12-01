@@ -139,8 +139,8 @@ def pretrain_on_domain(args):
         else:
             if i == 0:
                 exit("No training data was found!")
-            print(f"Warning! There are fewer epochs of pregenerated data ({i}) than training epochs ({args.epochs}).")
-            print("This script will loop over the available data, but training diversity may be negatively impacted.")
+            logger.warn(f"Warning! There are fewer epochs of pregenerated data ({i}) than training epochs ({args.epochs}).")
+            logger.warn("This script will loop over the available data, but training diversity may be negatively impacted.")
             num_data_epochs = i
             break
     else:
@@ -286,8 +286,8 @@ def pretrain_on_domain(args):
 @timer(logger=logger)
 def main():
     parser = ArgumentParser()
-    parser.add_argument('--pregenerated_data', type=Path, required=False,)
-    parser.add_argument("--output_dir", type=Path, required=False,)
+    parser.add_argument('--pregenerated_data', type=Path, required=False)
+    parser.add_argument("--output_dir", type=Path, required=False)
     parser.add_argument("--bert_model", type=str, required=False, default=BERT_PRETRAINED_MODEL,
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
@@ -338,7 +338,7 @@ def main():
     args = parser.parse_args()
 
     for domain in ("books", "dvd", "electronics", "kitchen", "movies"):
-        print(f"\nPretraining on domain: {domain}")
+        logger.info(f"\nPretraining on domain: {domain}")
         DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / domain
         MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
         args.pregenerated_data = DATA_OUTPUT_DIR

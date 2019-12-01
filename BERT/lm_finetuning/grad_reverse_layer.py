@@ -1,7 +1,7 @@
 from torch.autograd import Function
 
 
-class ReverseLayerF(Function):
+class GradReverseLayerFunction(Function):
 
     @staticmethod
     def forward(ctx, x, alpha):
