@@ -12,6 +12,7 @@ WORD_POS_SEPARATOR = "_"
 
 LOGGER = init_logger(__name__)
 
+
 def clean_text(text: str) -> str:
     review_text = re.sub("\n", "", text)
     review_text = re.sub(WORD_POS_SEPARATOR, "", review_text)

@@ -28,13 +28,12 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
-from pytorch_pretrained_bert.tokenization import BertTokenizer
-from pytorch_pretrained_bert.modeling import BertModel
-
-from constants import Q_A_SEPARATOR, Q_TOKEN, A_TOKEN, SENTENCE_SEPARATOR, TOKEN_SEPARATOR, LINE_SEPARATOR
-from bert_constants import MAX_QA_SEQ_LENGTH, ALL_PBP_GAME_TEXT_METRICS, BERT_PRETRAINED_MODEL, BERT_QA_ENCODINGS_DIR,\
-    QA_UNIQUE_ID_MAPPING, BERT_QA_FINE_TUNE_DATA_DIR, DATASET_VERSION
-from utils import UniqueIDGenerator, timer, send_email
+from transformers.tokenization_bert import BertTokenizer
+from transformers.modeling_bert import BertModel
+from BERT.lm_finetuning.finetune_on_pregenerated import PregeneratedPOSTaggedDataset
+from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, IMA_DATA_DIR, MAX_SEQ_LENGTH
+from utils import init_logger
+from Timer import timer
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -43,10 +42,9 @@ import json
 
 
 ### Constants
-MAX_SEQ_LENGTH = MAX_QA_SEQ_LENGTH  # Max number of tokens per QA-pair/sentence
-BATCH_SIZE = 1  # Number of interviews in batch
-MINI_BATCH_SIZE = 8  # Number of QA-pairs/sentences per interview in batch - 8 for base, 2 for large
-FINE_TUNED_MODEL = f"{BERT_QA_FINE_TUNE_DATA_DIR}/Model/{BERT_PRETRAINED_MODEL}_1epochs_fine-tuned-model.pt"
+BATCH_SIZE = 8  # Number of interviews in batch
+FP16 = False
+FINE_TUNED_MODEL = f"{IMA_DATA_DIR}/books/model/pytorch_model.bin"
 
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
