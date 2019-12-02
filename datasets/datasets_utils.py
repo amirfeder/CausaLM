@@ -1,5 +1,6 @@
 from datasets.pos_tagging import clean_text, WORD_POS_SEPARATOR, TOKEN_SEPARATOR
 from sklearn.model_selection import train_test_split
+import spacy
 
 tagger = spacy.load("en_core_web_lg")
 
