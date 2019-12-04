@@ -17,7 +17,7 @@ from utils import init_logger
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 
-from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, IMA_DATA_DIR
+from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR
 from BERT.lm_finetuning.pregenerate_training_data import EPOCHS
 from BERT.lm_finetuning.bert_ima_head import BertForIMAPreTraining
 
@@ -31,36 +31,7 @@ AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_id
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
 
-logger = init_logger("pretraining", f"{IMA_DATA_DIR}/pretraining.log")
-
-
-def convert_example_to_features(example, tokenizer, max_seq_length):
-    tokens = example["tokens"]
-    masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
-    masked_lm_labels = example["masked_lm_labels"]
-    masked_adj_labels = [int(i) for i in example["masked_adj_labels"]]
-
-    assert len(tokens) <= max_seq_length  # The preprocessed data should be already truncated
-    input_ids = tokenizer.convert_tokens_to_ids(tokens)
-    masked_label_ids = tokenizer.convert_tokens_to_ids(masked_lm_labels)
-
-    input_array = np.zeros(max_seq_length, dtype=np.int)
-    input_array[:len(input_ids)] = input_ids
-
-    mask_array = np.zeros(max_seq_length, dtype=np.bool)
-    mask_array[:len(input_ids)] = 1
-
-    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
-    lm_label_array[masked_lm_positions] = masked_label_ids
-
-    adj_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
-    adj_label_array[masked_lm_positions] = masked_adj_labels
-
-    features = AdjInputFeatures(input_ids=input_array,
-                                input_mask=mask_array,
-                                lm_label_ids=lm_label_array,
-                                adj_labels=adj_label_array)
-    return features
+logger = init_logger("pretraining", f"{SENTIMENT_IMA_DATA_DIR}/pretraining.log")
 
 
 class PregeneratedPOSTaggedDataset(Dataset):
@@ -100,7 +71,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
             for i, line in enumerate(tqdm(f, total=num_samples, desc="Training examples")):
                 line = line.strip()
                 example = json.loads(line)
-                features = convert_example_to_features(example, tokenizer, seq_len)
+                features = self.convert_example_to_features(example, tokenizer, seq_len)
                 input_ids[i] = features.input_ids
                 input_masks[i] = features.input_mask
                 lm_label_ids[i] = features.lm_label_ids
@@ -122,6 +93,34 @@ class PregeneratedPOSTaggedDataset(Dataset):
                 torch.tensor(self.input_masks[item].astype(np.int64)),
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
                 torch.tensor(self.adj_labels[item].astype(np.int64)))
+
+    def convert_example_to_features(example, tokenizer, max_seq_length):
+        tokens = example["tokens"]
+        masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
+        masked_lm_labels = example["masked_lm_labels"]
+        masked_adj_labels = [int(i) for i in example["masked_adj_labels"]]
+
+        assert len(tokens) <= max_seq_length  # The preprocessed data should be already truncated
+        input_ids = tokenizer.convert_tokens_to_ids(tokens)
+        masked_label_ids = tokenizer.convert_tokens_to_ids(masked_lm_labels)
+
+        input_array = np.zeros(max_seq_length, dtype=np.int)
+        input_array[:len(input_ids)] = input_ids
+
+        mask_array = np.zeros(max_seq_length, dtype=np.bool)
+        mask_array[:len(input_ids)] = 1
+
+        lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+        lm_label_array[masked_lm_positions] = masked_label_ids
+
+        adj_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+        adj_label_array[masked_lm_positions] = masked_adj_labels
+
+        features = AdjInputFeatures(input_ids=input_array,
+                                    input_mask=mask_array,
+                                    lm_label_ids=lm_label_array,
+                                    adj_labels=adj_label_array)
+        return features
 
 
 @timer(logger=logger)
@@ -339,7 +338,7 @@ def main():
 
     for domain in ("books", "dvd", "electronics", "kitchen", "movies"):
         logger.info(f"\nPretraining on domain: {domain}")
-        DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / domain
+        DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / domain
         MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
         args.pregenerated_data = DATA_OUTPUT_DIR
         args.output_dir = MODEL_OUTPUT_DIR

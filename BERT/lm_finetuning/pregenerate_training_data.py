@@ -3,7 +3,7 @@ from pathlib import Path
 from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, IMA_DATA_DIR, MAX_SEQ_LENGTH
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, SENTIMENT_IMA_DATA_DIR, MAX_SEQ_LENGTH
 from datasets.pos_tagging import TOKEN_SEPARATOR
 from multiprocessing import Pool
 from random import random, randrange, choice
@@ -339,7 +339,7 @@ def main():
     for domain in ("books", "dvd", "electronics", "kitchen", "movies"):
         print(f"\nGenerating data for domain: {domain}")
         DATASET_FILE = f"{SENTIMENT_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
-        DATA_OUTPUT_DIR = Path(IMA_DATA_DIR) / domain
+        DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / domain
         with POSTaggedDocumentDatabase(reduce_memory=args.reduce_memory) as docs:
             with open(DATASET_FILE, "r") as dataset:
                 for line in tqdm(dataset):
