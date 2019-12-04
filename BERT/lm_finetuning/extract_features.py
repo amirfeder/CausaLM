@@ -201,57 +201,56 @@ def extract_features(dataset, args):
 
     if args.local_rank != -1:
         model = nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
-    elif n_gpu > 1:
-        model = nn.DataParallel(model)
+    # elif n_gpu > 1:
+    #     model = nn.DataParallel(model)
 
     for features_list, features_type in zip(reviews_features_lists, ("", "_no_adj")):
-        for i, features in enumerate(tqdm(features_list)):
-            input_ids_list = list()
-            input_masks_list = list()
-            for f in features:
-                input_ids_list.append(f.input_ids)
-                input_masks_list.append(f.input_mask)
-            all_input_ids = torch.tensor(input_ids_list, dtype=torch.long)
-            all_input_mask = torch.tensor(input_masks_list, dtype=torch.long)
-            all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
+        input_ids_list = list()
+        input_masks_list = list()
+        for f in features_list:
+            input_ids_list.append(f.input_ids)
+            input_masks_list.append(f.input_mask)
+        all_input_ids = torch.tensor(input_ids_list, dtype=torch.long)
+        all_input_mask = torch.tensor(input_masks_list, dtype=torch.long)
+        all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
 
-            eval_data = TensorDataset(all_input_ids, all_input_mask, all_example_index)
-            if args.local_rank == -1:
-                eval_sampler = SequentialSampler(eval_data)
-            else:
-                eval_sampler = DistributedSampler(eval_data)
-            eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=BATCH_SIZE)
+        eval_data = TensorDataset(all_input_ids, all_input_mask, all_example_index)
+        if args.local_rank == -1:
+            eval_sampler = SequentialSampler(eval_data)
+        else:
+            eval_sampler = DistributedSampler(eval_data)
+        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=BATCH_SIZE)
 
-            model.eval()
+        model.eval()
 
-            reviews_output_dict = collections.OrderedDict()
-            with torch.no_grad:
-                for input_ids, input_mask, example_indices in tqdm(eval_dataloader):
-                    input_ids = input_ids.to(device)
-                    input_mask = input_mask.to(device)
+        reviews_output_dict = collections.OrderedDict()
+        with torch.no_grad():
+            for input_ids, input_mask, example_indices in tqdm(eval_dataloader):
+                input_ids = input_ids.to(device)
+                input_mask = input_mask.to(device)
 
-                    last_encoder_layer, pooled_output = model(input_ids, attention_mask=input_mask, output_all_encoded_layers=False)
+                last_encoder_layer, pooled_output = model(input_ids, attention_mask=input_mask)
 
-                    last_layer_output = last_encoder_layer.detach().cpu()
-                    # pooled_output_detached = pooled_output.detach().cpu()
+                last_layer_output = last_encoder_layer.detach().cpu()
+                # pooled_output_detached = pooled_output.detach().cpu()
 
-                    ### Modify code below to your needs of organizing and saving BERT model outputs
-                    for batch_idx, example_index in enumerate(example_indices):
-                        feature = features[example_index.item()]
-                        unique_id = feature.unique_id
-                        example_output_dict = collections.OrderedDict()
-                        example_output_dict["unique_id"] = str(unique_id)
-                        last_layer_output_example = last_layer_output[batch_idx]
-                        example_output_dict["tokens"] = TOKEN_SEPARATOR.join([str(t) for t in feature.tokens])
-                        if len(example_output_dict.keys()) <= 0:
-                            errors.append(f"{unique_id}")
-                        reviews_output_dict[unique_id] = example_output_dict
-                        output_file = f"{unique_id}_{BERT_PRETRAINED_MODEL}-review_encodings{features_type}"
-                        logger.info(f"Saving {output_file} to {output_path}")
-                        torch.save(last_layer_output_example, output_path / f"{output_file}.pt")
-                        with open(output_path / f"{output_file}.json", "w") as jsonfile:
-                            json.dump(example_output_dict, jsonfile)
-            # send_email([f"Saved BERT Encodings to: {output_file}", "\nErrors:"] + errors, "BERT Encodings Extraction")
+                ### Modify code below to your needs of organizing and saving BERT model outputs
+                for batch_idx, example_index in enumerate(example_indices):
+                    feature = features_list[example_index.item()]
+                    unique_id = feature.unique_id
+                    example_output_dict = collections.OrderedDict()
+                    example_output_dict["unique_id"] = str(unique_id)
+                    last_layer_output_example = last_layer_output[batch_idx]
+                    example_output_dict["tokens"] = TOKEN_SEPARATOR.join([str(t) for t in feature.tokens])
+                    if len(example_output_dict.keys()) <= 0:
+                        errors.append(f"{unique_id}")
+                    reviews_output_dict[unique_id] = example_output_dict
+                    output_file = f"{unique_id}_{BERT_PRETRAINED_MODEL}-review_encodings{features_type}"
+                    logger.info(f"Saving {output_file} to {output_path}")
+                    torch.save(last_layer_output_example, output_path / f"{output_file}.pt")
+                    with open(output_path / f"{output_file}.json", "w") as jsonfile:
+                        json.dump(example_output_dict, jsonfile)
+        # send_email([f"Saved BERT Encodings to: {output_file}", "\nErrors:"] + errors, "BERT Encodings Extraction")
 
 
 @timer(logger=logger)
