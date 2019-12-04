@@ -162,7 +162,7 @@ def read_examples(input_file):
     """Read a list of `InputExample`s from an input file."""
     ### Modify code below to read from your dataset format
     df = pd.read_csv(input_file, header=0, encoding='utf-8')
-    return df.apply(lambda row: InputExample(unique_id=row.iloc[0], text=row["review"], text_no_adj=row["no_adj_review"], label=row["label"]), axis=1).tolist()[:10]
+    return df.apply(lambda row: InputExample(unique_id=row.iloc[0], text=row["review"], text_no_adj=row["no_adj_review"], label=row["label"]), axis=1).tolist()
 
 
 @timer(logger=logger)
