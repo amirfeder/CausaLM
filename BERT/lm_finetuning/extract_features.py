@@ -45,6 +45,7 @@ import json
 
 
 ### Constants
+PAD_ID = 0
 BATCH_SIZE = 8  # Number of interviews in batch
 FP16 = False
 PRETRAINED_MODEL = FINAL_PRETRAINED_MODEL
@@ -112,8 +113,8 @@ def tokenize_and_build_features(review_unique_id, review_text, tokenizer, max_se
 
     # Zero-pad up to the sequence length.
     while len(input_ids) < max_seq_length:
-        input_ids.append(0)
-        input_mask.append(0)
+        input_ids.append(PAD_ID)
+        input_mask.append(PAD_ID)
 
     assert len(input_ids) == max_seq_length
     assert len(input_mask) == max_seq_length

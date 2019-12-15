@@ -14,7 +14,7 @@ echo "Conda CausaLM Environment Setup"
 conda create --name causalm
 conda activate causalm
 conda install pip
-pip install --upgrade numpy scipy matplotlib pandas seaborn scikit-learn gensim nltk pyLDAvis ray jupyter mkl pytest torch torchvision torchtext tensorflow spacy tensorboard tensorboardx streamlit tabulate tqdm statsmodels transformers ignite jupyter_contrib_nbextensions jupyterlab captum cython
+pip install --upgrade numpy scipy matplotlib pandas seaborn scikit-learn gensim nltk pyLDAvis ray jupyter mkl pytest torch torchvision torchtext pytorch-ignite tensorflow spacy tensorboard tensorboardx streamlit tabulate tqdm statsmodels transformers ignite jupyter_contrib_nbextensions jupyterlab captum cython
 pip install git+https://github.com/nadavo/Timer.git
 pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-2.2.5/en_core_web_lg-2.2.5.tar.gz
 echo "alias 'conda_env'='source \$HOME/anaconda3/etc/profile.d/conda.sh'" >> ~/.bash_profile

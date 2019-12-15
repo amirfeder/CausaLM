@@ -17,7 +17,7 @@ conda create --name causalm -y python=3.7.5
 conda activate causalm
 conda install -y pip
 pip install git+https://github.com/nadavo/Timer.git
-pip install --upgrade numpy scipy matplotlib pandas seaborn scikit-learn gensim nltk pyLDAvis jupyter mkl pytest torch torchvision torchtext tensorflow-gpu spacy[cuda] tensorboard tensorboardx streamlit tabulate tqdm statsmodels transformers ignite jupyter_contrib_nbextensions jupyterlab captum cython ray
+pip install --upgrade numpy scipy matplotlib pandas seaborn scikit-learn gensim nltk pyLDAvis jupyter mkl pytest torch torchvision torchtext pytorch-ignite tensorflow-gpu spacy[cuda] tensorboard tensorboardx streamlit tabulate tqdm statsmodels transformers ignite jupyter_contrib_nbextensions jupyterlab captum cython ray
 pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-2.2.5/en_core_web_lg-2.2.5.tar.gz
 cd ~/dev/
 git clone https://github.com/NVIDIA/apex
@@ -46,9 +46,10 @@ echo "export CAUSALM_DATASETS_ID='1KVYzv23Pay0UmPz077kFq42QX7EzvjTn'" >> ~/.bash
 echo "alias 'causalm_drive_push'='cd \$CAUSALM_HOME && drive push -verbose -files -fix-clashes'" >> ~/.bash_profile
 echo "alias 'causalm_drive_pull'='cd \$CAUSALM_HOME && drive pull -verbose -id \$1'" >> ~/.bash_profile
 source ~/.bash_profile
-cd ~/GoogleDrive/AmirNadav/CausaLM/
+cd ~/GoogleDrive/
 # drive pull -verbose -no-prompt -id 1tcyR7J0_bvnTjCjkBf3_L-Ay5RQ8N4nS # sync Resources from Google Drive
 # drive pull -verbose -no-prompt -id 1MD85gp8wMkFLe2Xhe_5GlofQbe1xY4FM # sync Results from Google Drive
 drive init
+cd ./AmirNadav/CausaLM/
 drive pull -verbose -no-prompt -id 1KVYzv23Pay0UmPz077kFq42QX7EzvjTn # sync Datasets from Google Drive
 echo "Finished setting up CausaLM environment!"
