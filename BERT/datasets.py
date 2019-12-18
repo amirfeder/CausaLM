@@ -1,4 +1,3 @@
-from pathlib import Path
 from random import random
 
 import torch
@@ -35,7 +34,14 @@ class BertSentimentDataset(Dataset):
         self.max_seq_length = max_seq_length
         self.tokenizer = BertTokenizer.from_pretrained(bert_pretrained_model, 
                                                        do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
-    
+        self.dataset = self.preprocessing_pipeline()
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        return self.dataset[index]
+
     def preprocessing_pipeline(self):
         examples = self.read_examples()
         features, labels = self.convert_examples_to_features(examples)
@@ -45,10 +51,11 @@ class BertSentimentDataset(Dataset):
     def read_examples(self):
         """Read a list of `InputExample`s from an input file."""
         df = pd.read_csv(self.dataset_file, header=0, encoding='utf-8')
-        return df.apply(
-            lambda row: InputExample(unique_id=int(row.iloc[0]),
+        return df.apply(lambda row:
+                        InputExample(unique_id=int(row.iloc[0]),
                                      text=str(row[self.text_column]),
-                                     label=int(row[self.label_column])), axis=1).tolist()
+                                     label=int(row[self.label_column])),
+                        axis=1).tolist()
 
     def convert_examples_to_features(self, examples):
         """Loads a data file into a list of `InputFeature`s."""
@@ -64,7 +71,7 @@ class BertSentimentDataset(Dataset):
             #     logger.info("input_ids: %s" % " ".join([str(x) for x in features.input_ids]))
             #     logger.info("input_mask: %s" % " ".join([str(x) for x in features.input_mask]))
             features_list.append(features)
-            labels_list.append(example.label)
+            labels_list.append(InputLabel(unique_id=example.unique_id, label=example.label))
             # seq_lengths.append(example_len)
         # print_seq_lengths_stats(seq_lengths, self.max_seq_length)
         return features_list, labels_list
@@ -98,16 +105,20 @@ class BertSentimentDataset(Dataset):
         input_ids_list = list()
         input_masks_list = list()
         input_unique_id_list = list()
-        for f in features:
+        input_labels_list = list()
+        for f, l in zip(features, labels):
             input_ids_list.append(f.input_ids)
             input_masks_list.append(f.input_mask)
+            assert l.unique_id == f.unique_id
             input_unique_id_list.append(f.unique_id)
+            input_labels_list.append(l.label)
         all_input_ids = torch.tensor(input_ids_list, dtype=torch.long)
         all_input_mask = torch.tensor(input_masks_list, dtype=torch.long)
-        all_labels = torch.tensor(labels, dtype=torch.long)
-        all_unique_id = torch.arange(input_unique_id_list, dtype=torch.long)
+        all_labels = torch.tensor(input_labels_list, dtype=torch.long)
+        all_unique_id = torch.tensor(input_unique_id_list, dtype=torch.long)
 
         return TensorDataset(all_input_ids, all_input_mask, all_labels, all_unique_id)
+
 
 class InputExample:
     def __init__(self, unique_id, text, label):
@@ -122,6 +133,7 @@ class InputFeatures:
         self.tokens = tokens
         self.input_ids = input_ids
         self.input_mask = input_mask
+
 
 class InputLabel:
     def __init__(self, unique_id, label):
@@ -140,7 +152,6 @@ def print_seq_lengths_stats(logger, text_seq_lengths, max_seq_length):
 
 
 def truncate_seq_random_sub(tokens, max_seq_length):
-    """Truncates a sequence to a maximum sequence length. Lifted from Google's BERT repo."""
     max_num_tokens = max_seq_length - 2
     l = 0
     r = len(tokens)
@@ -156,32 +167,8 @@ def truncate_seq_random_sub(tokens, max_seq_length):
 
 
 def truncate_seq_first(tokens, max_seq_length):
-    return list(tokens)[:max_seq_length]
-
-
-
-
-@timer(logger=logger)
-def extract_features(dataset, args):
-    dataset_file = f"{args.input_dir}/{dataset}.csv"
-    output_path = Path(f"{args.output_dir}/{dataset}")
-    output_path.mkdir(parents=True, exist_ok=True)
-    errors = list()
-
-    tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL,
-                                              do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
-
-    examples = read_examples(dataset_file)
-
-    features_lists = convert_examples_to_features(examples=examples, seq_length=MAX_SEQ_LENGTH, tokenizer=tokenizer)
-        input_ids_list = list()
-        input_masks_list = list()
-        for f in features_list:
-            input_ids_list.append(f.input_ids)
-            input_masks_list.append(f.input_mask)
-        all_input_ids = torch.tensor(input_ids_list, dtype=torch.long)
-        all_input_mask = torch.tensor(input_masks_list, dtype=torch.long)
-        all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
-
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_example_index)
-
+    max_num_tokens = max_seq_length - 2
+    trunc_tokens = list(tokens)
+    if len(trunc_tokens) > max_num_tokens:
+        trunc_tokens = trunc_tokens[:max_num_tokens]
+    return trunc_tokens

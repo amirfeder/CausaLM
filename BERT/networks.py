@@ -79,7 +79,7 @@ class HAN_Attention_Layer(nn.Module):
 
 
 class BertPretrainedClassifier:
-    def __init__(self, label_size, batch_size, dropout, device, loss_func=F.cross_entropy,
+    def __init__(self, device, batch_size, dropout, label_size=2, loss_func=F.cross_entropy,
                  bert_pretrained_model=BERT_PRETRAINED_MODEL, bert_state_dict=None, name="OOB"):
         super().__init__()
         self.name = f"{self.__class__.__name__}-{name}"
@@ -118,3 +118,20 @@ class BertPretrainedClassifier:
         parameters = list(filter(lambda p: p.requires_grad, self.parameters()))
         num_trainable_parameters = sum([p.flatten().size(0) for p in parameters])
         return parameters, num_trainable_parameters
+
+    def save_model(self, kwargs=None, path=None, filename=None):
+        model_dict = {'name': self.name,
+                      'device': self.device,
+                      'batch_size': self.batch_size,
+                      'label_size': self.label_size,
+                      'dropout': self.dropout,
+                      'loss_func': self.loss_func,
+                      'state_dict': self.state_dict()
+                      }
+        model_save_name = self.name
+        if kwargs:
+            model_dict['external'] = kwargs
+        if filename:
+            model_save_name = f"{model_save_name}_{filename}"
+        torch.save(model_dict, f"{path}/{model_save_name}.pt")
+
