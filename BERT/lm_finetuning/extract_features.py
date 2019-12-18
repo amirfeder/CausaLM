@@ -248,7 +248,7 @@ def extract_features(dataset, args):
                     reviews_output_dict[unique_id] = example_output_dict
                     output_file = f"{unique_id}_{BERT_PRETRAINED_MODEL}-review_encodings{features_type}"
                     # logger.info(f"Saving {output_file} to {output_path}")
-                    torch.save(last_layer_output_example, output_path / f"{output_file}.pt")
+                    torch.save(last_layer_output_example.data, output_path / f"{output_file}.pt")
                     with open(output_path / f"{output_file}.json", "w") as jsonfile:
                         json.dump(example_output_dict, jsonfile)
         # send_email([f"Saved BERT Encodings to: {output_file}", "\nErrors:"] + errors, "BERT Encodings Extraction")

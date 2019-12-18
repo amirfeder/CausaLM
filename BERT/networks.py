@@ -97,7 +97,8 @@ class BertPretrainedClassifier:
 
     def forward(self, input_ids, input_mask, labels):
         last_hidden_states_seq, _ = self.bert(input_ids, attention_mask=input_mask)
-        pooled_seq_vector = self.pooler(last_hidden_states_seq)
+        pooler_mask = self.pooler.create_mask(input_mask.sum(dim=1))
+        pooled_seq_vector = self.pooler(last_hidden_states_seq, pooler_mask)
         logits = self.classifier(pooled_seq_vector)
         loss = self.loss_func(logits.view(-1, self.label_size), labels.view(-1))
         return loss, logits
