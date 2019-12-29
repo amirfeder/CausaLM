@@ -46,7 +46,7 @@ import json
 
 ### Constants
 PAD_ID = 0
-BATCH_SIZE = 8  # Number of interviews in batch
+BATCH_SIZE = 8
 FP16 = False
 PRETRAINED_MODEL = FINAL_PRETRAINED_MODEL
 DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"

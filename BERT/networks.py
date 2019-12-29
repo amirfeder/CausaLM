@@ -1,6 +1,9 @@
 from transformers import BertModel, BertConfig
 from transformers.modeling_bert import BertAttention
-from constants import BERT_PRETRAINED_MODEL
+from torch.utils.data.dataloader import DataLoader
+from dataset import BertSentimentDataset, BERT_PRETRAINED_MODEL
+from pytorch_lightning import LightningModule, data_loader
+from utils import save_predictions
 import torch.nn.functional as F
 import torch.nn as nn
 import torch
@@ -78,7 +81,7 @@ class HAN_Attention_Layer(nn.Module):
         return torch.arange(max_len, dtype=valid_lengths.dtype, device=self.device).expand(len(valid_lengths), max_len) < valid_lengths.unsqueeze(1)
 
 
-class BertPretrainedClassifier:
+class BertPretrainedClassifier(nn.Module):
     def __init__(self, device, batch_size, dropout, label_size=2, loss_func=F.cross_entropy,
                  bert_pretrained_model=BERT_PRETRAINED_MODEL, bert_state_dict=None, name="OOB"):
         super().__init__()
@@ -134,4 +137,105 @@ class BertPretrainedClassifier:
         if filename:
             model_save_name = f"{model_save_name}_{filename}"
         torch.save(model_dict, f"{path}/{model_save_name}.pt")
+
+
+class LightningBertPretrainedClassifier(LightningModule):
+    def __init__(self, data_path, *bert_params):
+        super().__init__()
+        self.data_path = data_path
+        self.bert_classifier = BertPretrainedClassifier(*bert_params)
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.bert_classifier.get_trainable_params()[0])
+
+    def forward(self, *args):
+        return self.bert_classifier.forward(*args)
+
+    @data_loader
+    def train_dataloader(self, text_column, label_column):
+        dataset = BertSentimentDataset(self.data_path, "train", text_column, label_column)
+        dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
+        return dataloader
+
+    def training_step(self, batch, batch_idx):
+        input_ids, input_mask, labels, unique_ids = batch
+        loss, logits = self.forward(input_ids, input_mask, labels)
+        predictions = torch.argmax(logits, dim=-1)
+        correct = predictions.eq(labels.view_as(predictions)).sum()
+        return {"loss": loss, "progress_bar": loss, "log": {"train_loss": loss}, "correct": correct}
+
+    def training_end(self, step_outputs):
+        total_loss, total_correct = list(), list()
+        for x in step_outputs:
+            total_loss.append(x["loss"])
+            total_correct.append(x["correct"])
+        avg_loss = torch.stack(total_loss).mean()
+        accuracy = torch.stack(total_correct)
+        return {"loss": avg_loss, "progress_bar": avg_loss,
+                "log": {"avg_train_loss": avg_loss,
+                        "avg_train_accuracy": accuracy.mean(),
+                        "max_train_accuracy": (accuracy.max(), accuracy.argmax()+1),
+                        "min_train_accuracy": (accuracy.min(), accuracy.argmin()+1)}}
+
+    @data_loader
+    def val_dataloader(self, data_path, text_column, label_column):
+        dataset = BertSentimentDataset(self.data_path, "dev", text_column, label_column)
+        dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
+        return dataloader
+
+    def validation_step(self, batch, batch_idx):
+        input_ids, input_mask, labels, unique_ids = batch
+        loss, logits = self.forward(input_ids, input_mask, labels)
+        predictions = torch.argmax(logits, dim=-1)
+        correct = predictions.eq(labels.view_as(predictions)).sum()
+        return {"loss": loss, "progress_bar": loss, "log": {"dev_loss": loss, "dev_accuracy": correct.mean()}, "correct": correct}
+
+    def validation_end(self, step_outputs):
+        total_loss, total_correct = list(), list()
+        for x in step_outputs:
+            total_loss.append(x["loss"])
+            total_correct.append(x["correct"])
+        avg_loss = torch.stack(total_loss).mean()
+        accuracy = torch.stack(total_correct)
+        return {"loss": avg_loss, "accuracy": accuracy.mean(),
+                "progress_bar": {"avg_dev_loss": avg_loss, "avg_dev_accuracy": accuracy.mean()},
+                "log": {"avg_dev_loss": avg_loss,
+                        "avg_dev_accuracy": accuracy.mean(),
+                        "max_dev_accuracy": (accuracy.max(), accuracy.argmax() + 1),
+                        "min_dev_accuracy": (accuracy.min(), accuracy.argmin() + 1)}}
+
+    @data_loader
+    def test_dataloader(self, data_path, text_column, label_column):
+        dataset = BertSentimentDataset(self.data_path, "test", text_column, label_column)
+        dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
+        return dataloader
+
+    def test_step(self, batch, batch_idx):
+        input_ids, input_mask, labels, unique_ids = batch
+        loss, logits = self.forward(input_ids, input_mask, labels)
+        predictions = torch.argmax(logits, dim=-1)
+        correct = predictions.eq(labels.view_as(predictions)).sum()
+        return {"loss": loss, "progress_bar": loss, "log": {"test_loss": loss, "test_accuracy": correct.mean()},
+                "predictions": predictions, "labels": labels, "correct": correct, "unique_ids": unique_ids}
+
+    def test_end(self, step_outputs):
+        total_loss, total_correct, total_predictions, total_labels, total_unique_ids = list(), list(), list(), list(), list()
+        for x in step_outputs:
+            total_loss.append(x["loss"])
+            total_correct.append(x["correct"])
+            total_predictions.append(x["predictions"])
+            total_labels.append(x["labels"])
+            total_unique_ids.append(x["unique_ids"])
+        avg_loss = torch.stack(total_loss).mean()
+        accuracy = torch.stack(total_correct)
+        unique_ids = torch.stack(total_unique_ids)
+        predictions = torch.stack(total_predictions)
+        labels = torch.stack(total_labels)
+        return {"loss": avg_loss, "accuracy": accuracy.mean(),
+                "progress_bar": {"avg_test_loss": avg_loss, "avg_test_accuracy": accuracy.mean()},
+                "log": {"avg_test_accuracy": accuracy.mean(),
+                        "max_test_accuracy": (accuracy.max(), accuracy.argmax()+1),
+                        "min_test_accuracy": (accuracy.min(), accuracy.argmin()+1)},
+                "unique_ids": unique_ids, "predictions": predictions, "labels": labels}
+
 
