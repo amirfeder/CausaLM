@@ -30,9 +30,9 @@ for domain in SENTIMENT_DOMAINS:
     df = pd.DataFrame(zipped_examples, columns=['label', 'review', 'no_adj_review'])
     train, test = train_test_split(df, test_size=0.2)
     train, dev = train_test_split(train, test_size=0.2)
-    train.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'train.csv')
-    dev.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'dev.csv')
-    test.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'test.csv')
+    train.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'adj_train.csv')
+    dev.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'adj_dev.csv')
+    test.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'adj_test.csv')
 
     print('Done with: ' + domain)
 
