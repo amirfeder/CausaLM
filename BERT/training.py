@@ -4,6 +4,7 @@ from networks import LightningBertPretrainedClassifier
 from utils import send_email, get_free_gpu
 import torch
 
+TREATMENT = "adj"
 DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 OUTPUT_DIR = f"{SENTIMENT_MODE_DATA_DIR}/{DOMAIN}"
 DEVICE = get_free_gpu()
@@ -16,7 +17,7 @@ FP16 = False
 
 
 def main():
-    oob_model = LightningBertPretrainedClassifier(DATASET_DIR, DEVICE, BATCH_SIZE, DROPOUT)
+    oob_model = LightningBertPretrainedClassifier(DATASET_DIR, TREATMENT, DEVICE, BATCH_SIZE, DROPOUT)
     trainer = Trainer(fast_dev_run=True, overfit_pct=0.1,
                       gpus=[DEVICE.index if DEVICE.type == "cuda" else None],
                       default_save_path=OUTPUT_DIR,

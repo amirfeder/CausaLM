@@ -23,11 +23,11 @@ DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 
 
 class BertSentimentDataset(Dataset):
-    def __init__(self, data_path: str, subset: str, text_column: str, label_column: str, 
+    def __init__(self, data_path: str, treatment: str, subset: str, text_column: str, label_column: str,
                  bert_pretrained_model: str = BERT_PRETRAINED_MODEL, max_seq_length: int = MAX_SEQ_LENGTH):
         if subset not in ("train", "dev", "test"):
             raise ValueError("subset argument must be {train, dev,test}")
-        self.dataset_file = f"{data_path}/{subset}.csv"
+        self.dataset_file = f"{data_path}/{treatment}_{subset}.csv"
         self.subset = subset
         self.text_column = text_column
         self.label_column = label_column

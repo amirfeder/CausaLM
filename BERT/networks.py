@@ -140,9 +140,10 @@ class BertPretrainedClassifier(nn.Module):
 
 
 class LightningBertPretrainedClassifier(LightningModule):
-    def __init__(self, data_path, *bert_params):
+    def __init__(self, data_path, treatment, *bert_params):
         super().__init__()
         self.data_path = data_path
+        self.treatment = treatment
         self.bert_classifier = BertPretrainedClassifier(*bert_params)
 
     def configure_optimizers(self):
@@ -153,7 +154,7 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     @data_loader
     def train_dataloader(self, text_column, label_column):
-        dataset = BertSentimentDataset(self.data_path, "train", text_column, label_column)
+        dataset = BertSentimentDataset(self.data_path, self.treatment, "train", text_column, label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
         return dataloader
 
@@ -179,7 +180,7 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     @data_loader
     def val_dataloader(self, data_path, text_column, label_column):
-        dataset = BertSentimentDataset(self.data_path, "dev", text_column, label_column)
+        dataset = BertSentimentDataset(self.data_path, self.treatment, "dev", text_column, label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
         return dataloader
 
@@ -206,7 +207,7 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     @data_loader
     def test_dataloader(self, data_path, text_column, label_column):
-        dataset = BertSentimentDataset(self.data_path, "test", text_column, label_column)
+        dataset = BertSentimentDataset(self.data_path, self.treatment, "test", text_column, label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
         return dataloader
 
