@@ -7,7 +7,8 @@ import torch
 TREATMENT = "adj"
 DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 OUTPUT_DIR = f"{SENTIMENT_MODE_DATA_DIR}/{DOMAIN}"
-DEVICE = get_free_gpu()
+# DEVICE = get_free_gpu()
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ### Constants
 PAD_ID = 0
 BATCH_SIZE = 8
@@ -19,7 +20,7 @@ FP16 = False
 def main():
     oob_model = LightningBertPretrainedClassifier(DATASET_DIR, TREATMENT, DEVICE, BATCH_SIZE, DROPOUT)
     trainer = Trainer(fast_dev_run=True, overfit_pct=0.1,
-                      gpus=[DEVICE.index if DEVICE.type == "cuda" else None],
+                      gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=OUTPUT_DIR,
                       show_progress_bar=True,
                       accumulate_grad_batches=8,
