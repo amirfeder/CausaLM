@@ -1,16 +1,17 @@
 from constants import SENTIMENT_MODE_DATA_DIR, SENTIMENT_RAW_DATA_DIR, DOMAIN, FINAL_PRETRAINED_MODEL
 from pytorch_lightning import Trainer
 from networks import LightningBertPretrainedClassifier
-from utils import send_email, get_free_gpu
+from utils import send_email, get_free_gpu, init_logger
 import torch
 
+LOGGER = init_logger("OOB_training")
 TREATMENT = "adj"
 TEXT_COLUMN = "review"
 LABEL_COLUMN = "label"
 DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 OUTPUT_DIR = f"{SENTIMENT_MODE_DATA_DIR}/{DOMAIN}"
 # DEVICE = get_free_gpu()
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ### Constants
 PAD_ID = 0
 BATCH_SIZE = 8

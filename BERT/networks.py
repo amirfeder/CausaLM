@@ -76,8 +76,9 @@ class HAN_Attention_Layer(nn.Module):
         output = torch.bmm(attention_weights.unsqueeze(1), encoder_h_seq).squeeze()
         return output, attention_weights
 
-    def create_mask(self, valid_lengths):
-        max_len = valid_lengths.max()
+    def create_mask(self, valid_lengths, max_len=None):
+        if not max_len:
+            max_len = valid_lengths.max()
         return torch.arange(max_len, dtype=valid_lengths.dtype, device=self.device).expand(len(valid_lengths), max_len) < valid_lengths.unsqueeze(1)
 
 
@@ -95,13 +96,14 @@ class BertPretrainedClassifier(nn.Module):
         # self.config = BertConfigTuple(hidden_size=encoding_dim, num_attention_heads=4,
         #                               attention_probs_dropout_prob=0.1, hidden_dropout_prob=0.1)
         # self.attention = BertAttention(self.bert_config)
-        self.pooler = HAN_Attention_Layer(device, self.bert.config.hidden_size)
-        self.classifier = Linear_Layer(self.bert.config.hidden_size, label_size, dropout, activation=False)
+        self.hidden_size = self.bert.config.hidden_size
+        self.pooler = HAN_Attention_Layer(device, self.hidden_size)
+        self.classifier = Linear_Layer(self.hidden_size, label_size, dropout, activation=False)
 
     def forward(self, input_ids, input_mask, labels):
         last_hidden_states_seq, _ = self.bert(input_ids, attention_mask=input_mask)
-        pooler_mask = self.pooler.create_mask(input_mask.sum(dim=1))
-        pooled_seq_vector = self.pooler(last_hidden_states_seq, pooler_mask)
+        pooler_mask = self.pooler.create_mask(input_mask.sum(dim=1), input_mask.size(1))
+        pooled_seq_vector, attention_weights = self.pooler(last_hidden_states_seq, pooler_mask)
         logits = self.classifier(pooled_seq_vector)
         loss = self.loss_func(logits.view(-1, self.label_size), labels.view(-1))
         return loss, logits
@@ -163,22 +165,22 @@ class LightningBertPretrainedClassifier(LightningModule):
     def training_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
         loss, logits = self.forward(input_ids, input_mask, labels)
-        predictions = torch.argmax(logits, dim=-1)
+        predictions = torch.argmax(F.softmax(logits), dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).sum()
-        return {"loss": loss, "progress_bar": loss, "log": {"train_loss": loss}, "correct": correct}
+        return {"loss": loss, "progress_bar": {"loss": loss}, "log": {"train_loss": loss}, "correct": correct}
 
-    def training_end(self, step_outputs):
-        total_loss, total_correct = list(), list()
-        for x in step_outputs:
-            total_loss.append(x["loss"])
-            total_correct.append(x["correct"])
-        avg_loss = torch.stack(total_loss).mean()
-        accuracy = torch.stack(total_correct)
-        return {"loss": avg_loss, "progress_bar": avg_loss,
-                "log": {"avg_train_loss": avg_loss,
-                        "avg_train_accuracy": accuracy.mean(),
-                        "max_train_accuracy": (accuracy.max(), accuracy.argmax()+1),
-                        "min_train_accuracy": (accuracy.min(), accuracy.argmin()+1)}}
+    # def training_end(self, step_outputs):
+    #     total_loss, total_correct = list(), list()
+    #     for x in step_outputs:
+    #         total_loss.append(x["loss"])
+    #         total_correct.append(x["correct"])
+    #     avg_loss = torch.stack(total_loss).mean()
+    #     accuracy = torch.stack(total_correct).double()
+    #     return {"loss": avg_loss, "progress_bar": avg_loss,
+    #             "log": {"avg_train_loss": avg_loss,
+    #                     "avg_train_accuracy": accuracy.mean(),
+    #                     "max_train_accuracy": (accuracy.max(), accuracy.argmax()+1),
+    #                     "min_train_accuracy": (accuracy.min(), accuracy.argmin()+1)}}
 
     @data_loader
     def val_dataloader(self):
@@ -189,9 +191,9 @@ class LightningBertPretrainedClassifier(LightningModule):
     def validation_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
         loss, logits = self.forward(input_ids, input_mask, labels)
-        predictions = torch.argmax(logits, dim=-1)
-        correct = predictions.eq(labels.view_as(predictions)).sum()
-        return {"loss": loss, "progress_bar": loss, "log": {"dev_loss": loss, "dev_accuracy": correct.mean()}, "correct": correct}
+        predictions = torch.argmax(F.softmax(logits), dim=-1)
+        correct = predictions.eq(labels.view_as(predictions)).sum().double()
+        return {"loss": loss, "progress_bar": {"loss": loss}, "log": {"dev_loss": loss, "dev_accuracy": correct.mean()}, "correct": correct}
 
     def validation_end(self, step_outputs):
         total_loss, total_correct = list(), list()
@@ -199,13 +201,14 @@ class LightningBertPretrainedClassifier(LightningModule):
             total_loss.append(x["loss"])
             total_correct.append(x["correct"])
         avg_loss = torch.stack(total_loss).mean()
-        accuracy = torch.stack(total_correct)
+        accuracy = torch.stack(total_correct).double()
         return {"loss": avg_loss, "accuracy": accuracy.mean(),
                 "progress_bar": {"avg_dev_loss": avg_loss, "avg_dev_accuracy": accuracy.mean()},
                 "log": {"avg_dev_loss": avg_loss,
                         "avg_dev_accuracy": accuracy.mean(),
-                        "max_dev_accuracy": (accuracy.max(), accuracy.argmax() + 1),
-                        "min_dev_accuracy": (accuracy.min(), accuracy.argmin() + 1)}}
+                        "max_dev_accuracy": accuracy.max(),
+                        "max_dev_accuracy_epoch": accuracy.argmax() + 1,
+                        "min_dev_accuracy": accuracy.min()}}
 
     @data_loader
     def test_dataloader(self):
@@ -216,9 +219,9 @@ class LightningBertPretrainedClassifier(LightningModule):
     def test_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
         loss, logits = self.forward(input_ids, input_mask, labels)
-        predictions = torch.argmax(logits, dim=-1)
-        correct = predictions.eq(labels.view_as(predictions)).sum()
-        return {"loss": loss, "progress_bar": loss, "log": {"test_loss": loss, "test_accuracy": correct.mean()},
+        predictions = torch.argmax(F.softmax(logits), dim=-1)
+        correct = predictions.eq(labels.view_as(predictions)).sum().double()
+        return {"loss": loss, "progress_bar": {"loss": loss}, "log": {"test_loss": loss, "test_accuracy": correct.mean()},
                 "predictions": predictions, "labels": labels, "correct": correct, "unique_ids": unique_ids}
 
     def test_end(self, step_outputs):
@@ -230,15 +233,16 @@ class LightningBertPretrainedClassifier(LightningModule):
             total_labels.append(x["labels"])
             total_unique_ids.append(x["unique_ids"])
         avg_loss = torch.stack(total_loss).mean()
-        accuracy = torch.stack(total_correct)
+        accuracy = torch.stack(total_correct).double()
         unique_ids = torch.stack(total_unique_ids)
         predictions = torch.stack(total_predictions)
         labels = torch.stack(total_labels)
         return {"loss": avg_loss, "accuracy": accuracy.mean(),
                 "progress_bar": {"avg_test_loss": avg_loss, "avg_test_accuracy": accuracy.mean()},
                 "log": {"avg_test_accuracy": accuracy.mean(),
-                        "max_test_accuracy": (accuracy.max(), accuracy.argmax()+1),
-                        "min_test_accuracy": (accuracy.min(), accuracy.argmin()+1)},
+                        "max_test_accuracy": accuracy.max(),
+                        "max_test_accuracy_epoch": accuracy.argmax() + 1,
+                        "min_test_accuracy": accuracy.min()},
                 "unique_ids": unique_ids, "predictions": predictions, "labels": labels}
 
 
