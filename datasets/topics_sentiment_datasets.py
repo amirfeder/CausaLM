@@ -57,13 +57,14 @@ for domain in SENTIMENT_DOMAINS:
 
     domain_topic_dist = get_topic_distribution(domain_data)
     domain_data = list(zip(domain_labels, domain_data))
-    domain_data = np.array(domain_data)
-    zipped_domain = np.append(domain_data, domain_topic_dist, axis = 1)
 
+    topics_df = pd.DataFrame(np.array(domain_topic_dist), columns=['topic_'+str(i+1) for i in range(num_topics)])
+    review_df = pd.DataFrame(np.array(domain_data), columns=['label', 'review'])
+    df = pd.concat([review_df, topics_df], axis=1)
 
-    domain_cols = ['topic_' + str(i+1) for i in range(num_topics)]
-    cols = ['label', 'review'] + domain_cols
-    df = pd.DataFrame(zipped_domain, columns=cols)
+    for i in range(num_topics):
+        topic_average = df['topic_' + str(i+1)].mean()
+        df['topic_bin_' + str(i + 1)] = (df['topic_' + str(i + 1)] > topic_average).astype(int)
 
     train, test = train_test_split(df, test_size=0.2)
     train, dev = train_test_split(train, test_size=0.2)
