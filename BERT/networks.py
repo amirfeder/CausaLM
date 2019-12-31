@@ -140,10 +140,12 @@ class BertPretrainedClassifier(nn.Module):
 
 
 class LightningBertPretrainedClassifier(LightningModule):
-    def __init__(self, data_path, treatment, *bert_params):
+    def __init__(self, data_path, treatment, text_column, label_column, *bert_params):
         super().__init__()
         self.data_path = data_path
         self.treatment = treatment
+        self.text_column = text_column
+        self.label_column = label_column
         self.bert_classifier = BertPretrainedClassifier(*bert_params)
 
     def configure_optimizers(self):
@@ -153,8 +155,8 @@ class LightningBertPretrainedClassifier(LightningModule):
         return self.bert_classifier.forward(*args)
 
     @data_loader
-    def train_dataloader(self, text_column, label_column):
-        dataset = BertSentimentDataset(self.data_path, self.treatment, "train", text_column, label_column)
+    def train_dataloader(self):
+        dataset = BertSentimentDataset(self.data_path, self.treatment, "train", self.text_column, self.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
         return dataloader
 
@@ -179,8 +181,8 @@ class LightningBertPretrainedClassifier(LightningModule):
                         "min_train_accuracy": (accuracy.min(), accuracy.argmin()+1)}}
 
     @data_loader
-    def val_dataloader(self, data_path, text_column, label_column):
-        dataset = BertSentimentDataset(self.data_path, self.treatment, "dev", text_column, label_column)
+    def val_dataloader(self):
+        dataset = BertSentimentDataset(self.data_path, self.treatment, "dev", self.text_column, self.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
         return dataloader
 
@@ -206,8 +208,8 @@ class LightningBertPretrainedClassifier(LightningModule):
                         "min_dev_accuracy": (accuracy.min(), accuracy.argmin() + 1)}}
 
     @data_loader
-    def test_dataloader(self, data_path, text_column, label_column):
-        dataset = BertSentimentDataset(self.data_path, self.treatment, "test", text_column, label_column)
+    def test_dataloader(self):
+        dataset = BertSentimentDataset(self.data_path, self.treatment, "test", self.text_column, self.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
         return dataloader
 
