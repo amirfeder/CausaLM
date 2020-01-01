@@ -191,18 +191,11 @@ class LightningBertPretrainedClassifier(LightningModule):
         return {"loss": loss, "progress_bar": {"train_loss": loss, "train_accuracy": correct.mean()},
                 "log": {"train_loss": loss, "train_accuracy": correct.mean()}, "correct": correct.sum(), "total": total}
 
-    # def training_end(self, step_outputs):
-    #     total_loss, total_correct = list(), list()
-    #     for x in step_outputs:
-    #         total_loss.append(x["loss"])
-    #         total_correct.append(x["correct"])
-    #     avg_loss = torch.stack(total_loss).mean()
-    #     accuracy = torch.stack(total_correct).double()
-    #     return {"loss": avg_loss, "progress_bar": avg_loss,
-    #             "log": {"avg_train_loss": avg_loss,
-    #                     "avg_train_accuracy": accuracy.mean(),
-    #                     "max_train_accuracy": (accuracy.max(), accuracy.argmax()+1),
-    #                     "min_train_accuracy": (accuracy.min(), accuracy.argmin()+1)}}
+    def training_end(self, step_outputs):
+        loss = step_outputs["loss"]
+        accuracy = step_outputs["correct"] / float(step_outputs["total"])
+        return {"loss": loss, "progress_bar": {"train_loss": loss, "train_accuracy": accuracy},
+                "log": {"train_loss": loss, "train_accuracy": accuracy}}
 
     @data_loader
     def val_dataloader(self):
@@ -215,7 +208,6 @@ class LightningBertPretrainedClassifier(LightningModule):
         loss, logits = self.forward(input_ids, input_mask, labels)
         predictions = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
-        total = correct.size(0)
         return {"val_loss": loss, "progress_bar": {"val_loss": loss, "val_accuracy": correct.mean()},
                 "log": {"val_loss": loss, "val_accuracy": correct.mean()}, "correct": correct}
 
@@ -226,8 +218,7 @@ class LightningBertPretrainedClassifier(LightningModule):
             total_correct.append(x["correct"])
         avg_loss = torch.stack(total_loss).mean()
         accuracy = torch.stack(total_correct).double()
-        return {"val_loss": avg_loss, "val_accuracy": accuracy.mean(),
-                "progress_bar": {"val_loss": avg_loss, "val_accuracy": accuracy.mean()},
+        return {"progress_bar": {"val_loss": avg_loss, "val_accuracy": accuracy.mean()},
                 "log": {"avg_val_loss": avg_loss,
                         "avg_val_accuracy": accuracy.mean(),
                         "max_val_accuracy": accuracy.max(),
@@ -261,8 +252,7 @@ class LightningBertPretrainedClassifier(LightningModule):
         labels = torch.cat(total_labels)
         accuracy = predictions.eq(labels.view_as(predictions)).double()
         save_predictions(self.output_path, unique_ids.cpu().numpy(), predictions.cpu().numpy(), labels.cpu().numpy(), "test")
-        return {"avg_test_loss": avg_loss, "avg_test_accuracy": accuracy.mean(),
-                "progress_bar": {"avg_test_loss": avg_loss, "avg_test_accuracy": accuracy.mean()},
+        return {"progress_bar": {"test_loss": avg_loss, "test_accuracy": accuracy.mean()},
                 "log": {"avg_test_accuracy": accuracy.mean(),
                         "max_test_accuracy": accuracy.max(),
                         "max_test_accuracy_epoch": accuracy.argmax() + 1,

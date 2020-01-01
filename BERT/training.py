@@ -29,7 +29,8 @@ def main():
                                                   device=DEVICE,
                                                   batch_size=BATCH_SIZE,
                                                   dropout=DROPOUT)
-    trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
+    trainer = Trainer(overfit_pct=0.1,
+                      gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=OUTPUT_DIR,
                       show_progress_bar=True,
                       accumulate_grad_batches=8,
