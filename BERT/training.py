@@ -16,19 +16,27 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 PAD_ID = 0
 BATCH_SIZE = 8
 DROPOUT = 0.1
-EPOCHS = 100
+EPOCHS = 30
 FP16 = False
 
 
 def main():
-    oob_model = LightningBertPretrainedClassifier(DATASET_DIR, TREATMENT, TEXT_COLUMN, LABEL_COLUMN, DEVICE, BATCH_SIZE, DROPOUT)
-    trainer = Trainer(fast_dev_run=True, overfit_pct=0.1,
-                      gpus=1 if DEVICE.type == "cuda" else 0,
+    oob_model = LightningBertPretrainedClassifier(output_path=OUTPUT_DIR,
+                                                  data_path=DATASET_DIR,
+                                                  treatment=TREATMENT,
+                                                  text_column=TEXT_COLUMN,
+                                                  label_column=LABEL_COLUMN,
+                                                  device=DEVICE,
+                                                  batch_size=BATCH_SIZE,
+                                                  dropout=DROPOUT)
+    trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=OUTPUT_DIR,
                       show_progress_bar=True,
                       accumulate_grad_batches=8,
-                      max_nb_epochs=EPOCHS)
+                      max_nb_epochs=EPOCHS,
+                      early_stop_callback=None)
     trainer.fit(oob_model)
+    trainer.test()
 
 
 if __name__ == "__main__":

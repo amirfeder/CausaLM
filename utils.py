@@ -158,4 +158,4 @@ class PyTorchTrainer:
 def save_predictions(folder, sample_idx_list, predictions_list, true_list, dataset):
     df = pd.DataFrame.from_dict({"sample_index": sample_idx_list, "prediction": predictions_list, "true": true_list})
     df = df.set_index("sample_index")
-    df.to_csv(folder / f"{dataset}-predictions.csv")
+    df.to_csv(f"{folder}/{dataset}-predictions.csv")
