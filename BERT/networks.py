@@ -83,7 +83,8 @@ class HAN_Attention_Layer(nn.Module):
 
 
 class BertPretrainedClassifier(nn.Module):
-    def __init__(self, device, batch_size, dropout, label_size=2, loss_func=F.cross_entropy,
+    def __init__(self, device: torch.device = torch.device("cpu"),
+                 batch_size: int = 8, dropout: float = 0.1, label_size: int = 2, loss_func=F.cross_entropy,
                  bert_pretrained_model=BERT_PRETRAINED_MODEL, bert_state_dict=None, name="OOB"):
         super().__init__()
         self.name = f"{self.__class__.__name__}-{name}"
@@ -121,8 +122,8 @@ class BertPretrainedClassifier(nn.Module):
             p.requires_grad = False
         return bert
 
-    def get_trainable_params(self):
-        parameters = list(filter(lambda p: p.requires_grad, self.parameters()))
+    def get_trainable_params(self, recurse: bool = True):
+        parameters = list(filter(lambda p: p.requires_grad, self.parameters(recurse)))
         num_trainable_parameters = sum([p.flatten().size(0) for p in parameters])
         return parameters, num_trainable_parameters
 
@@ -143,32 +144,31 @@ class BertPretrainedClassifier(nn.Module):
         torch.save(model_dict, f"{path}/{model_save_name}.pt")
 
 
-class Hyperparameters:
-    def __init__(self, kwargs):
-        self.__dict__ = kwargs
+class LightningHyperparameters:
+    def __init__(self, *initial_data, **kwargs):
+        for dictionary in initial_data:
+            for key in dictionary:
+                setattr(self, key, dictionary[key])
+        for key in kwargs:
+            setattr(self, key, kwargs[key])
+
+
+# LightningHyperparameters = lambda hparams_dict: \
+#     namedtuple("LightningHyperparameters", hparams_dict.keys())(**hparams_dict)
 
 
 class LightningBertPretrainedClassifier(LightningModule):
-    def __init__(self, output_path, data_path, treatment, text_column, label_column, **bert_params):
+    def __init__(self, hparams: LightningHyperparameters):
         super().__init__()
-        self.output_path = output_path
-        self.data_path = data_path
-        self.treatment = treatment
-        self.text_column = text_column
-        self.label_column = label_column
-        self.bert_classifier = BertPretrainedClassifier(**bert_params)
-        self.hparams = Hyperparameters({"data_path": data_path,
-                        "treatment": treatment,
-                        "text_column": text_column,
-                        "label_column": label_column,
-                        "model_name": self.bert_classifier.name,
-                        "device": self.bert_classifier.device,
-                        "batch_size": self.bert_classifier.batch_size,
-                        "dropout": self.bert_classifier.dropout,
-                        "label_size": self.bert_classifier.label_size,
-                        "loss_func": self.bert_classifier.loss_func,
-                        "pretrained_model": self.bert_classifier.bert_pretrained_model,
-                        "bert_state_dict": self.bert_classifier.bert_state_dict})
+        self.hparams = hparams
+        self.bert_classifier = BertPretrainedClassifier(**hparams.bert_params)
+
+    def parameters(self, recurse: bool = True):
+        for param in self.bert_classifier.get_trainable_params(recurse)[0]:
+            yield param
+
+    # def parameters(self, recurse: bool = ...):
+    #     return self.bert_classifier.parameters(recurse)
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.bert_classifier.get_trainable_params()[0])
@@ -178,7 +178,8 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     @data_loader
     def train_dataloader(self):
-        dataset = BertSentimentDataset(self.data_path, self.treatment, "train", self.text_column, self.label_column)
+        dataset = BertSentimentDataset(self.hparams.data_path, self.hparams.treatment, "train",
+                                       self.hparams.text_column, self.hparams.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
         return dataloader
 
@@ -188,18 +189,19 @@ class LightningBertPretrainedClassifier(LightningModule):
         predictions = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
         total = torch.tensor(predictions.size(0))
-        return {"loss": loss, "progress_bar": {"train_loss": loss, "train_accuracy": correct.mean()},
-                "log": {"train_loss": loss, "train_accuracy": correct.mean()}, "correct": correct.sum(), "total": total}
+        return {"loss": loss, "log": {"batch_num": batch_idx, "train_loss": loss, "train_accuracy": correct.mean()},
+                "correct": correct.sum(), "total": total}
 
-    def training_end(self, step_outputs):
-        loss = step_outputs["loss"]
-        accuracy = step_outputs["correct"] / float(step_outputs["total"])
-        return {"loss": loss, "progress_bar": {"train_loss": loss, "train_accuracy": accuracy},
-                "log": {"train_loss": loss, "train_accuracy": accuracy}}
+    # def training_end(self, step_outputs):
+    #     loss = step_outputs["loss"]
+    #     accuracy = step_outputs["correct"] / float(step_outputs["total"])
+    #     return {"loss": loss, "progress_bar": {"train_loss": loss, "train_accuracy": accuracy},
+    #             "log": {"train_loss": loss, "train_accuracy": accuracy}}
 
     @data_loader
     def val_dataloader(self):
-        dataset = BertSentimentDataset(self.data_path, self.treatment, "dev", self.text_column, self.label_column)
+        dataset = BertSentimentDataset(self.hparams.data_path, self.hparams.treatment, "dev",
+                                       self.hparams.text_column, self.hparams.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
         return dataloader
 
@@ -208,25 +210,23 @@ class LightningBertPretrainedClassifier(LightningModule):
         loss, logits = self.forward(input_ids, input_mask, labels)
         predictions = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
-        return {"val_loss": loss, "progress_bar": {"val_loss": loss, "val_accuracy": correct.mean()},
-                "log": {"val_loss": loss, "val_accuracy": correct.mean()}, "correct": correct}
+        return {"loss": loss, "progress_bar": {"val_loss": loss, "val_accuracy": correct.mean()},
+                "log": {"batch_num": batch_idx, "val_loss": loss, "val_accuracy": correct.mean()}, "correct": correct}
 
     def validation_end(self, step_outputs):
         total_loss, total_correct = list(), list()
         for x in step_outputs:
-            total_loss.append(x["val_loss"])
+            total_loss.append(x["loss"])
             total_correct.append(x["correct"])
         avg_loss = torch.stack(total_loss).mean()
         accuracy = torch.stack(total_correct).double()
-        return {"progress_bar": {"val_loss": avg_loss, "val_accuracy": accuracy.mean()},
-                "log": {"avg_val_loss": avg_loss,
-                        "avg_val_accuracy": accuracy.mean(),
-                        "max_val_accuracy": accuracy.max(),
-                        "min_val_accuracy": accuracy.min()}}
+        return {"loss": avg_loss, "progress_bar": {"val_loss": avg_loss, "val_accuracy": accuracy.mean()},
+                "log": {"val_loss": avg_loss, "val_accuracy": accuracy.mean()}}
 
     @data_loader
     def test_dataloader(self):
-        dataset = BertSentimentDataset(self.data_path, self.treatment, "test", self.text_column, self.label_column)
+        dataset = BertSentimentDataset(self.hparams.data_path, self.hparams.treatment, "test",
+                                       self.hparams.text_column, self.hparams.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True)
         return dataloader
 
@@ -235,14 +235,14 @@ class LightningBertPretrainedClassifier(LightningModule):
         loss, logits = self.forward(input_ids, input_mask, labels)
         predictions = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
-        return {"test_loss": loss, "progress_bar": {"test_loss": loss, "test_accuracy": correct.mean()},
-                "log": {"test_loss": loss, "test_accuracy": correct.mean()},
+        return {"loss": loss, "progress_bar": {"test_loss": loss, "test_accuracy": correct.mean()},
+                "log": {"batch_num": batch_idx, "test_loss": loss, "test_accuracy": correct.mean()},
                 "predictions": predictions, "labels": labels, "unique_ids": unique_ids}
 
     def test_end(self, step_outputs):
         total_loss, total_predictions, total_labels, total_unique_ids = list(), list(), list(), list()
         for x in step_outputs:
-            total_loss.append(x["test_loss"])
+            total_loss.append(x["loss"])
             total_predictions.append(x["predictions"])
             total_labels.append(x["labels"])
             total_unique_ids.append(x["unique_ids"])
@@ -250,12 +250,16 @@ class LightningBertPretrainedClassifier(LightningModule):
         unique_ids = torch.cat(total_unique_ids)
         predictions = torch.cat(total_predictions)
         labels = torch.cat(total_labels)
-        accuracy = predictions.eq(labels.view_as(predictions)).double()
-        save_predictions(self.output_path, unique_ids.cpu().numpy(), predictions.cpu().numpy(), labels.cpu().numpy(), "test")
-        return {"progress_bar": {"test_loss": avg_loss, "test_accuracy": accuracy.mean()},
-                "log": {"avg_test_accuracy": accuracy.mean(),
-                        "max_test_accuracy": accuracy.max(),
-                        "max_test_accuracy_epoch": accuracy.argmax() + 1,
-                        "min_test_accuracy": accuracy.min()}}
+        correct = predictions.eq(labels.view_as(predictions))
+        accuracy = correct.double().mean()
+        save_predictions(self.hparams.output_path,
+                         unique_ids.cpu().numpy(),
+                         predictions.cpu().numpy(),
+                         labels.cpu().numpy(),
+                         correct.cpu().tolist(),
+                         "test")
+        return {"loss": avg_loss,
+                "progress_bar": {"test_loss": avg_loss, "test_accuracy": accuracy},
+                "log": {"test_loss": avg_loss, "test_accuracy": accuracy}}
 
 
