@@ -1,3 +1,4 @@
+from typing import Callable, List
 from transformers import BertModel, BertConfig
 from transformers.modeling_bert import BertAttention
 from torch.utils.data.dataloader import DataLoader
@@ -10,7 +11,8 @@ import torch
 
 
 class Linear_Layer(nn.Module):
-    def __init__(self, input_size, output_size, dropout=None, batch_norm=False, activation=F.relu):
+    def __init__(self, input_size: int, output_size: int, dropout: float = None,
+                 batch_norm: bool = False, layer_norm: bool = False, activation: Callable = F.relu):
         super().__init__()
         self.linear = nn.Linear(input_size, output_size)
         if type(dropout) is float and dropout > 0.0:
@@ -21,24 +23,30 @@ class Linear_Layer(nn.Module):
             self.batch_norm = nn.BatchNorm1d(output_size)
         else:
             self.batch_norm = None
+        if layer_norm:
+            self.layer_norm = nn.LayerNorm(output_size)
+        else:
+            self.layer_norm = None
         self.activation = activation
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         linear_out = self.linear(x)
-        if self.dropout is not None:
+        if self.dropout:
             linear_out = self.dropout(linear_out)
-        if self.batch_norm is not None:
+        if self.batch_norm:
             linear_out = self.batch_norm(linear_out)
+        if self.layer_norm:
+            linear_out = self.layer_norm(linear_out)
         if self.activation:
             linear_out = self.activation(linear_out)
         return linear_out
 
 
 class HAN_Attention_Layer(nn.Module):
-    def __init__(self, device, h_dim):
+    def __init__(self, device: torch.device, h_dim: int):
         super().__init__()
         self.device = device
-        self.linear_in = Linear_Layer(h_dim, h_dim, F.tanh)
+        self.linear_in = Linear_Layer(h_dim, h_dim, activation=F.tanh)
         self.softmax = nn.Softmax(dim=-1)
         self.decoder_h = torch.randn(h_dim, device=self.device, requires_grad=True)
         self.weights = dict()
@@ -76,7 +84,7 @@ class HAN_Attention_Layer(nn.Module):
         output = torch.bmm(attention_weights.unsqueeze(1), encoder_h_seq).squeeze()
         return output, attention_weights
 
-    def create_mask(self, valid_lengths, max_len=None):
+    def create_mask(self, valid_lengths: torch.Tensor, max_len: int = None) -> torch.Tensor:
         if not max_len:
             max_len = valid_lengths.max()
         return torch.arange(max_len, dtype=valid_lengths.dtype, device=self.device).expand(len(valid_lengths), max_len) < valid_lengths.unsqueeze(1)
@@ -84,8 +92,9 @@ class HAN_Attention_Layer(nn.Module):
 
 class BertPretrainedClassifier(nn.Module):
     def __init__(self, device: torch.device = torch.device("cpu"),
-                 batch_size: int = 8, dropout: float = 0.1, label_size: int = 2, loss_func=F.cross_entropy,
-                 bert_pretrained_model=BERT_PRETRAINED_MODEL, bert_state_dict=None, name="OOB"):
+                 batch_size: int = 8, dropout: float = 0.1, label_size: int = 2,
+                 loss_func: Callable = F.cross_entropy,
+                 bert_pretrained_model: str = BERT_PRETRAINED_MODEL, bert_state_dict: str = None, name: str = "OOB"):
         super().__init__()
         self.name = f"{self.__class__.__name__}-{name}"
         self.device = device
@@ -103,7 +112,7 @@ class BertPretrainedClassifier(nn.Module):
         self.pooler = HAN_Attention_Layer(device, self.hidden_size)
         self.classifier = Linear_Layer(self.hidden_size, label_size, dropout, activation=False)
 
-    def forward(self, input_ids, input_mask, labels):
+    def forward(self, input_ids: torch.Tensor, input_mask: torch.Tensor, labels: torch.Tensor) -> (torch.Tensor, torch.Tensor):
         last_hidden_states_seq, _ = self.bert(input_ids, attention_mask=input_mask)
         pooler_mask = self.pooler.create_mask(input_mask.sum(dim=1), input_mask.size(1))
         pooled_seq_vector, attention_weights = self.pooler(last_hidden_states_seq, pooler_mask)
@@ -112,7 +121,7 @@ class BertPretrainedClassifier(nn.Module):
         return loss, logits
 
     @staticmethod
-    def load_frozen_bert(bert_pretrained_model, bert_state_dict=None):
+    def load_frozen_bert(bert_pretrained_model: str, bert_state_dict: str = None) -> BertModel:
         if bert_state_dict:
             fine_tuned_state_dict = torch.load(bert_state_dict)
             bert = BertModel.from_pretrained(bert_pretrained_model, state_dict=fine_tuned_state_dict)
@@ -122,7 +131,7 @@ class BertPretrainedClassifier(nn.Module):
             p.requires_grad = False
         return bert
 
-    def get_trainable_params(self, recurse: bool = True):
+    def get_trainable_params(self, recurse: bool = True) -> (List[nn.Parameter], int):
         parameters = list(filter(lambda p: p.requires_grad, self.parameters(recurse)))
         num_trainable_parameters = sum([p.flatten().size(0) for p in parameters])
         return parameters, num_trainable_parameters
