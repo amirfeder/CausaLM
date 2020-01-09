@@ -10,12 +10,17 @@ df = pd.read_csv(MOVIES_DATASET + '.csv')
 
 split_data(df, MOVIES_DATASET)
 
+
 def main():
     for key in output_datasets.keys():
         cur_df = df[df['sentiment'] == key].reset_index()
         tagged_dataset = cur_df['review'].apply(tag_review)
 
-        tagged_dataset_file = MOVIES_DATASET + '_' + output_datasets[key] + '.txt'
+        dataset_file = output_datasets[key] + '.parsed'
+        with open(dataset_file, "w") as tagged_file:
+            tagged_file.write("\n".join(cur_df))
+
+        tagged_dataset_file = output_datasets[key] + '_tagged.parsed'
         with open(tagged_dataset_file, "w") as tagged_file:
             tagged_file.write("\n".join(tagged_dataset))
 

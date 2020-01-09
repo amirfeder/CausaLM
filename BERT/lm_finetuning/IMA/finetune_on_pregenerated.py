@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 from pathlib import Path
 import torch
-import logging
 import json
 import random
 import numpy as np
@@ -18,8 +17,8 @@ from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 
 from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR
-from BERT.lm_finetuning.pregenerate_training_data import EPOCHS
-from BERT.lm_finetuning.bert_ima_head import BertForIMAPreTraining
+from lm_finetuning.IMA.pregenerate_training_data import EPOCHS
+from lm_finetuning.IMA.bert_ima_head import BertForIMAPreTraining
 
 
 BATCH_SIZE = 8

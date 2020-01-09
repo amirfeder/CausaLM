@@ -4,16 +4,10 @@ import torch
 from torch.utils.data import TensorDataset, Dataset
 
 from transformers.tokenization_bert import BertTokenizer
-from BERT.lm_finetuning.pregenerate_training_data import truncate_seq, CLS_TOKEN, SEP_TOKEN, TOKEN_SEPARATOR
-from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, MAX_SEQ_LENGTH, SENTIMENT_MODE_DATA_DIR,\
-    OOB_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, DOMAIN, MODE, FINAL_PRETRAINED_MODEL
-from utils import init_logger
-from Timer import timer
-from tqdm import tqdm
+from lm_finetuning.IMA.pregenerate_training_data import CLS_TOKEN, SEP_TOKEN
+from constants import BERT_PRETRAINED_MODEL, MAX_SEQ_LENGTH, SENTIMENT_RAW_DATA_DIR, DOMAIN, FINAL_PRETRAINED_MODEL
 import pandas as pd
 import numpy as np
-import torch.nn as nn
-
 
 ### Constants
 PAD_ID = 0

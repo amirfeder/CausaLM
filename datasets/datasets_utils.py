@@ -6,10 +6,12 @@ tagger = spacy.load("en_core_web_lg")
 
 output_datasets = {0: 'negative', 1: 'positive'}
 
+
 def tag_review(review: str) -> str:
     review_text = clean_text(review)
     tagged_review = [f"{token.text}{WORD_POS_SEPARATOR}{token.pos_}" for token in tagger(review_text)]
     return TOKEN_SEPARATOR.join(tagged_review)
+
 
 def split_data(df, path):
     train, test = train_test_split(df, test_size=0.2)

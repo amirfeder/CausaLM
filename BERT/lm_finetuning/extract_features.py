@@ -21,8 +21,6 @@ from __future__ import print_function
 
 import argparse
 import collections
-import logging
-import re
 from pathlib import Path
 from random import random
 
@@ -32,9 +30,9 @@ from torch.utils.data.distributed import DistributedSampler
 
 from transformers.tokenization_bert import BertTokenizer
 from transformers.modeling_bert import BertModel
-from BERT.lm_finetuning.pregenerate_training_data import truncate_seq, CLS_TOKEN, SEP_TOKEN, TOKEN_SEPARATOR
-from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, MAX_SEQ_LENGTH, SENTIMENT_MODE_DATA_DIR,\
-    OOB_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, DOMAIN, MODE, FINAL_PRETRAINED_MODEL
+from lm_finetuning.IMA.pregenerate_training_data import truncate_seq, CLS_TOKEN, SEP_TOKEN, TOKEN_SEPARATOR
+from constants import BERT_PRETRAINED_MODEL, MAX_SEQ_LENGTH, SENTIMENT_MODE_DATA_DIR,\
+    OOB_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, DOMAIN, FINAL_PRETRAINED_MODEL
 from utils import init_logger
 from Timer import timer
 from tqdm import tqdm
