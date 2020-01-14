@@ -3,7 +3,7 @@ from pathlib import Path
 from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, SENTIMENT_IMA_DATA_DIR, MAX_SEQ_LENGTH, SENTIMENT_DOMAINS
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, SENTIMENT_IMA_DATA_DIR, MAX_SEQ_LENGTH, SENTIMENT_DOMAINS
 from datasets.datasets_utils import TOKEN_SEPARATOR
 from multiprocessing import Pool
 from random import random, randrange, choice
@@ -338,7 +338,7 @@ def main():
     vocab_list = list(tokenizer.vocab.keys())
     for domain in SENTIMENT_DOMAINS:
         print(f"\nGenerating data for domain: {domain}")
-        DATASET_FILE = f"{SENTIMENT_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
+        DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
         DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / domain
         with POSTaggedDocumentDatabase(reduce_memory=args.reduce_memory) as docs:
             with open(DATASET_FILE, "r") as dataset:

@@ -10,7 +10,7 @@ from transformers.tokenization_bert import BertTokenizer
 import numpy as np
 import json
 import collections
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, MAX_SEQ_LENGTH
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_MLM_DATA_DIR, SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, MAX_SEQ_LENGTH
 from Timer import timer
 
 WORDPIECE_PREFIX = "##"
@@ -18,9 +18,9 @@ CLS_TOKEN = "[CLS]"
 SEP_TOKEN = "[SEP]"
 MASK_TOKEN = "[MASK]"
 
-DOMAIN = "movies"
-DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}/{DOMAIN}UN_clean.txt"
-SENTIMENT_MLM_DATA_DIR = f"{SENTIMENT_DATA_DIR}/MLM"
+# DOMAIN = "movies"
+# DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}/{DOMAIN}UN_clean.txt"
+# SENTIMENT_MLM_DATA_DIR = f"{SENTIMENT_DATA_DIR}/MLM"
 
 
 EPOCHS = 5
@@ -312,7 +312,7 @@ def main():
     vocab_list = list(tokenizer.vocab.keys())
     for domain in SENTIMENT_DOMAINS:
         print(f"\nGenerating data for domain: {domain}")
-        DATASET_FILE = f"{SENTIMENT_DATA_DIR}/{domain}/{domain}UN_clean.txt"
+        DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{domain}UN_clean.txt"
         DATA_OUTPUT_DIR = Path(SENTIMENT_MLM_DATA_DIR) / domain
         with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
             with open(DATASET_FILE, "r") as dataset:
