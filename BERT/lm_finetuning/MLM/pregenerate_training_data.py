@@ -4,14 +4,14 @@ from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
 from multiprocessing import Pool
-from xml.etree import ElementTree as ET
-
+from typing import List, Collection
 from random import random, randrange, randint, shuffle, choice
 from transformers.tokenization_bert import BertTokenizer
 import numpy as np
 import json
 import collections
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, SENTIMENT_RAW_DATA_DIR
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, MAX_SEQ_LENGTH
+from Timer import timer
 
 WORDPIECE_PREFIX = "##"
 CLS_TOKEN = "[CLS]"
@@ -19,7 +19,7 @@ SEP_TOKEN = "[SEP]"
 MASK_TOKEN = "[MASK]"
 
 DOMAIN = "movies"
-DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}/{DOMAIN}UN.txt"
+DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}/{DOMAIN}UN_clean.txt"
 SENTIMENT_MLM_DATA_DIR = f"{SENTIMENT_DATA_DIR}/MLM"
 
 
@@ -117,33 +117,39 @@ def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens):
             trunc_tokens.pop()
 
 
+def truncate_seq(tokens, max_num_tokens):
+    """Truncates a pair of sequences to a maximum sequence length. Lifted from Google's BERT repo."""
+    l = 0
+    r = len(tokens)
+    trunc_tokens = list(tokens)
+    while r - l > max_num_tokens:
+        # We want to sometimes truncate from the front and sometimes from the
+        # back to add more randomness and avoid biases.
+        if random() < 0.5:
+            l += 1
+        else:
+            r -= 1
+    return trunc_tokens[l:r]
+
+
+
 MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"])
 
 
-def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list):
-    """Creates the predictions for the masked LM objective. This is mostly copied from the Google BERT repo, but
-    with several refactors to clean it up and remove a lot of unnecessary variables."""
+def generate_cand_indices(num_tokens: int, tokens: Collection, whole_word_mask) -> List[List[int]]:
+    idx_list = np.random.permutation(list(set(range(1, num_tokens + 1, 1))))
     cand_indices = []
-    for (i, token) in enumerate(tokens):
-        if token == CLS_TOKEN or token == SEP_TOKEN:
-            continue
-        # Whole Word Masking means that if we mask all of the wordpieces
-        # corresponding to an original word. When a word has been split into
-        # WordPieces, the first token does not have any marker and any subsequence
-        # tokens are prefixed with ##. So whenever we see the ## token, we
-        # append it to the previous set of word indexes.
-        #
-        # Note that Whole Word Masking does *not* change the training code
-        # at all -- we still predict each WordPiece independently, softmaxed
-        # over the entire vocabulary.
-        if (whole_word_mask and len(cand_indices) >= 1 and token.startswith(WORDPIECE_PREFIX)):
+    for i in idx_list:
+        if (whole_word_mask and len(cand_indices) >= 1 and tokens[i].startswith(WORDPIECE_PREFIX)):
             cand_indices[-1].append(i)
         else:
             cand_indices.append([i])
+    return cand_indices
 
-    num_to_mask = min(max_predictions_per_seq,
-                      max(1, int(round(len(tokens) * masked_lm_prob)))) # masked_lm_prob should reflect ratio of adjectives in dataset
-    shuffle(cand_indices)
+
+def create_masked_lm_predictions(tokens, cand_indices, num_to_mask, vocab_list):
+    """Creates the predictions for the masked LM objective. This is mostly copied from the Google BERT repo, but
+    with several refactors to clean it up and remove a lot of unnecessary variables."""
     masked_lms = []
     covered_indexes = set()
     for index_set in cand_indices:
@@ -186,6 +192,10 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
     return tokens, mask_indices, masked_token_labels
 
 
+def get_num_to_mask(max_predictions_per_seq: int, num_tokens: int, masked_lm_prob: float) -> int:
+    return min(max_predictions_per_seq, max(1, int(round(num_tokens * masked_lm_prob))))
+
+
 def create_instances_from_document(
         doc_database, doc_idx, max_seq_length, short_seq_prob,
         masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list):
@@ -195,7 +205,7 @@ def create_instances_from_document(
     (rather than each document) has an equal chance of being sampled as a false example for the NextSentence task."""
     document = doc_database[doc_idx]
     # Account for [CLS], [SEP], [SEP]
-    max_num_tokens = max_seq_length - 3
+    max_num_tokens = max_seq_length - 2
 
     # We *usually* want to fill up the entire sequence since we are padding
     # to `max_seq_length` anyways, so short sequences are generally wasted
@@ -213,73 +223,34 @@ def create_instances_from_document(
     # next sentence prediction task too easy. Instead, we split the input into
     # segments "A" and "B" based on the actual "sentences" provided by the user
     # input.
+
+    tokens = truncate_seq(document, max_num_tokens)
+
+    assert len(tokens) >= 1
+
+    tokens = tuple([CLS_TOKEN] + tokens + [SEP_TOKEN])
+    num_tokens = len(tokens) - 2
+
+    num_to_mask = get_num_to_mask(max_predictions_per_seq, num_tokens, masked_lm_prob)
+
+    cand_indices = generate_cand_indices(num_tokens, tokens, whole_word_mask)
+
     instances = []
-    current_chunk = []
-    current_length = 0
+    num_masked = 0
     i = 0
-    while i < len(document):
-        segment = document[i]
-        current_chunk.append(segment)
-        current_length += len(segment)
-        if i == len(document) - 1 or current_length >= target_seq_length:
-            if current_chunk:
-                # `a_end` is how many segments from `current_chunk` go into the `A`
-                # (first) sentence.
-                a_end = 1
-                if len(current_chunk) >= 2:
-                    a_end = randrange(1, len(current_chunk))
+    while i * num_to_mask < len(cand_indices) and num_masked < num_to_mask:
+        instance_tokens, masked_lm_positions, masked_lm_labels = create_masked_lm_predictions(tokens, cand_indices[(i * num_to_mask):],
+                                                                                              num_to_mask, vocab_list)
 
-                tokens_a = []
-                for j in range(a_end):
-                    tokens_a.extend(current_chunk[j])
+        instance = {
+            "tokens": [str(i) for i in instance_tokens],
+            "masked_lm_positions": [str(i) for i in masked_lm_positions],
+            "masked_lm_labels": [str(i) for i in masked_lm_labels],
+        }
 
-                tokens_b = []
-
-                # Random next
-                if len(current_chunk) == 1 or random() < 0.5:
-                    is_random_next = True
-                    target_b_length = target_seq_length - len(tokens_a)
-
-                    # Sample a random document, with longer docs being sampled more frequently
-                    random_document = doc_database.sample_doc(current_idx=doc_idx, sentence_weighted=True)
-
-                    random_start = randrange(0, len(random_document))
-                    for j in range(random_start, len(random_document)):
-                        tokens_b.extend(random_document[j])
-                        if len(tokens_b) >= target_b_length:
-                            break
-                    # We didn't actually use these segments so we "put them back" so
-                    # they don't go to waste.
-                    num_unused_segments = len(current_chunk) - a_end
-                    i -= num_unused_segments
-                # Actual next
-                else:
-                    is_random_next = False
-                    for j in range(a_end, len(current_chunk)):
-                        tokens_b.extend(current_chunk[j])
-                truncate_seq_pair(tokens_a, tokens_b, max_num_tokens)
-
-                assert len(tokens_a) >= 1
-                assert len(tokens_b) >= 1
-
-                tokens = ["[CLS]"] + tokens_a + ["[SEP]"] + tokens_b + ["[SEP]"]
-                # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
-                # They are 1 for the B tokens and the final [SEP]
-                segment_ids = [0 for _ in range(len(tokens_a) + 2)] + [1 for _ in range(len(tokens_b) + 1)]
-                # We don't need NSP task, all our tasks are in sentence level, every instance is a sentence
-                tokens, masked_lm_positions, masked_lm_labels = create_masked_lm_predictions(
-                    tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list)
-
-                instance = {
-                    "tokens": tokens,
-                    "segment_ids": segment_ids,
-                    "is_random_next": is_random_next,
-                    "masked_lm_positions": masked_lm_positions,
-                    "masked_lm_labels": masked_lm_labels}
-                instances.append(instance)
-            current_chunk = []
-            current_length = 0
+        instances.append(instance)
         i += 1
+        num_masked += len(masked_lm_labels)
 
     return instances
 
@@ -304,17 +275,14 @@ def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
             "max_seq_len": args.max_seq_len
         }
         metrics_file.write(json.dumps(metrics))
-    # print("\nTotal Number of training instances:", num_instances)
-    # print("Number of Real instances:", num_instances - num_random_instances)
-    # print("Number of Random instances:", num_random_instances)
-    # print(f"Random instances ratio: {num_random_instances / num_instances:.4f}")
 
 
+@timer
 def main():
     parser = ArgumentParser()
-    parser.add_argument('--train_corpus', type=Path, required=True)
-    parser.add_argument("--output_dir", type=Path, required=True)
-    parser.add_argument("--bert_model", type=str, required=True,
+    parser.add_argument('--train_corpus', type=Path, required=False)
+    parser.add_argument("--output_dir", type=Path, required=False)
+    parser.add_argument("--bert_model", type=str, required=False, default=BERT_PRETRAINED_MODEL,
                         choices=["bert-base-uncased", "bert-large-uncased", "bert-base-cased",
                                  "bert-base-multilingual-uncased", "bert-base-chinese", "bert-base-multilingual-cased"])
     parser.add_argument("--do_lower_case", action="store_true")
@@ -323,16 +291,16 @@ def main():
     parser.add_argument("--reduce_memory", action="store_true",
                         help="Reduce memory usage for large datasets by keeping data on disc rather than in memory")
 
-    parser.add_argument("--num_workers", type=int, default=1,
+    parser.add_argument("--num_workers", type=int, default=EPOCHS,
                         help="The number of workers to use to write the files")
-    parser.add_argument("--epochs_to_generate", type=int, default=3,
+    parser.add_argument("--epochs_to_generate", type=int, default=EPOCHS,
                         help="Number of epochs of data to pregenerate")
-    parser.add_argument("--max_seq_len", type=int, default=128)
+    parser.add_argument("--max_seq_len", type=int, default=MAX_SEQ_LENGTH)
     parser.add_argument("--short_seq_prob", type=float, default=0.1,
                         help="Probability of making a short sentence as a training example")
-    parser.add_argument("--masked_lm_prob", type=float, default=0.15,
+    parser.add_argument("--masked_lm_prob", type=float, default=MLM_PROB,
                         help="Probability of masking each token for the LM task")
-    parser.add_argument("--max_predictions_per_seq", type=int, default=20,
+    parser.add_argument("--max_predictions_per_seq", type=int, default=MAX_PRED_PER_SEQ,
                         help="Maximum number of tokens to mask in each sequence")
 
     args = parser.parse_args()
@@ -342,32 +310,33 @@ def main():
     args.epochs_to_generate = EPOCHS
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
-    with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-        rev_tree = ET.parse(DATASET_FILE)
-        rev_root = rev_tree.getroot()
-        for rev in tqdm(rev_root.iter('review')):
-            rev_text = rev.text.strip()
-            # TODO: Need to tokenize review by sentences such that all instances of document are on sentence level
-            doc = tokenizer.tokenize(rev_text)
-            if doc:
-                docs.add_document(doc)  # If the last doc didn't end on a newline, make sure it still gets added
-        if len(docs) <= 1:
-            exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
-                 "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
-                 "indicate breaks between documents in your input file. If your dataset does not contain multiple "
-                 "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
-                 "sections or paragraphs.")
+    for domain in SENTIMENT_DOMAINS:
+        print(f"\nGenerating data for domain: {domain}")
+        DATASET_FILE = f"{SENTIMENT_DATA_DIR}/{domain}/{domain}UN_clean.txt"
+        DATA_OUTPUT_DIR = Path(SENTIMENT_MLM_DATA_DIR) / domain
+        with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
+            with open(DATASET_FILE, "r") as dataset:
+                for line in tqdm(dataset):
+                    doc = tokenizer.tokenize(line.strip())
+                    if doc:
+                        docs.add_document(doc)  # If the last doc didn't end on a newline, make sure it still gets added
+            if len(docs) <= 1:
+                exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
+                     "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
+                     "indicate breaks between documents in your input file. If your dataset does not contain multiple "
+                     "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
+                     "sections or paragraphs.")
 
-        output_dir = Path(SENTIMENT_MLM_DATA_DIR)
-        output_dir.mkdir(exist_ok=True, parents=True)
+            output_dir = Path(DATA_OUTPUT_DIR)
+            output_dir.mkdir(exist_ok=True, parents=True)
 
-        if args.num_workers > 1:
-            writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))
-            arguments = [(docs, vocab_list, args, idx) for idx in range(args.epochs_to_generate)]
-            writer_workers.starmap(create_training_file, arguments)
-        else:
-            for epoch in trange(args.epochs_to_generate, desc="Epoch"):
-                create_training_file(docs, vocab_list, args, epoch, output_dir)
+            if args.num_workers > 1:
+                writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))
+                arguments = [(docs, vocab_list, args, idx) for idx in range(args.epochs_to_generate)]
+                writer_workers.starmap(create_training_file, arguments)
+            else:
+                for epoch in trange(args.epochs_to_generate, desc="Epoch"):
+                    create_training_file(docs, vocab_list, args, epoch, output_dir)
 
 
 if __name__ == '__main__':

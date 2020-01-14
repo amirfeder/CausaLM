@@ -16,7 +16,7 @@ from utils import init_logger
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 
-from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR
+from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR, SENTIMENT_DOMAINS
 from lm_finetuning.IMA.pregenerate_training_data import EPOCHS
 from lm_finetuning.IMA.bert_ima_head import BertForIMAPreTraining
 
@@ -335,7 +335,7 @@ def main():
                         help="random seed for initialization")
     args = parser.parse_args()
 
-    for domain in ("books", "dvd", "electronics", "kitchen", "movies"):
+    for domain in SENTIMENT_DOMAINS:
         logger.info(f"\nPretraining on domain: {domain}")
         DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / domain
         MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"

@@ -3,8 +3,8 @@ from pathlib import Path
 from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, SENTIMENT_IMA_DATA_DIR, MAX_SEQ_LENGTH
-from datasets.pos_tagging import TOKEN_SEPARATOR
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_DATA_DIR, SENTIMENT_IMA_DATA_DIR, MAX_SEQ_LENGTH, SENTIMENT_DOMAINS
+from datasets.datasets_utils import TOKEN_SEPARATOR
 from multiprocessing import Pool
 from random import random, randrange, choice
 from transformers.tokenization_bert import BertTokenizer
@@ -336,7 +336,7 @@ def main():
     args.epochs_to_generate = EPOCHS
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
-    for domain in ("books", "dvd", "electronics", "kitchen", "movies"):
+    for domain in SENTIMENT_DOMAINS:
         print(f"\nGenerating data for domain: {domain}")
         DATASET_FILE = f"{SENTIMENT_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
         DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / domain
