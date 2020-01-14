@@ -1,8 +1,7 @@
 """Create train/dev/test data with and without adjectives"""
-from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED
-from datasets.datasets_utils import output_datasets
+from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS
+from datasets.datasets_utils import output_datasets, split_data
 import pandas as pd
-from sklearn.model_selection import train_test_split
 
 
 def main():
@@ -30,11 +29,7 @@ def main():
 
         zipped_examples = zip(labels, examples, no_adj_examples)
         df = pd.DataFrame(zipped_examples, columns=['label', 'review', 'no_adj_review'])
-        train, test = train_test_split(df, test_size=0.2, stratify=df["label"], random_state=RANDOM_SEED)
-        train, dev = train_test_split(train, test_size=0.2, stratify=train["label"], random_state=RANDOM_SEED)
-        train.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'adj_train.csv')
-        dev.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'adj_dev.csv')
-        test.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'adj_test.csv')
+        split_data(df, f"{SENTIMENT_RAW_DATA_DIR}/{domain}", "adj")
 
         print('Done with: ' + domain)
 

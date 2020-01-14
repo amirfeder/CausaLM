@@ -1,6 +1,6 @@
 """Create train/dev/test data with and without adjectives"""
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS
-from datasets.datasets_utils import output_datasets
+from datasets.datasets_utils import output_datasets, split_data
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -66,11 +66,7 @@ for domain in SENTIMENT_DOMAINS:
         topic_average = df['topic_' + str(i+1)].mean()
         df['topic_bin_' + str(i + 1)] = (df['topic_' + str(i + 1)] > topic_average).astype(int)
 
-    train, test = train_test_split(df, test_size=0.2)
-    train, dev = train_test_split(train, test_size=0.2)
-    train.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'topics_train.csv')
-    dev.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'topics_dev.csv')
-    test.to_csv(SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + 'topics_test.csv')
+    split_data(df, f"{SENTIMENT_RAW_DATA_DIR}/{domain}", "topics")
 
     print('Done with: ' + domain)
 
