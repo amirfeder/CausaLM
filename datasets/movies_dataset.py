@@ -19,7 +19,7 @@ def main():
 
     tagged_dataset = df.copy()
     tagged_dataset["review"] = df['review'].apply(tag_review)
-    write_dataset(tagged_dataset, "moviesUN_tagged.txt")
+    write_dataset(tagged_dataset["review"], "moviesUN_tagged.txt")
 
     for key, val in output_datasets.items():
         cur_clean_df = clean_dataset[clean_dataset['sentiment'] == key].reset_index()
