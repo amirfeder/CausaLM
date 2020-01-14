@@ -332,7 +332,7 @@ def main():
 
             if args.num_workers > 1:
                 writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))
-                arguments = [(docs, vocab_list, args, idx) for idx in range(args.epochs_to_generate)]
+                arguments = [(docs, vocab_list, args, idx, output_dir) for idx in range(args.epochs_to_generate)]
                 writer_workers.starmap(create_training_file, arguments)
             else:
                 for epoch in trange(args.epochs_to_generate, desc="Epoch"):
