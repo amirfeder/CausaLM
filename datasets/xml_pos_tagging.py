@@ -1,32 +1,23 @@
 from xml.etree import ElementTree
-from constants import SENTIMENT_DATA_DIR
+from constants import SENTIMENT_RAW_DATA_DIR
 from os.path import splitext
 from utils import init_logger
 from tqdm import tqdm
+from datasets_utils import TOKEN_SEPARATOR, WORD_POS_SEPARATOR, clean_review
+from Timer import timer
 import spacy
 import numpy as np
-import re
-
-TOKEN_SEPARATOR = " "
-WORD_POS_SEPARATOR = "_"
 
 LOGGER = init_logger(__name__)
 
 
-def clean_text(text: str) -> str:
-    review_text = re.sub("\n", "", text)
-    review_text = re.sub(WORD_POS_SEPARATOR, "", review_text)
-    review_text = re.sub("\s+", TOKEN_SEPARATOR, review_text)
-    review_text = re.sub(";", ",", review_text)
-    return review_text.strip()
-
-
+@timer
 def main():
     tagger = spacy.load("en_core_web_lg")
-    for dataset_type in ("books", "dvd", "electronics", "kitchen"):
-        LOGGER.info(f"{dataset_type.title()} Dataset")
-        dataset_dir = f"{SENTIMENT_DATA_DIR}/{dataset_type}"
-        for file in (f"{dataset_type}UN.txt", "negative.parsed", "positive.parsed"):
+    for domain in ("books", "dvd", "electronics", "kitchen"):
+        LOGGER.info(f"{domain.title()} Dataset")
+        dataset_dir = f"{SENTIMENT_RAW_DATA_DIR}/{domain}"
+        for file in (f"{domain}UN.txt", "negative.parsed", "positive.parsed"):
             tag_xml_dataset(f"{dataset_dir}/{file}", tagger)
 
 
@@ -34,12 +25,14 @@ def tag_xml_dataset(dataset_file, tagger):
     LOGGER.info(f"Tagging {dataset_file}")
     data_tree = ElementTree.parse(dataset_file)
     tagged_dataset = []
+    untagged_dataset = []
     num_adj = 0
     num_adv = 0
     num_words = 0
     review_lengths = []
     for review in tqdm(data_tree.iter("review")):
-        review_text = clean_text(review.text)
+        review_text = clean_review(review.text)
+        untagged_dataset.append(review_text)
         tagged_review_text = []
         for token in tagger(review_text):
             tagged_review_text.append(f"{token.text}{WORD_POS_SEPARATOR}{token.pos_}")
@@ -62,6 +55,9 @@ def tag_xml_dataset(dataset_file, tagger):
     LOGGER.info(f"Total Adverbs ratio: {float(num_adv)/num_words}")
     LOGGER.info(f"Total Adverbs + Adjectives ratio: {float(num_adv + num_adj)/num_words}\n")
     _, file_ext = splitext(dataset_file)
+    untagged_dataset_file = f"{dataset_file.replace(file_ext, f'_clean{file_ext}')}"
+    with open(untagged_dataset_file, "w") as tagged_file:
+        tagged_file.write("\n".join(untagged_dataset))
     tagged_dataset_file = f"{dataset_file.replace(file_ext, f'_tagged{file_ext}')}"
     with open(tagged_dataset_file, "w") as tagged_file:
         tagged_file.write("\n".join(tagged_dataset))

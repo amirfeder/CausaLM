@@ -1,28 +1,32 @@
-from constants import MOVIES_DATASET
-from datasets.datasets_utils import tag_review, output_datasets, split_data
+from constants import MOVIES_DATA_DIR
+from datasets.datasets_utils import clean_review, tag_review, output_datasets
+from Timer import timer
 import pandas as pd
-import spacy
-
-tagger = spacy.load("en_core_web_lg")
-
-review_lengths = []
-df = pd.read_csv(MOVIES_DATASET + '.csv')
-
-split_data(df, MOVIES_DATASET)
 
 
+def write_dataset(df, name):
+    dataset_file = f"{MOVIES_DATA_DIR}/{name}"
+    with open(dataset_file, "w") as f:
+        f.write("\n".join(df))
+
+
+@timer
 def main():
-    for key in output_datasets.keys():
-        cur_df = df[df['sentiment'] == key].reset_index()
-        tagged_dataset = cur_df['review'].apply(tag_review)
+    df = pd.read_csv(MOVIES_DATA_DIR + 'movie_data.csv')
+    clean_dataset = df.copy()
+    clean_dataset["review"] = df['review'].apply(clean_review)
+    write_dataset(clean_dataset["review"], "moviesUN_clean.txt")
 
-        dataset_file = output_datasets[key] + '.parsed'
-        with open(dataset_file, "w") as tagged_file:
-            tagged_file.write("\n".join(cur_df))
+    tagged_dataset = df.copy()
+    tagged_dataset["review"] = df['review'].apply(tag_review)
+    write_dataset(tagged_dataset, "moviesUN_tagged.txt")
 
-        tagged_dataset_file = output_datasets[key] + '_tagged.parsed'
-        with open(tagged_dataset_file, "w") as tagged_file:
-            tagged_file.write("\n".join(tagged_dataset))
+    for key, val in output_datasets.items():
+        cur_clean_df = clean_dataset[clean_dataset['sentiment'] == key].reset_index()
+        write_dataset(cur_clean_df["review"], f"{val}_clean.parsed")
+
+        cur_tagged_df = tagged_dataset[tagged_dataset['sentiment'] == key].reset_index()
+        write_dataset(cur_tagged_df["review"], f"{val}_tagged.parsed")
 
 
 if __name__ == "__main__":
