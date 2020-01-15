@@ -76,7 +76,7 @@ def bert_train_eval(hparams, output_dir):
 
 @timer
 def bert_treatment_test(model, hparams, output_dir):
-    print(f"Testing model on ")
+    print(f"Testing model with {hparams['bert_params']['name']} LM")
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=output_dir,
                       show_progress_bar=True,
@@ -92,6 +92,7 @@ def bert_treatment_test(model, hparams, output_dir):
     print_final_metrics(trainer.tqdm_metrics)
 
 
+@timer
 def main():
     # Factual OOB BERT Model training
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_F"

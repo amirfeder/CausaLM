@@ -1,8 +1,8 @@
 from random import random
-
+from Timer import timer
 import torch
 from torch.utils.data import TensorDataset, Dataset
-
+from tqdm import tqdm
 from transformers.tokenization_bert import BertTokenizer
 from BERT.lm_finetuning.MLM.pregenerate_training_data import CLS_TOKEN, SEP_TOKEN
 from constants import BERT_PRETRAINED_MODEL, MAX_SEQ_LENGTH, SENTIMENT_RAW_DATA_DIR, DOMAIN, FINAL_PRETRAINED_MODEL
@@ -36,12 +36,14 @@ class BertSentimentDataset(Dataset):
     def __getitem__(self, index):
         return self.dataset[index]
 
+    @timer
     def preprocessing_pipeline(self):
         examples = self.read_examples()
         features, labels = self.convert_examples_to_features(examples)
         dataset = self.create_tensor_dataset(features, labels)
         return dataset
 
+    @timer
     def read_examples(self):
         """Read a list of `InputExample`s from an input file."""
         df = pd.read_csv(self.dataset_file, header=0, encoding='utf-8')
@@ -56,7 +58,7 @@ class BertSentimentDataset(Dataset):
         features_list = list()
         labels_list = list()
         # seq_lengths = list()
-        for i, example in enumerate(examples):
+        for i, example in tqdm(enumerate(examples), total=len(examples), desc="convert_examples_to_features"):
             features, example_len = self.tokenize_and_pad_sequence(example)
             # if i < 10:
             #     logger.info(f"*** Example {i + 1}***")
@@ -100,7 +102,7 @@ class BertSentimentDataset(Dataset):
         input_masks_list = list()
         input_unique_id_list = list()
         input_labels_list = list()
-        for f, l in zip(features, labels):
+        for f, l in tqdm(zip(features, labels), desc="create_tensor_dataset", total=len(features)):
             input_ids_list.append(f.input_ids)
             input_masks_list.append(f.input_mask)
             assert l.unique_id == f.unique_id
