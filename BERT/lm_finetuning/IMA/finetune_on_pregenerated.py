@@ -93,6 +93,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
                 torch.tensor(self.adj_labels[item].astype(np.int64)))
 
+    @staticmethod
     def convert_example_to_features(example, tokenizer, max_seq_length):
         tokens = example["tokens"]
         masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
