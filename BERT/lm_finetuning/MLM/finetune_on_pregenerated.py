@@ -32,9 +32,10 @@ InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids")
 # logging.basicConfig(level=logging.INFO, format=log_format)
 logger = init_logger("pretraining", f"{SENTIMENT_MLM_DATA_DIR}/pretraining.log")
 
+
 def convert_example_to_features(example, tokenizer, max_seq_length):
     tokens = example["tokens"]
-    masked_lm_positions = example["masked_lm_positions"]
+    masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
     masked_lm_labels = example["masked_lm_labels"]
 
     # assert len(tokens) == len(segment_ids) <= max_seq_length  # The preprocessed data should be already truncated
