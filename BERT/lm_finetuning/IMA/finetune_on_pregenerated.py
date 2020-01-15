@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 from Timer import timer
-from utils import init_logger
+from utils import init_logger, INIT_TIME
 
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
@@ -30,7 +30,7 @@ AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_id
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
 
-logger = init_logger("pretraining", f"{SENTIMENT_IMA_DATA_DIR}/pretraining.log")
+logger = init_logger("IMA-pretraining", f"{SENTIMENT_IMA_DATA_DIR}")
 
 
 class PregeneratedPOSTaggedDataset(Dataset):

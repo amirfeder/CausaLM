@@ -19,7 +19,7 @@ from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from BERT.lm_finetuning.MLM.bert_mlm_head import BertForMLMPreTraining
 from BERT.lm_finetuning.MLM.pregenerate_training_data import EPOCHS
-from utils import init_logger
+from utils import init_logger, INIT_TIME
 from Timer import timer
 from constants import RANDOM_SEED, SENTIMENT_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, SENTIMENT_DOMAINS
 
@@ -30,7 +30,7 @@ InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids")
 
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
-logger = init_logger("pretraining", f"{SENTIMENT_MLM_DATA_DIR}/pretraining.log")
+logger = init_logger("MLM-pretraining", f"{SENTIMENT_MLM_DATA_DIR}")
 
 
 def convert_example_to_features(example, tokenizer, max_seq_length):
