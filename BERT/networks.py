@@ -46,7 +46,7 @@ class HAN_Attention_Layer(nn.Module):
     def __init__(self, device: torch.device, h_dim: int):
         super().__init__()
         self.device = device
-        self.linear_in = Linear_Layer(h_dim, h_dim, activation=F.tanh)
+        self.linear_in = Linear_Layer(h_dim, h_dim, activation=torch.tanh)
         self.softmax = nn.Softmax(dim=-1)
         self.decoder_h = torch.randn(h_dim, device=self.device, requires_grad=True)
         self.weights = dict()
