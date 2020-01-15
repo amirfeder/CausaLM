@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import TensorDataset, Dataset
 
 from transformers.tokenization_bert import BertTokenizer
-from lm_finetuning.IMA.pregenerate_training_data import CLS_TOKEN, SEP_TOKEN
+from BERT.lm_finetuning.MLM.pregenerate_training_data import CLS_TOKEN, SEP_TOKEN
 from constants import BERT_PRETRAINED_MODEL, MAX_SEQ_LENGTH, SENTIMENT_RAW_DATA_DIR, DOMAIN, FINAL_PRETRAINED_MODEL
 import pandas as pd
 import numpy as np

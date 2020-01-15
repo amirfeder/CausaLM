@@ -2,7 +2,7 @@ from typing import Callable, List
 from transformers import BertModel, BertConfig
 from transformers.modeling_bert import BertAttention
 from torch.utils.data.dataloader import DataLoader
-from dataset import BertSentimentDataset, BERT_PRETRAINED_MODEL
+from BERT.dataset import BertSentimentDataset, BERT_PRETRAINED_MODEL
 from pytorch_lightning import LightningModule, data_loader
 from utils import save_predictions
 import torch.nn.functional as F
@@ -110,7 +110,7 @@ class BertPretrainedClassifier(nn.Module):
         # self.attention = BertAttention(self.bert_config)
         self.hidden_size = self.bert.config.hidden_size
         self.pooler = HAN_Attention_Layer(device, self.hidden_size)
-        self.classifier = Linear_Layer(self.hidden_size, label_size, dropout, activation=False)
+        self.classifier = Linear_Layer(self.hidden_size, label_size, dropout, activation=None)
 
     def forward(self, input_ids: torch.Tensor, input_mask: torch.Tensor, labels: torch.Tensor) -> (torch.Tensor, torch.Tensor):
         last_hidden_states_seq, _ = self.bert(input_ids, attention_mask=input_mask)
@@ -172,12 +172,12 @@ class LightningBertPretrainedClassifier(LightningModule):
         self.hparams = hparams
         self.bert_classifier = BertPretrainedClassifier(**hparams.bert_params)
 
-    def parameters(self, recurse: bool = True):
-        for param in self.bert_classifier.get_trainable_params(recurse)[0]:
-            yield param
+    # def parameters(self, recurse: bool = True):
+    #     for param in self.bert_classifier.get_trainable_params(recurse)[0]:
+    #         yield param
 
-    # def parameters(self, recurse: bool = ...):
-    #     return self.bert_classifier.parameters(recurse)
+    def parameters(self, recurse: bool = ...):
+        return self.bert_classifier.parameters(recurse)
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.bert_classifier.get_trainable_params()[0])
