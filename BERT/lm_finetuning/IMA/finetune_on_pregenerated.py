@@ -18,7 +18,7 @@ from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 
 from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR, SENTIMENT_DOMAINS
 from BERT.lm_finetuning.IMA.pregenerate_training_data import EPOCHS
-from BERT.lm_finetuning.IMA.bert_ima_head import BertForIMAPreTraining
+from BERT.lm_finetuning.IMA.bert_ima_pretrain import BertForIMAPreTraining
 
 
 BATCH_SIZE = 8

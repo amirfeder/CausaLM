@@ -17,7 +17,7 @@ from transformers import WEIGHTS_NAME, CONFIG_NAME
 from transformers.modeling_bert import BertForPreTraining
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
-from BERT.lm_finetuning.MLM.bert_mlm_head import BertForMLMPreTraining
+from BERT.lm_finetuning.MLM.bert_mlm_pretrain import BertForMLMPreTraining
 from BERT.lm_finetuning.MLM.pregenerate_training_data import EPOCHS
 from utils import init_logger, INIT_TIME
 from Timer import timer
