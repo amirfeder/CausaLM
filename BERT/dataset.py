@@ -5,15 +5,12 @@ from torch.utils.data import TensorDataset, Dataset
 from tqdm import tqdm
 from transformers.tokenization_bert import BertTokenizer
 from BERT.lm_finetuning.MLM.pregenerate_training_data import CLS_TOKEN, SEP_TOKEN
-from constants import BERT_PRETRAINED_MODEL, MAX_SEQ_LENGTH, SENTIMENT_RAW_DATA_DIR, DOMAIN, FINAL_PRETRAINED_MODEL
+from constants import BERT_PRETRAINED_MODEL, MAX_SEQ_LENGTH
 import pandas as pd
 import numpy as np
 
 ### Constants
 PAD_ID = 0
-BATCH_SIZE = 8  # Number of interviews in batch
-PRETRAINED_MODEL = FINAL_PRETRAINED_MODEL
-DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 
 
 class BertSentimentDataset(Dataset):
@@ -43,7 +40,6 @@ class BertSentimentDataset(Dataset):
         dataset = self.create_tensor_dataset(features, labels)
         return dataset
 
-    @timer
     def read_examples(self):
         """Read a list of `InputExample`s from an input file."""
         df = pd.read_csv(self.dataset_file, header=0, encoding='utf-8')

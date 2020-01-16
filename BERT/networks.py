@@ -180,7 +180,11 @@ class LightningBertPretrainedClassifier(LightningModule):
         return self.bert_classifier.parameters(recurse)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.bert_classifier.get_trainable_params()[0])
+        parameters_list = self.bert_classifier.get_trainable_params()[0]
+        if parameters_list:
+            return torch.optim.Adam(parameters_list)
+        else:
+            return [] # PyTorch Lightning hack for test mode with frozen model
 
     def forward(self, *args):
         return self.bert_classifier.forward(*args)
@@ -242,30 +246,34 @@ class LightningBertPretrainedClassifier(LightningModule):
     def test_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
         loss, logits = self.forward(input_ids, input_mask, labels)
-        predictions = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
+        prediction_probs = F.softmax(logits.view(-1, self.bert_classifier.label_size), dim=-1)
+        predictions = torch.argmax(prediction_probs, dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
         return {"loss": loss, "progress_bar": {"test_loss": loss, "test_accuracy": correct.mean()},
                 "log": {"batch_num": batch_idx, "test_loss": loss, "test_accuracy": correct.mean()},
-                "predictions": predictions, "labels": labels, "unique_ids": unique_ids}
+                "predictions": predictions, "labels": labels, "unique_ids": unique_ids, "prediction_probs": prediction_probs}
 
     def test_end(self, step_outputs):
-        total_loss, total_predictions, total_labels, total_unique_ids = list(), list(), list(), list()
+        total_loss, total_predictions, total_labels, total_unique_ids, total_prediction_probs = list(), list(), list(), list(), list()
         for x in step_outputs:
             total_loss.append(x["loss"])
             total_predictions.append(x["predictions"])
             total_labels.append(x["labels"])
             total_unique_ids.append(x["unique_ids"])
+            total_prediction_probs.append(x["prediction_probs"])
         avg_loss = torch.stack(total_loss).mean()
         unique_ids = torch.cat(total_unique_ids)
         predictions = torch.cat(total_predictions)
+        prediction_probs = torch.stack(total_prediction_probs)
         labels = torch.cat(total_labels)
         correct = predictions.eq(labels.view_as(predictions))
         accuracy = correct.double().mean()
         save_predictions(self.hparams.output_path,
-                         unique_ids.cpu().numpy(),
-                         predictions.cpu().numpy(),
-                         labels.cpu().numpy(),
-                         correct.cpu().tolist(),
+                         unique_ids.data.cpu().numpy(),
+                         predictions.data.cpu().numpy(),
+                         labels.data.cpu().numpy(),
+                         correct.cpu().numpy(),
+                         [prediction_probs[:, i].data.cpu().numpy() for i in range(self.bert_classifier.label_size)],
                          "test")
         return {"loss": avg_loss,
                 "progress_bar": {"test_loss": avg_loss, "test_accuracy": accuracy},

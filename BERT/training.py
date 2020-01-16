@@ -18,7 +18,8 @@ DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ### Constants
 PAD_ID = 0
-BATCH_SIZE = 8
+BATCH_SIZE = 64
+ACCUMULATE = 4
 DROPOUT = 0.1
 EPOCHS = 100
 FP16 = False
@@ -58,7 +59,7 @@ def bert_train_eval(hparams, output_dir):
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=output_dir,
                       show_progress_bar=True,
-                      accumulate_grad_batches=8,
+                      accumulate_grad_batches=ACCUMULATE,
                       max_nb_epochs=EPOCHS,
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
@@ -80,7 +81,7 @@ def bert_treatment_test(model, hparams, output_dir):
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=output_dir,
                       show_progress_bar=True,
-                      accumulate_grad_batches=8,
+                      accumulate_grad_batches=ACCUMULATE,
                       max_nb_epochs=EPOCHS,
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
@@ -100,6 +101,7 @@ def main():
     # CounterFactual OOB BERT Model training
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF"
     HYPERPARAMETERS["text_column"] = "no_adj_review"
+    HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
     counterfactual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
     # Factual OOB BERT Model test with MLM LM
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/MLM"
