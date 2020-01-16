@@ -18,7 +18,7 @@ DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ### Constants
 PAD_ID = 0
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 ACCUMULATE = 4
 DROPOUT = 0.1
 EPOCHS = 100
