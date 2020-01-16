@@ -91,7 +91,7 @@ def bert_treatment_test(model_ckpt, hparams, output_dir):
 def main():
     # Factual OOB BERT Model training
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_F"
-    factual_model_ckpt = get_checkpoint_file(f"{OUTPUT_DIR}/lightning_logs/version_4/checkpoints")
+    factual_model_ckpt = get_checkpoint_file(f"{OUTPUT_DIR}/best_model/checkpoints")
     bert_test(factual_model_ckpt, HYPERPARAMETERS, OUTPUT_DIR)
     # Factual OOB BERT Model test with MLM LM
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/MLM"
@@ -107,7 +107,7 @@ def main():
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF"
     HYPERPARAMETERS["text_column"] = "no_adj_review"
     HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
-    counterfactual_model_ckpt = get_checkpoint_file(f"{OUTPUT_DIR}/lightning_logs/version_2/checkpoints")
+    counterfactual_model_ckpt = get_checkpoint_file(f"{OUTPUT_DIR}/best_model/checkpoints")
     bert_test(counterfactual_model_ckpt, HYPERPARAMETERS, OUTPUT_DIR)
 
 
