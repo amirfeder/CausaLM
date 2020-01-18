@@ -55,21 +55,6 @@ def print_final_metrics(metrics):
 
 
 @timer
-def bert_test(model_ckpt, hparams, output_dir):
-    print(f"Testing model {model_ckpt}")
-    trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
-                      default_save_path=output_dir,
-                      show_progress_bar=True,
-                      max_nb_epochs=EPOCHS,
-                      early_stop_callback=None)
-    hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
-    model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt)
-    model.freeze()
-    trainer.test(model)
-    print_final_metrics(trainer.tqdm_metrics)
-
-
-@timer
 def bert_treatment_test(model_ckpt, hparams, output_dir):
     print(f"Testing model with {hparams['bert_params']['name']} LM")
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
@@ -79,9 +64,10 @@ def bert_treatment_test(model_ckpt, hparams, output_dir):
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt)
-    model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
-                                                                           hparams["bert_params"]["bert_state_dict"])
-    model.bert_classifier.name = f"{model.bert_classifier.__class__.__name__}-{hparams['bert_params']['name']}"
+    if hparams["bert_params"]["bert_state_dict"]:
+        model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
+                                                                               hparams["bert_params"]["bert_state_dict"])
+        model.bert_classifier.name = f"{model.bert_classifier.__class__.__name__}-{hparams['bert_params']['name']}"
     model.freeze()
     trainer.test(model)
     print_final_metrics(trainer.tqdm_metrics)
@@ -92,7 +78,7 @@ def main():
     # Factual OOB BERT Model training
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_F"
     factual_model_ckpt = get_checkpoint_file(f"{OUTPUT_DIR}/best_model/checkpoints")
-    bert_test(factual_model_ckpt, HYPERPARAMETERS, OUTPUT_DIR)
+    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, OUTPUT_DIR)
     # Factual OOB BERT Model test with MLM LM
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/MLM"
     HYPERPARAMETERS["bert_params"]["name"] = "MLM"
@@ -107,8 +93,9 @@ def main():
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF"
     HYPERPARAMETERS["text_column"] = "no_adj_review"
     HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
     counterfactual_model_ckpt = get_checkpoint_file(f"{OUTPUT_DIR}/best_model/checkpoints")
-    bert_test(counterfactual_model_ckpt, HYPERPARAMETERS, OUTPUT_DIR)
+    bert_treatment_test(counterfactual_model_ckpt, HYPERPARAMETERS, OUTPUT_DIR)
 
 
 if __name__ == "__main__":
