@@ -275,7 +275,7 @@ class LightningBertPretrainedClassifier(LightningModule):
                          labels.data.cpu().numpy(),
                          correct.cpu().numpy(),
                          [prediction_probs[:, i].data.cpu().numpy() for i in range(self.bert_classifier.label_size)],
-                         "test")
+                         f"{self.bert_classifier.name}-test")
         return {"loss": avg_loss,
                 "progress_bar": {"test_loss": avg_loss, "test_accuracy": accuracy},
                 "log": {"test_loss": avg_loss, "test_accuracy": accuracy}}
