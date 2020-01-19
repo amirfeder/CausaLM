@@ -29,6 +29,7 @@ git clone https://github.com/NVIDIA/apex
 cd apex
 pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 conda deactivate
+echo "alias 'causalm_env'='conda_env && conda activate causalm && export PYTHONPATH=\$CAUSALM_REPO:\$PYTHONPATH && cd \$CAUSALM_REPO'" >> ~/.bash_profile
 if [ ! -d "$HOME/bin/go" ]
 then
   echo "Google Drive Setup"
@@ -39,10 +40,9 @@ then
   echo "export GOROOT=\$HOME/bin/go" >> ~/.bash_profile
   echo "export GOPATH=\$GOROOT/packages" >> ~/.bash_profile
   echo "export PATH=\$PATH:\$GOROOT/bin:\$GOPATH/bin" >> ~/.bash_profile
+  source ~/.bash_profile
+  go get -u -v github.com/odeke-em/drive/cmd/drive
 fi
-echo "alias 'causalm_env'='conda_env && conda activate causalm && export PYTHONPATH=\$CAUSALM_REPO:\$PYTHONPATH && cd \$CAUSALM_REPO'" >> ~/.bash_profile
-source ~/.bash_profile
-go get -u -v github.com/odeke-em/drive/cmd/drive
 mkdir -p ~/GoogleDrive/AmirNadav/CausaLM/
 echo "export CAUSALM_HOME=\$HOME/GoogleDrive/AmirNadav/CausaLM/" >> ~/.bash_profile
 # echo "export MOOD_RESULTS=\$NBA_DATA/Results/Play-By-Play/" >> ~/.bash_profile
