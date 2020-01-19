@@ -221,7 +221,8 @@ class LightningBertPretrainedClassifier(LightningModule):
     def validation_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
         loss, logits, pooler_attention_weights = self.forward(input_ids, input_mask, labels)
-        predictions = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
+        prediction_probs = F.softmax(logits.view(-1, self.bert_classifier.label_size), dim=-1)
+        predictions = torch.argmax(prediction_probs, dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
         return {"loss": loss, "progress_bar": {"val_loss": loss, "val_accuracy": correct.mean()},
                 "log": {"batch_num": batch_idx, "val_loss": loss, "val_accuracy": correct.mean()}, "correct": correct}
@@ -231,10 +232,10 @@ class LightningBertPretrainedClassifier(LightningModule):
         for x in step_outputs:
             total_loss.append(x["loss"])
             total_correct.append(x["correct"])
-        avg_loss = torch.stack(total_loss).mean()
-        accuracy = torch.stack(total_correct).double()
-        return {"loss": avg_loss, "progress_bar": {"val_loss": avg_loss, "val_accuracy": accuracy.mean()},
-                "log": {"val_loss": avg_loss, "val_accuracy": accuracy.mean()}}
+        avg_loss = torch.cat(total_loss).mean()
+        accuracy = torch.cat(total_correct).mean()
+        return {"loss": avg_loss, "progress_bar": {"val_loss": avg_loss, "val_accuracy": accuracy},
+                "log": {"val_loss": avg_loss, "val_accuracy": accuracy}}
 
     @data_loader
     def test_dataloader(self):
@@ -261,7 +262,7 @@ class LightningBertPretrainedClassifier(LightningModule):
             total_labels.append(x["labels"])
             total_unique_ids.append(x["unique_ids"])
             total_prediction_probs.append(x["prediction_probs"])
-        avg_loss = torch.stack(total_loss).mean()
+        avg_loss = torch.cat(total_loss).mean()
         unique_ids = torch.cat(total_unique_ids)
         predictions = torch.cat(total_predictions)
         prediction_probs = torch.cat(total_prediction_probs, dim=0)
