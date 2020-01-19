@@ -1,6 +1,7 @@
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR
 from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters, BertPretrainedClassifier
+from predict import test_models
 from utils import send_email, get_free_gpu, init_logger
 from os import listdir
 from Timer import timer
@@ -21,7 +22,7 @@ PAD_ID = 0
 BATCH_SIZE = 128
 ACCUMULATE = 4
 DROPOUT = 0.1
-EPOCHS = 100
+EPOCHS = 50
 FP16 = False
 
 HYPERPARAMETERS = {
@@ -67,30 +68,7 @@ def bert_train_eval(hparams, output_dir):
     trainer.fit(model)
     trainer.test()
     print_final_metrics(trainer.tqdm_metrics)
-    # best_model = LightningBertPretrainedClassifier.load_from_checkpoint(get_checkpoint_file(f"{model.hparams.output_path}/checkpoints/"))
-    # best_model.eval()
-    # best_model.freeze()
-    # trainer.test(best_model)
-    # print_final_metrics(trainer.tqdm_metrics)
     return model
-
-
-@timer
-def bert_treatment_test(model, hparams, output_dir):
-    print(f"Testing model with {hparams['bert_params']['name']} LM")
-    trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
-                      default_save_path=output_dir,
-                      show_progress_bar=True,
-                      accumulate_grad_batches=ACCUMULATE,
-                      max_nb_epochs=EPOCHS,
-                      early_stop_callback=None)
-    hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
-    # model = LightningBertPretrainedClassifier(LightningHyperparameters(hparams))
-    model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
-                                                                           hparams["bert_params"]["bert_state_dict"])
-    model.freeze()
-    trainer.test(model)
-    print_final_metrics(trainer.tqdm_metrics)
 
 
 @timer
@@ -103,17 +81,7 @@ def main():
     HYPERPARAMETERS["text_column"] = "no_adj_review"
     HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
     counterfactual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
-    # Factual OOB BERT Model test with MLM LM
-    OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/MLM"
-    HYPERPARAMETERS["text_column"] = "review"
-    HYPERPARAMETERS["bert_params"]["name"] = "MLM"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_oob_model, HYPERPARAMETERS, OUTPUT_DIR)
-    # Factual OOB BERT Model test with IMA LM
-    OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/IMA"
-    HYPERPARAMETERS["bert_params"]["name"] = "IMA"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{SENTIMENT_IMA_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_oob_model, HYPERPARAMETERS, OUTPUT_DIR)
+    test_models(factual_oob_model, counterfactual_oob_model)
 
 
 if __name__ == "__main__":
