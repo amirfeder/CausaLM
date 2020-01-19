@@ -232,7 +232,7 @@ class LightningBertPretrainedClassifier(LightningModule):
         for x in step_outputs:
             total_loss.append(x["loss"])
             total_correct.append(x["correct"])
-        avg_loss = torch.cat(total_loss).mean()
+        avg_loss = torch.stack(total_loss).mean()
         accuracy = torch.cat(total_correct).mean()
         return {"loss": avg_loss, "progress_bar": {"val_loss": avg_loss, "val_accuracy": accuracy},
                 "log": {"val_loss": avg_loss, "val_accuracy": accuracy}}
@@ -262,7 +262,7 @@ class LightningBertPretrainedClassifier(LightningModule):
             total_labels.append(x["labels"])
             total_unique_ids.append(x["unique_ids"])
             total_prediction_probs.append(x["prediction_probs"])
-        avg_loss = torch.cat(total_loss).mean()
+        avg_loss = torch.stack(total_loss).mean()
         unique_ids = torch.cat(total_unique_ids)
         predictions = torch.cat(total_predictions)
         prediction_probs = torch.cat(total_prediction_probs, dim=0)
