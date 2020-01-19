@@ -265,7 +265,7 @@ class LightningBertPretrainedClassifier(LightningModule):
         avg_loss = torch.stack(total_loss).mean()
         unique_ids = torch.cat(total_unique_ids)
         predictions = torch.cat(total_predictions)
-        prediction_probs = torch.stack(total_prediction_probs)
+        prediction_probs = torch.cat(total_prediction_probs, dim=0)
         labels = torch.cat(total_labels)
         correct = predictions.eq(labels.view_as(predictions))
         accuracy = correct.double().mean()
