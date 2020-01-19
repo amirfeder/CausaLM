@@ -49,8 +49,7 @@ class HAN_Attention_Layer(nn.Module):
         self.device = device
         self.linear_in = Linear_Layer(h_dim, h_dim, activation=torch.tanh)
         self.softmax = nn.Softmax(dim=-1)
-        self.decoder_h = torch.randn(h_dim, device=self.device, requires_grad=True)
-        self.weights = dict()
+        self.decoder_h = nn.Parameter(torch.randn(h_dim, device=self.device), requires_grad=True)
 
     def forward(self, encoder_h_seq: torch.Tensor, mask: torch.Tensor = None) -> (torch.Tensor, torch.Tensor):
         """
@@ -119,7 +118,7 @@ class BertPretrainedClassifier(nn.Module):
         pooled_seq_vector, attention_weights = self.pooler(last_hidden_states_seq, pooler_mask)
         logits = self.classifier(pooled_seq_vector)
         loss = self.loss_func(logits.view(-1, self.label_size), labels.view(-1))
-        return loss, logits
+        return loss, logits, attention_weights
 
     @staticmethod
     def load_frozen_bert(bert_pretrained_model: str, bert_state_dict: str = None) -> BertModel:
@@ -199,7 +198,7 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     def training_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
-        loss, logits = self.forward(input_ids, input_mask, labels)
+        loss, logits, pooler_attention_weights = self.forward(input_ids, input_mask, labels)
         predictions = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
         total = torch.tensor(predictions.size(0))
@@ -221,7 +220,7 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
-        loss, logits = self.forward(input_ids, input_mask, labels)
+        loss, logits, pooler_attention_weights = self.forward(input_ids, input_mask, labels)
         predictions = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
         return {"loss": loss, "progress_bar": {"val_loss": loss, "val_accuracy": correct.mean()},
@@ -246,7 +245,7 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     def test_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
-        loss, logits = self.forward(input_ids, input_mask, labels)
+        loss, logits, pooler_attention_weights = self.forward(input_ids, input_mask, labels)
         prediction_probs = F.softmax(logits.view(-1, self.bert_classifier.label_size), dim=-1)
         predictions = torch.argmax(prediction_probs, dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
