@@ -33,7 +33,6 @@ class BertSentimentDataset(Dataset):
     def __getitem__(self, index):
         return self.dataset[index]
 
-    @timer
     def preprocessing_pipeline(self):
         examples = self.read_examples()
         features, labels = self.convert_examples_to_features(examples)

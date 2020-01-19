@@ -1,9 +1,7 @@
-from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR
+from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR
 from pytorch_lightning import Trainer
-from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters, BertPretrainedClassifier
+from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
 from predict import test_models
-from utils import send_email, get_free_gpu, init_logger
-from os import listdir
 from Timer import timer
 import torch
 
@@ -38,14 +36,6 @@ HYPERPARAMETERS = {
         "name": MODE
     }
 }
-
-
-def get_checkpoint_file(ckpt_dir):
-    for file in sorted(listdir(ckpt_dir)):
-        if file.endswith(".ckpt"):
-            return f"{ckpt_dir}/{file}"
-    else:
-        return None
 
 
 def print_final_metrics(metrics):
