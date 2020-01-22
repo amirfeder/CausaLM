@@ -235,7 +235,7 @@ def create_instances_from_document(
     tokens = tuple([CLS_TOKEN] + tokens_a + [SEP_TOKEN])
     # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
     # They are 1 for the B tokens and the final [SEP]
-    segment_ids = [0 for _ in range(len(tokens_a) + 2)]
+    # segment_ids = [0 for _ in range(len(tokens_a) + 2)]
     tokens_pos_idx = [i + 1 for i in tokens_pos_idx_list]
     num_adj = len(tokens_pos_idx)
     num_tokens = len(tokens) - 2
@@ -260,22 +260,21 @@ def create_instances_from_document(
 
     instances = []
     num_adj_masked = 0
-    i = 0
-    while i * num_to_mask < len(cand_indices) and num_adj_masked < num_adj:
+    num_masked = 0
+    while num_masked < len(cand_indices) and num_adj_masked < num_adj:
         instance_tokens, masked_lm_positions, masked_lm_labels, masked_adj_labels = create_masked_adj_predictions(
-            list(tokens), tokens_pos_idx, cand_indices[(i * num_to_mask):], num_to_mask, vocab_list)
+            list(tokens), tokens_pos_idx, cand_indices[num_masked:], num_to_mask, vocab_list)
 
         instance = {
             "tokens": [str(i) for i in instance_tokens],
-            "segment_ids": [str(i) for i in segment_ids],
             "masked_lm_positions": [str(i) for i in masked_lm_positions],
             "masked_lm_labels": [str(i) for i in masked_lm_labels],
             "masked_adj_labels": [str(i) for i in masked_adj_labels]
         }
         instances.append(instance)
 
-        i += 1
         num_adj_masked += sum(masked_adj_labels)
+        num_masked = len(masked_lm_labels)
 
     return instances
 
