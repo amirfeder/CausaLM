@@ -17,9 +17,10 @@ def get_checkpoint_file(ckpt_dir):
 
 
 def print_final_metrics(metrics):
-    print("\nFinal Metrics:")
+    print("Final Metrics:")
     for metric, val in metrics.items():
         print(f"{metric}: {val:.4f}")
+    print()
 
 
 @timer
@@ -71,7 +72,7 @@ def test_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
     HYPERPARAMETERS["text_column"] = "no_adj_review"
     HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
-    if not factual_model_ckpt:
+    if not counterfactual_model_ckpt:
         counterfactual_model_ckpt = get_checkpoint_file(f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF/best_model/checkpoints")
     bert_treatment_test(counterfactual_model_ckpt, HYPERPARAMETERS, trainer)
 

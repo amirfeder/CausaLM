@@ -39,9 +39,10 @@ HYPERPARAMETERS = {
 
 
 def print_final_metrics(metrics):
-    print("\nFinal Metrics:")
+    print("Final Metrics:")
     for metric, val in metrics.items():
         print(f"{metric}: {val:.4f}")
+    print()
 
 
 @timer

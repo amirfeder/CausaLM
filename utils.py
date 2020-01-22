@@ -163,5 +163,5 @@ def save_predictions(folder, sample_idx_list, predictions_list, true_list, corre
     }
     df_dict.update({f"class_{i}_prob": class_i_prob for i, class_i_prob in enumerate(class_probs)})
     df = pd.DataFrame.from_dict(df_dict)
-    df = df.set_index("sample_index")
+    df = df.set_index("sample_index").sort_index()
     df.to_csv(f"{folder}/{name}-predictions.csv")
