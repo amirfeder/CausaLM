@@ -191,6 +191,8 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     @data_loader
     def train_dataloader(self):
+        if not self.training:
+            return [] # PyTorch Lightning hack for test mode with frozen model
         dataset = BertSentimentDataset(self.hparams.data_path, self.hparams.treatment, "train",
                                        self.hparams.text_column, self.hparams.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
@@ -213,6 +215,8 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     @data_loader
     def val_dataloader(self):
+        if not self.training:
+            return [] # PyTorch Lightning hack for test mode with frozen model
         dataset = BertSentimentDataset(self.hparams.data_path, self.hparams.treatment, "dev",
                                        self.hparams.text_column, self.hparams.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)

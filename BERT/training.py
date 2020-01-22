@@ -1,7 +1,7 @@
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR
 from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
-from predict import test_models
+from BERT.predict import test_models, print_final_metrics
 from Timer import timer
 import torch
 
@@ -38,13 +38,6 @@ HYPERPARAMETERS = {
 }
 
 
-def print_final_metrics(metrics):
-    print("Final Metrics:")
-    for metric, val in metrics.items():
-        print(f"{metric}: {val:.4f}")
-    print()
-
-
 @timer
 def bert_train_eval(hparams, output_dir):
     print(f"Training for {EPOCHS} epochs")
@@ -58,7 +51,7 @@ def bert_train_eval(hparams, output_dir):
     model = LightningBertPretrainedClassifier(LightningHyperparameters(hparams))
     trainer.fit(model)
     trainer.test()
-    print_final_metrics(trainer.tqdm_metrics)
+    print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics)
     return model
 
 

@@ -1,3 +1,4 @@
+from typing import Dict
 from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR
 from pytorch_lightning import Trainer, LightningModule
 from BERT.networks import LightningBertPretrainedClassifier, BertPretrainedClassifier
@@ -16,8 +17,8 @@ def get_checkpoint_file(ckpt_dir):
         return None
 
 
-def print_final_metrics(metrics):
-    print("Final Metrics:")
+def print_final_metrics(name: str, metrics: Dict):
+    print(f"{name} Metrics:")
     for metric, val in metrics.items():
         print(f"{metric}: {val:.4f}")
     print()
@@ -38,7 +39,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer):
         model.bert_classifier.name = f"{hparams['bert_params']['name']}"
     model.freeze()
     trainer.test(model)
-    print_final_metrics(trainer.tqdm_metrics)
+    print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics)
 
 
 @timer
@@ -73,7 +74,7 @@ def test_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
     HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
     if not counterfactual_model_ckpt:
-        counterfactual_model_ckpt = get_checkpoint_file(f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF/best_model/checkpoints")
+        counterfactual_model_ckpt = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF/best_model/checkpoints"
     bert_treatment_test(counterfactual_model_ckpt, HYPERPARAMETERS, trainer)
 
 
