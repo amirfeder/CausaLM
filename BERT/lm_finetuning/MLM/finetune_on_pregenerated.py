@@ -21,7 +21,7 @@ from BERT.lm_finetuning.MLM.bert_mlm_pretrain import BertForMLMPreTraining
 from BERT.lm_finetuning.MLM.pregenerate_training_data import EPOCHS
 from utils import init_logger, INIT_TIME
 from Timer import timer
-from constants import RANDOM_SEED, SENTIMENT_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, SENTIMENT_DOMAINS
+from constants import RANDOM_SEED, SENTIMENT_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, SENTIMENT_DOMAINS, NUM_CPU
 
 BATCH_SIZE = 8
 FP16 = False
@@ -231,7 +231,7 @@ def pretrain_on_domain(args):
             train_sampler = RandomSampler(epoch_dataset)
         else:
             train_sampler = DistributedSampler(epoch_dataset)
-        train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
+        train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size, num_workers=NUM_CPU)
         tr_loss = 0
         nb_tr_examples, nb_tr_steps = 0, 0
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:

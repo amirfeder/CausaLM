@@ -16,7 +16,7 @@ from utils import init_logger, INIT_TIME
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 
-from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR, SENTIMENT_DOMAINS
+from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR, SENTIMENT_DOMAINS, NUM_CPU
 from BERT.lm_finetuning.IMA.pregenerate_training_data import EPOCHS
 from BERT.lm_finetuning.IMA.bert_ima_pretrain import BertForIMAPreTraining
 
@@ -245,7 +245,7 @@ def pretrain_on_domain(args):
             train_sampler = RandomSampler(epoch_dataset)
         else:
             train_sampler = DistributedSampler(epoch_dataset)
-        train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
+        train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size, num_workers=NUM_CPU)
         tr_loss = 0
         nb_tr_examples, nb_tr_steps = 0, 0
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
