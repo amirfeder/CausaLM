@@ -237,7 +237,7 @@ def create_instances_from_document(
 
     instances = []
     num_masked = 0
-    while num_masked < len(cand_indices) and num_masked < num_to_mask * 2.3:
+    while num_masked < len(cand_indices) and num_masked < num_to_mask * 2:
         instance_tokens, masked_lm_positions, masked_lm_labels = create_masked_lm_predictions(list(tokens),
                                                                                               cand_indices[num_masked:],
                                                                                               num_to_mask, vocab_list)
