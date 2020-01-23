@@ -313,7 +313,7 @@ def main():
     for domain in SENTIMENT_DOMAINS:
         print(f"\nGenerating data for domain: {domain}")
         DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{domain}UN_clean.txt"
-        DATA_OUTPUT_DIR = Path(SENTIMENT_MLM_DATA_DIR) / domain
+        DATA_OUTPUT_DIR = Path(SENTIMENT_MLM_DATA_DIR) / "double" / domain
         with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
             with open(DATASET_FILE, "r") as dataset:
                 for line in tqdm(dataset):

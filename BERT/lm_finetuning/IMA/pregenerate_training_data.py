@@ -253,8 +253,8 @@ def create_instances_from_document(
     # if num_to_mask > len(tokens):
     #     print(f"{num_to_mask} is more than {num_tokens}")
 
-    num_to_mask = mlm_prob(num_adj, num_tokens, masked_lm_prob)
-    # num_to_mask = double_num_adj(num_adj, num_tokens, 0.4)
+    # num_to_mask = mlm_prob(num_adj, num_tokens, masked_lm_prob)
+    num_to_mask = double_num_adj(num_adj, num_tokens, 0.4)
 
     cand_indices = generate_cand_indices(num_tokens, tokens_pos_idx)
 
@@ -338,7 +338,7 @@ def main():
     for domain in SENTIMENT_DOMAINS:
         print(f"\nGenerating data for domain: {domain}")
         DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
-        DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / domain
+        DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / "double" / domain
         with POSTaggedDocumentDatabase(reduce_memory=args.reduce_memory) as docs:
             with open(DATASET_FILE, "r") as dataset:
                 for line in tqdm(dataset):

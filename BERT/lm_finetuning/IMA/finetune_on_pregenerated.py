@@ -338,7 +338,7 @@ def main():
 
     for domain in SENTIMENT_DOMAINS:
         logger.info(f"\nPretraining on domain: {domain}")
-        DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / domain
+        DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / "double" / domain
         MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
         args.pregenerated_data = DATA_OUTPUT_DIR
         args.output_dir = MODEL_OUTPUT_DIR
