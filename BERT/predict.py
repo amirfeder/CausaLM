@@ -69,6 +69,14 @@ def test_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
     HYPERPARAMETERS["bert_params"]["name"] = "IMA"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{SENTIMENT_IMA_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
     bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    # Factual OOB BERT Model test with MLM LM (double_samples)
+    HYPERPARAMETERS["bert_params"]["name"] = "MLM_double_samples"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/double/{DOMAIN}/model/pytorch_model.bin"
+    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    # Factual OOB BERT Model test with IMA LM (double_adj)
+    HYPERPARAMETERS["bert_params"]["name"] = "IMA_double_adj"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{SENTIMENT_IMA_DATA_DIR}/double/{DOMAIN}/model/pytorch_model.bin"
+    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
     # CounterFactual OOB BERT Model training
     HYPERPARAMETERS["text_column"] = "no_adj_review"
     HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
