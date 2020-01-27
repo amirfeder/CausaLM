@@ -1,19 +1,38 @@
 from transformers.modeling_bert import BertLMPredictionHead, BertPreTrainedModel, BertModel
+from BERT.lm_finetuning.grad_reverse_layer import GradReverseLayerFunction
 from torch.nn import CrossEntropyLoss
 import torch.nn as nn
 
 
-class BertMLMPreTrainingHeads(nn.Module):
+class BertGenderPredictionHead(nn.Module):
     def __init__(self, config):
-        super(BertMLMPreTrainingHeads, self).__init__()
-        self.predictions = BertLMPredictionHead(config)
+        super().__init__()
+        # self.transform = BertPredictionHeadTransform(config)
+        self.decoder = nn.Linear(config.hidden_size, 2)
+        # p = float(i + epoch * len_dataloader) / n_epoch / len_dataloader
+        # self.alpha = 2. / (1. + np.exp(-10 * p)) - 1
+        self.alpha = 1.
+
+    def forward(self, pooled_output):
+        # hidden_states = self.transform(hidden_states)
+        reversed_pooled_output = GradReverseLayerFunction.apply(pooled_output, self.alpha)
+        output = self.decoder(reversed_pooled_output)
+        return output
+
+
+class BertGenderPreTrainingHeads(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.lm_predictions = BertLMPredictionHead(config)
+        self.gender_prediction = BertGenderPredictionHead(config)
 
     def forward(self, sequence_output, pooled_output):
-        lm_prediction_scores = self.predictions(sequence_output)
-        return lm_prediction_scores
+        lm_prediction_scores = self.lm_predictions(sequence_output)
+        gender_prediction_score = self.gender_prediction(pooled_output)
+        return lm_prediction_scores, gender_prediction_score
 
 
-class BertForMLMPreTraining(BertPreTrainedModel):
+class BertForGenderPreTraining(BertPreTrainedModel):
     r"""
         **masked_lm_labels**: (`optional`) ``torch.LongTensor`` of shape ``(batch_size, sequence_length)``:
             Labels for computing the masked language modeling loss.
@@ -51,10 +70,10 @@ class BertForMLMPreTraining(BertPreTrainedModel):
 
     """
     def __init__(self, config):
-        super(BertForMLMPreTraining, self).__init__(config)
+        super().__init__(config)
 
         self.bert = BertModel(config)
-        self.cls = BertMLMPreTrainingHeads(config)
+        self.cls = BertGenderPreTrainingHeads(config)
 
         self.init_weights()
         self.tie_weights()
@@ -67,7 +86,7 @@ class BertForMLMPreTraining(BertPreTrainedModel):
                                    self.bert.embeddings.word_embeddings)
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None,
-                position_ids=None, head_mask=None, masked_lm_labels=None):
+                position_ids=None, head_mask=None, masked_lm_labels=None, gender_label=None):
 
         outputs = self.bert(input_ids,
                             attention_mask=attention_mask,
@@ -76,14 +95,15 @@ class BertForMLMPreTraining(BertPreTrainedModel):
                             head_mask=head_mask)
 
         sequence_output, pooled_output = outputs[:2]
-        lm_prediction_scores = self.cls(sequence_output, pooled_output)
+        lm_prediction_scores, gender_prediction_score = self.cls(sequence_output, pooled_output)
 
-        outputs = (lm_prediction_scores,) + outputs[2:]  # add hidden states and attention if they are here
+        outputs = (lm_prediction_scores, gender_prediction_score,) + outputs[2:]  # add hidden states and attention if they are here
 
-        if masked_lm_labels is not None:
+        if masked_lm_labels is not None and gender_label is not None:
             loss_fct = CrossEntropyLoss(ignore_index=-1)
             masked_lm_loss = loss_fct(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
-            loss = masked_lm_loss
+            gender_loss = loss_fct(gender_prediction_score.view(-1, 2), gender_label.view(-1))
+            loss = masked_lm_loss + gender_loss
             outputs = (loss,) + outputs
 
         return outputs  # (loss), prediction_scores, seq_relationship_score, (hidden_states), (attentions)
