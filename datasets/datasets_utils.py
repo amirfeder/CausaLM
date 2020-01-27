@@ -27,9 +27,10 @@ def tag_review(review: str) -> str:
     return TOKEN_SEPARATOR.join(tagged_review)
 
 
-def split_data(df, path, prefix):
-    train, test = train_test_split(df, test_size=0.2, stratify=df["label"], random_state=RANDOM_SEED)
-    train, dev = train_test_split(train, test_size=0.2, stratify=train["label"], random_state=RANDOM_SEED)
-    train.to_csv(f"{path}/{prefix}_train.csv")
-    dev.to_csv(f"{path}/{prefix}_dev.csv")
-    test.to_csv(f"{path}/{prefix}_test.csv")
+def split_data(df, path, prefix, label_column="label"):
+    train, test = train_test_split(df, test_size=0.2, stratify=df[label_column], random_state=RANDOM_SEED)
+    train, dev = train_test_split(train, test_size=0.2, stratify=train[label_column], random_state=RANDOM_SEED)
+    df.sort_index().to_csv(f"{path}/{prefix}_all.csv")
+    train.sort_index().to_csv(f"{path}/{prefix}_train.csv")
+    dev.sort_index().to_csv(f"{path}/{prefix}_dev.csv")
+    test.sort_index().to_csv(f"{path}/{prefix}_test.csv")
