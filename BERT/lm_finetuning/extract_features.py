@@ -31,7 +31,7 @@ from torch.utils.data.distributed import DistributedSampler
 from transformers.tokenization_bert import BertTokenizer
 from transformers.modeling_bert import BertModel
 from lm_finetuning.IMA.pregenerate_training_data import truncate_seq, CLS_TOKEN, SEP_TOKEN, TOKEN_SEPARATOR
-from constants import BERT_PRETRAINED_MODEL, MAX_SEQ_LENGTH, SENTIMENT_MODE_DATA_DIR,\
+from constants import BERT_PRETRAINED_MODEL, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_MODE_DATA_DIR,\
     OOB_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, DOMAIN, FINAL_PRETRAINED_MODEL
 from utils import init_logger
 from Timer import timer
@@ -189,7 +189,7 @@ def extract_features(dataset, args):
 
     reviews_examples = read_examples(dataset_file)
 
-    reviews_features_lists = convert_examples_to_features(examples=reviews_examples, seq_length=MAX_SEQ_LENGTH, tokenizer=tokenizer)
+    reviews_features_lists = convert_examples_to_features(examples=reviews_examples, seq_length=MAX_SENTIMENT_SEQ_LENGTH, tokenizer=tokenizer)
 
     if PRETRAINED_MODEL != OOB_PRETRAINED_MODEL:
         fine_tuned_state_dict = torch.load(PRETRAINED_MODEL)
@@ -264,7 +264,7 @@ def main():
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
     ## Other parameters
     parser.add_argument("--layers", default="-1,-2,-3,-4", type=str)
-    parser.add_argument("--max_seq_length", default=MAX_SEQ_LENGTH, type=int,
+    parser.add_argument("--max_seq_length", default=MAX_SENTIMENT_SEQ_LENGTH, type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. Sequences longer "
                             "than this will be truncated, and sequences shorter than this will be padded.")
     parser.add_argument("--batch_size", default=BATCH_SIZE, type=int, help="Batch size for predictions.")

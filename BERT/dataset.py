@@ -3,7 +3,7 @@ from torch.utils.data import TensorDataset, Dataset
 from tqdm import tqdm
 from transformers.tokenization_bert import BertTokenizer
 from BERT.lm_finetuning.MLM.pregenerate_training_data import CLS_TOKEN, SEP_TOKEN
-from constants import BERT_PRETRAINED_MODEL, MAX_SEQ_LENGTH
+from constants import BERT_PRETRAINED_MODEL, MAX_SENTIMENT_SEQ_LENGTH
 import pandas as pd
 import numpy as np
 import torch
@@ -14,7 +14,7 @@ PAD_ID = 0
 
 class BertSentimentDataset(Dataset):
     def __init__(self, data_path: str, treatment: str, subset: str, text_column: str, label_column: str,
-                 bert_pretrained_model: str = BERT_PRETRAINED_MODEL, max_seq_length: int = MAX_SEQ_LENGTH):
+                 bert_pretrained_model: str = BERT_PRETRAINED_MODEL, max_seq_length: int = MAX_SENTIMENT_SEQ_LENGTH):
         if subset not in ("train", "dev", "test"):
             raise ValueError("subset argument must be {train, dev,test}")
         self.dataset_file = f"{data_path}/{treatment}_{subset}.csv"

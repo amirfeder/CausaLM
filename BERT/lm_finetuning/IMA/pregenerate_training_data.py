@@ -3,7 +3,7 @@ from pathlib import Path
 from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, SENTIMENT_IMA_DATA_DIR, MAX_SEQ_LENGTH, SENTIMENT_DOMAINS
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, SENTIMENT_IMA_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_DOMAINS
 from datasets.datasets_utils import TOKEN_SEPARATOR
 from multiprocessing import Pool
 from random import random, randrange, choice
@@ -320,7 +320,7 @@ def main():
                         help="The number of workers to use to write the files")
     parser.add_argument("--epochs_to_generate", type=int, default=EPOCHS,
                         help="Number of epochs of data to pregenerate")
-    parser.add_argument("--max_seq_len", type=int, default=MAX_SEQ_LENGTH)
+    parser.add_argument("--max_seq_len", type=int, default=MAX_SENTIMENT_SEQ_LENGTH)
     parser.add_argument("--short_seq_prob", type=float, default=0.1,
                         help="Probability of making a short sentence as a training example")
     parser.add_argument("--masked_lm_prob", type=float, default=MLM_PROB,

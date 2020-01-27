@@ -10,7 +10,7 @@ from transformers.tokenization_bert import BertTokenizer
 import numpy as np
 import json
 import collections
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_MLM_DATA_DIR, SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, MAX_SEQ_LENGTH
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_MLM_DATA_DIR, SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, MAX_SENTIMENT_SEQ_LENGTH
 from Timer import timer
 
 WORDPIECE_PREFIX = "##"
@@ -296,7 +296,7 @@ def main():
                         help="The number of workers to use to write the files")
     parser.add_argument("--epochs_to_generate", type=int, default=EPOCHS,
                         help="Number of epochs of data to pregenerate")
-    parser.add_argument("--max_seq_len", type=int, default=MAX_SEQ_LENGTH)
+    parser.add_argument("--max_seq_len", type=int, default=MAX_SENTIMENT_SEQ_LENGTH)
     parser.add_argument("--short_seq_prob", type=float, default=0.1,
                         help="Probability of making a short sentence as a training example")
     parser.add_argument("--masked_lm_prob", type=float, default=MLM_PROB,
