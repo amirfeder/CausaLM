@@ -1,7 +1,7 @@
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR
 from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
-from BERT.predict import test_models, print_final_metrics
+from BERT.predict import test_adj_models, print_final_metrics
 from Timer import timer
 import torch
 
@@ -56,7 +56,7 @@ def bert_train_eval(hparams, output_dir):
 
 
 @timer
-def main():
+def train_adj_models():
     # Factual OOB BERT Model training
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_F"
     factual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
@@ -65,8 +65,8 @@ def main():
     HYPERPARAMETERS["text_column"] = "no_adj_review"
     HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
     counterfactual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
-    test_models(factual_oob_model, counterfactual_oob_model)
+    test_adj_models(factual_oob_model, counterfactual_oob_model)
 
 
 if __name__ == "__main__":
-    main()
+    train_adj_models()

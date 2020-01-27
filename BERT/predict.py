@@ -43,7 +43,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer):
 
 
 @timer
-def test_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
+def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
     DOMAIN = "movies"
     TREATMENT = "adj"
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -87,4 +87,4 @@ def test_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 
 if __name__ == "__main__":
-    test_models()
+    test_adj_models()
