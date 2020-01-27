@@ -1,6 +1,7 @@
 from constants import POMS_GENDER_DATA_DIR, POMS_RAW_DATA_DIR
-from datasets_utils import split_data
+from datasets_utils import split_data, TOKEN_SEPARATOR
 import pandas as pd
+import numpy as np
 
 
 def create_gender_datasets():
@@ -19,6 +20,10 @@ def create_gender_datasets():
     print(df_joined)
     df_joined_grouped = df_joined.groupby(by="ID_f", as_index=False).first().set_index(keys=["ID_f", "ID_m"]).sort_index()
     print(df_joined_grouped)
+    sequence_lengths = df_joined_grouped['Sentence_f'].apply(lambda text: int(len(text.split(TOKEN_SEPARATOR))))
+    print(f"Max sequence length in dataset: {np.max(sequence_lengths)}")
+    print(f"Min sequence length in dataset: {np.min(sequence_lengths)}")
+    print(f"Mean sequence length in dataset: {np.mean(sequence_lengths)}")
     split_data(df_joined_grouped, POMS_GENDER_DATA_DIR, "gender")
 
 
