@@ -43,13 +43,12 @@ class Linear_Layer(nn.Module):
         return linear_out
 
 
-class HAN_Attention_Layer(nn.Module):
-    def __init__(self, device: torch.device, h_dim: int):
+class HAN_Attention_Pooler_Layer(nn.Module):
+    def __init__(self, h_dim: int):
         super().__init__()
-        self.device = device
         self.linear_in = Linear_Layer(h_dim, h_dim, activation=torch.tanh)
         self.softmax = nn.Softmax(dim=-1)
-        self.decoder_h = nn.Parameter(torch.randn(h_dim, device=self.device), requires_grad=True)
+        self.decoder_h = nn.Parameter(torch.randn(h_dim), requires_grad=True)
 
     def forward(self, encoder_h_seq: torch.Tensor, mask: torch.Tensor = None) -> (torch.Tensor, torch.Tensor):
         """
@@ -87,17 +86,15 @@ class HAN_Attention_Layer(nn.Module):
     def create_mask(self, valid_lengths: torch.Tensor, max_len: int = None) -> torch.Tensor:
         if not max_len:
             max_len = valid_lengths.max()
-        return torch.arange(max_len, dtype=valid_lengths.dtype, device=self.device).expand(len(valid_lengths), max_len) < valid_lengths.unsqueeze(1)
+        return torch.arange(max_len, dtype=valid_lengths.dtype).expand(len(valid_lengths), max_len) < valid_lengths.unsqueeze(1)
 
 
 class BertPretrainedClassifier(nn.Module):
-    def __init__(self, device: torch.device = torch.device("cpu"),
-                 batch_size: int = 8, dropout: float = 0.1, label_size: int = 2,
-                 loss_func: Callable = F.cross_entropy,
-                 bert_pretrained_model: str = BERT_PRETRAINED_MODEL, bert_state_dict: str = None, name: str = "OOB"):
+    def __init__(self, batch_size: int = 8, dropout: float = 0.1, label_size: int = 2,
+                 loss_func: Callable = F.cross_entropy, bert_pretrained_model: str = BERT_PRETRAINED_MODEL,
+                 bert_state_dict: str = None, name: str = "OOB"):
         super().__init__()
         self.name = f"{self.__class__.__name__}-{name}"
-        self.device = device
         self.batch_size = batch_size
         self.label_size = label_size
         self.dropout = dropout
@@ -109,7 +106,7 @@ class BertPretrainedClassifier(nn.Module):
         #                               attention_probs_dropout_prob=0.1, hidden_dropout_prob=0.1)
         # self.attention = BertAttention(self.bert_config)
         self.hidden_size = self.bert.config.hidden_size
-        self.pooler = HAN_Attention_Layer(device, self.hidden_size)
+        self.pooler = HAN_Attention_Pooler_Layer(self.hidden_size)
         self.classifier = Linear_Layer(self.hidden_size, label_size, dropout, activation=None)
 
     def forward(self, input_ids: torch.Tensor, input_mask: torch.Tensor, labels: torch.Tensor) -> (torch.Tensor, torch.Tensor):
@@ -138,7 +135,6 @@ class BertPretrainedClassifier(nn.Module):
 
     def save_model(self, kwargs=None, path=None, filename=None):
         model_dict = {'name': self.name,
-                      'device': self.device,
                       'batch_size': self.batch_size,
                       'label_size': self.label_size,
                       'dropout': self.dropout,
