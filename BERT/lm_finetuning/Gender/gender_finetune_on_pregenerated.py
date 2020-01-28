@@ -87,6 +87,7 @@ class PregeneratedDataset(Dataset):
             input_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.int32)
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
             lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
+            gender_labels = np.zeros(shape=(num_samples,), dtype=np.int32)
         logging.info(f"Loading training examples for epoch {epoch}")
         with data_file.open() as f:
             for i, line in enumerate(tqdm(f, total=num_samples, desc="Training examples")):
@@ -96,6 +97,7 @@ class PregeneratedDataset(Dataset):
                 input_ids[i] = features.input_ids
                 input_masks[i] = features.input_mask
                 lm_label_ids[i] = features.lm_label_ids
+                gender_labels[i] = features.gender_label
         assert i == num_samples - 1  # Assert that the sample count metric was true
         logging.info("Loading complete!")
         self.num_samples = num_samples
@@ -103,6 +105,7 @@ class PregeneratedDataset(Dataset):
         self.input_ids = input_ids
         self.input_masks = input_masks
         self.lm_label_ids = lm_label_ids
+        self.gender_labels = gender_labels
 
     def __len__(self):
         return self.num_samples
@@ -110,7 +113,8 @@ class PregeneratedDataset(Dataset):
     def __getitem__(self, item):
         return (torch.tensor(self.input_ids[item].astype(np.int64)),
                 torch.tensor(self.input_masks[item].astype(np.int64)),
-                torch.tensor(self.lm_label_ids[item].astype(np.int64)))
+                torch.tensor(self.lm_label_ids[item].astype(np.int64)),
+                torch.tensor(self.gender_labels[item].astype(np.int64)))
 
 
 def pretrain_on_domain(args):
@@ -239,8 +243,9 @@ def pretrain_on_domain(args):
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, lm_label_ids = batch
-                outputs = model(input_ids=input_ids, attention_mask=input_mask, masked_lm_labels=lm_label_ids)
+                input_ids, input_mask, lm_label_ids, gender_label = batch
+                outputs = model(input_ids=input_ids, attention_mask=input_mask,
+                                masked_lm_labels=lm_label_ids, gender_label=gender_label)
                 loss = outputs[0]
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
@@ -324,7 +329,7 @@ def main():
     args = parser.parse_args()
 
     MODEL_OUTPUT_DIR = Path(POMS_GENDER_DATA_DIR) / "model"
-    args.pregenerated_data = POMS_PRETRAIN_DATA_DIR
+    args.pregenerated_data = Path(POMS_PRETRAIN_DATA_DIR)
     args.output_dir = MODEL_OUTPUT_DIR
     args.fp16 = FP16
     pretrain_on_domain(args)

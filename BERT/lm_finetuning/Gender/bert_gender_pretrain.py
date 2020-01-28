@@ -23,11 +23,11 @@ class BertGenderPredictionHead(nn.Module):
 class BertGenderPreTrainingHeads(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.lm_predictions = BertLMPredictionHead(config)
+        self.predictions = BertLMPredictionHead(config)
         self.gender_prediction = BertGenderPredictionHead(config)
 
     def forward(self, sequence_output, pooled_output):
-        lm_prediction_scores = self.lm_predictions(sequence_output)
+        lm_prediction_scores = self.predictions(sequence_output)
         gender_prediction_score = self.gender_prediction(pooled_output)
         return lm_prediction_scores, gender_prediction_score
 

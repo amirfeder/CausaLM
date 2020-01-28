@@ -322,7 +322,7 @@ def main():
     args = parser.parse_args()
 
     MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / "model"
-    args.pregenerated_data = POMS_PRETRAIN_DATA_DIR
+    args.pregenerated_data = Path(POMS_PRETRAIN_DATA_DIR)
     args.output_dir = MODEL_OUTPUT_DIR
     args.fp16 = FP16
     pretrain_on_domain(args)

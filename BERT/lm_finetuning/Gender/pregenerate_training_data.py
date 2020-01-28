@@ -245,7 +245,7 @@ def create_instances_from_document(
             "tokens": [str(i) for i in instance_tokens],
             "masked_lm_positions": [str(i) for i in masked_lm_positions],
             "masked_lm_labels": [str(i) for i in masked_lm_labels],
-            "gender_label": [str(label)]
+            "gender_label": str(label)
         }
 
         instances.append(instance)
