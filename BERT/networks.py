@@ -3,7 +3,7 @@ from transformers import BertModel, BertConfig
 from transformers.modeling_bert import BertAttention
 from torch.utils.data.dataloader import DataLoader
 from constants import NUM_CPU
-from BERT.dataset import BertSentimentDataset, BERT_PRETRAINED_MODEL
+from BERT.dataset import BertTextClassificationDataset, BERT_PRETRAINED_MODEL
 from pytorch_lightning import LightningModule, data_loader
 from utils import save_predictions
 import torch.nn.functional as F
@@ -193,8 +193,8 @@ class LightningBertPretrainedClassifier(LightningModule):
     def train_dataloader(self):
         if not self.training:
             return [] # PyTorch Lightning hack for test mode with frozen model
-        dataset = BertSentimentDataset(self.hparams.data_path, self.hparams.treatment, "train",
-                                       self.hparams.text_column, self.hparams.label_column)
+        dataset = BertTextClassificationDataset(self.hparams.data_path, self.hparams.treatment, "train",
+                                                self.hparams.text_column, self.hparams.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
         return dataloader
 
@@ -217,8 +217,8 @@ class LightningBertPretrainedClassifier(LightningModule):
     def val_dataloader(self):
         if not self.training:
             return [] # PyTorch Lightning hack for test mode with frozen model
-        dataset = BertSentimentDataset(self.hparams.data_path, self.hparams.treatment, "dev",
-                                       self.hparams.text_column, self.hparams.label_column)
+        dataset = BertTextClassificationDataset(self.hparams.data_path, self.hparams.treatment, "dev",
+                                                self.hparams.text_column, self.hparams.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
         return dataloader
 
@@ -243,8 +243,8 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     @data_loader
     def test_dataloader(self):
-        dataset = BertSentimentDataset(self.hparams.data_path, self.hparams.treatment, "test",
-                                       self.hparams.text_column, self.hparams.label_column)
+        dataset = BertTextClassificationDataset(self.hparams.data_path, self.hparams.treatment, "test",
+                                                self.hparams.text_column, self.hparams.label_column)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
         return dataloader
 

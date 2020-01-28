@@ -1,5 +1,5 @@
 from typing import Dict
-from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR
+from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR, POMS_MLM_DATA_DIR, POMS_GENDER_DATA_DIR, POMS_EXPERIMENTS_DIR
 from pytorch_lightning import Trainer, LightningModule
 from BERT.networks import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir
@@ -83,6 +83,41 @@ def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
     if not counterfactual_model_ckpt:
         counterfactual_model_ckpt = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF/best_model/checkpoints"
+    bert_treatment_test(counterfactual_model_ckpt, HYPERPARAMETERS, trainer)
+
+
+@timer
+def test_gender_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
+    TREATMENT = "gender"
+    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    HYPERPARAMETERS = {"bert_params": {}}
+    # Factual OOB BERT Model training
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{TREATMENT}/COMPARE"
+    trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
+                      default_save_path=OUTPUT_DIR,
+                      show_progress_bar=True,
+                      early_stop_callback=None)
+    HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
+    if not factual_model_ckpt:
+        factual_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{TREATMENT}/OOB_F/best_model/checkpoints"
+    HYPERPARAMETERS["text_column"] = "Sentence_f"
+    HYPERPARAMETERS["bert_params"]["name"] = "OOB_F"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
+    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    # Factual OOB BERT Model test with MLM LM
+    HYPERPARAMETERS["bert_params"]["name"] = "MLM"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/model/pytorch_model.bin"
+    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    # Factual OOB BERT Model test with IMA LM
+    HYPERPARAMETERS["bert_params"]["name"] = "Gender"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/model/pytorch_model.bin"
+    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    # CounterFactual OOB BERT Model training
+    HYPERPARAMETERS["text_column"] = "Sentence_m"
+    HYPERPARAMETERS["bert_params"]["name"] = "OOB_M"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
+    if not counterfactual_model_ckpt:
+        counterfactual_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{TREATMENT}/OOB_M/best_model/checkpoints"
     bert_treatment_test(counterfactual_model_ckpt, HYPERPARAMETERS, trainer)
 
 

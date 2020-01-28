@@ -1,7 +1,7 @@
-from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR
+from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATA_DIR
 from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
-from BERT.predict import test_adj_models, print_final_metrics
+from BERT.predict import test_adj_models, print_final_metrics, test_gender_models
 from Timer import timer
 import torch
 
@@ -68,5 +68,32 @@ def train_adj_models():
     test_adj_models(factual_oob_model, counterfactual_oob_model)
 
 
+@timer
+def train_gender_models():
+    HYPERPARAMETERS = {
+        "data_path": POMS_GENDER_DATA_DIR,
+        "treatment": "gender",
+        "text_column": "Sentence_f",
+        "label_column": "label",
+        "bert_params": {
+            "device": DEVICE,
+            "batch_size": 32,
+            "dropout": DROPOUT,
+            "bert_state_dict": BERT_STATE_DICT,
+            "label_size": 5,
+            "name": "OOB_F"
+        }
+    }
+    # Factual OOB BERT Model training
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/gender/OOB_F"
+    factual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
+    # CounterFactual OOB BERT Model training
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/gender/OOB_M"
+    HYPERPARAMETERS["text_column"] = "Sentence_m"
+    HYPERPARAMETERS["bert_params"]["name"] = "OOB_M"
+    counterfactual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
+    test_gender_models(factual_oob_model, counterfactual_oob_model)
+
+
 if __name__ == "__main__":
-    train_adj_models()
+    train_gender_models()
