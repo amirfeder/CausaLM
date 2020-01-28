@@ -7,20 +7,17 @@ from multiprocessing import Pool
 from typing import List, Collection
 from random import random, randrange, randint, shuffle, choice
 from transformers.tokenization_bert import BertTokenizer
+import pandas as pd
 import numpy as np
 import json
 import collections
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_MLM_DATA_DIR, SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, MAX_SENTIMENT_SEQ_LENGTH
+from constants import BERT_PRETRAINED_MODEL, POMS_PRETRAIN_DATA_DIR, MAX_POMS_SEQ_LENGTH, POMS_RAW_DATA_DIR
 from Timer import timer
 
 WORDPIECE_PREFIX = "##"
 CLS_TOKEN = "[CLS]"
 SEP_TOKEN = "[SEP]"
 MASK_TOKEN = "[MASK]"
-
-# DOMAIN = "movies"
-# DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}/{DOMAIN}UN_clean.txt"
-# SENTIMENT_MLM_DATA_DIR = f"{SENTIMENT_DATA_DIR}/MLM"
 
 
 EPOCHS = 5
@@ -39,6 +36,7 @@ class DocumentDatabase:
             self.documents = None
         else:
             self.documents = []
+            self.documents_labels = []
             self.document_shelf = None
             self.document_shelf_filepath = None
             self.temp_dir = None
@@ -47,7 +45,7 @@ class DocumentDatabase:
         self.cumsum_max = None
         self.reduce_memory = reduce_memory
 
-    def add_document(self, document):
+    def add_document(self, document, label):
         if not document:
             return
         if self.reduce_memory:
@@ -55,6 +53,7 @@ class DocumentDatabase:
             self.document_shelf[str(current_idx)] = document
         else:
             self.documents.append(document)
+            self.documents_labels.append(label)
         self.doc_lengths.append(len(document))
 
     def _precalculate_doc_weights(self):
@@ -87,7 +86,7 @@ class DocumentDatabase:
         if self.reduce_memory:
             return self.document_shelf[str(item)]
         else:
-            return self.documents[item]
+            return self.documents[item], self.documents_labels[item]
 
     def __enter__(self):
         return self
@@ -203,7 +202,7 @@ def create_instances_from_document(
     However, we make some changes and improvements. Sampling is improved and no longer requires a loop in this function.
     Also, documents are sampled proportionally to the number of sentences they contain, which means each sentence
     (rather than each document) has an equal chance of being sampled as a false example for the NextSentence task."""
-    document = doc_database[doc_idx]
+    document, label = doc_database[doc_idx]
     # Account for [CLS], [SEP], [SEP]
     max_num_tokens = max_seq_length - 2
 
@@ -237,20 +236,20 @@ def create_instances_from_document(
 
     instances = []
     num_masked = 0
-    i = 0
-    while i * num_to_mask < len(cand_indices) and num_masked < num_to_mask:
+    while num_masked < len(cand_indices) and num_masked < num_to_mask:
         instance_tokens, masked_lm_positions, masked_lm_labels = create_masked_lm_predictions(list(tokens),
-                                                                                              cand_indices[(i * num_to_mask):],
+                                                                                              cand_indices[num_masked:],
                                                                                               num_to_mask, vocab_list)
 
         instance = {
             "tokens": [str(i) for i in instance_tokens],
             "masked_lm_positions": [str(i) for i in masked_lm_positions],
             "masked_lm_labels": [str(i) for i in masked_lm_labels],
+            "gender_label": str(label)
         }
 
         instances.append(instance)
-        i += 1
+
         num_masked += len(masked_lm_labels)
 
     return instances
@@ -296,7 +295,7 @@ def main():
                         help="The number of workers to use to write the files")
     parser.add_argument("--epochs_to_generate", type=int, default=EPOCHS,
                         help="Number of epochs of data to pregenerate")
-    parser.add_argument("--max_seq_len", type=int, default=MAX_SENTIMENT_SEQ_LENGTH)
+    parser.add_argument("--max_seq_len", type=int, default=MAX_POMS_SEQ_LENGTH)
     parser.add_argument("--short_seq_prob", type=float, default=0.1,
                         help="Probability of making a short sentence as a training example")
     parser.add_argument("--masked_lm_prob", type=float, default=MLM_PROB,
@@ -311,33 +310,33 @@ def main():
     args.epochs_to_generate = EPOCHS
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
-    for domain in SENTIMENT_DOMAINS:
-        print(f"\nGenerating data for domain: {domain}")
-        DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{domain}UN_clean.txt"
-        DATA_OUTPUT_DIR = Path(SENTIMENT_MLM_DATA_DIR) / domain
-        with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-            with open(DATASET_FILE, "r") as dataset:
-                for line in tqdm(dataset):
-                    doc = tokenizer.tokenize(line.strip())
-                    if doc:
-                        docs.add_document(doc)  # If the last doc didn't end on a newline, make sure it still gets added
-            if len(docs) <= 1:
-                exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
-                     "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
-                     "indicate breaks between documents in your input file. If your dataset does not contain multiple "
-                     "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
-                     "sections or paragraphs.")
+    DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
+    PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_PRETRAIN_DATA_DIR)
+    with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
+        df = pd.read_csv(DATASET_FILE, header=0, converters={"ID": lambda i: int(i.split("-")[-1])})
+        df = df.set_index(keys="ID", drop=False).sort_index()
+        documents = df["Sentence"].apply(tokenizer.tokenize).sort_index()
+        gender_labels = df["Gender"].apply(lambda gender: int(str(gender) == "female")).sort_index()
+        for doc, label in tqdm(zip(documents, gender_labels)):
+            if doc:
+                docs.add_document(doc, label)  # If the last doc didn't end on a newline, make sure it still gets added
+        if len(docs) <= 1:
+            exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
+                 "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
+                 "indicate breaks between documents in your input file. If your dataset does not contain multiple "
+                 "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
+                 "sections or paragraphs.")
 
-            output_dir = Path(DATA_OUTPUT_DIR)
-            output_dir.mkdir(exist_ok=True, parents=True)
+        output_dir = Path(PRETRAIN_DATA_OUTPUT_DIR)
+        output_dir.mkdir(exist_ok=True, parents=True)
 
-            if args.num_workers > 1:
-                writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))
-                arguments = [(docs, vocab_list, args, idx, output_dir) for idx in range(args.epochs_to_generate)]
-                writer_workers.starmap(create_training_file, arguments)
-            else:
-                for epoch in trange(args.epochs_to_generate, desc="Epoch"):
-                    create_training_file(docs, vocab_list, args, epoch, output_dir)
+        if args.num_workers > 1:
+            writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))
+            arguments = [(docs, vocab_list, args, idx, output_dir) for idx in range(args.epochs_to_generate)]
+            writer_workers.starmap(create_training_file, arguments)
+        else:
+            for epoch in trange(args.epochs_to_generate, desc="Epoch"):
+                create_training_file(docs, vocab_list, args, epoch, output_dir)
 
 
 if __name__ == '__main__':

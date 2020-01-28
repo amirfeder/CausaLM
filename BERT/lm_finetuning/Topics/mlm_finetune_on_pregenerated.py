@@ -18,10 +18,10 @@ from transformers.modeling_bert import BertForPreTraining
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from BERT.lm_finetuning.MLM.bert_mlm_pretrain import BertForMLMPreTraining
-from BERT.lm_finetuning.MLM.pregenerate_training_data import EPOCHS
+from BERT.lm_finetuning.Gender.pregenerate_training_data import EPOCHS
 from utils import init_logger, INIT_TIME
 from Timer import timer
-from constants import RANDOM_SEED, SENTIMENT_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, SENTIMENT_DOMAINS
+from constants import RANDOM_SEED, POMS_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, POMS_PRETRAIN_DATA_DIR
 
 BATCH_SIZE = 8
 FP16 = False
@@ -30,7 +30,7 @@ InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids")
 
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
-logger = init_logger("MLM-pretraining", f"{SENTIMENT_MLM_DATA_DIR}")
+logger = init_logger("MLM-pretraining", f"{POMS_MLM_DATA_DIR}")
 
 
 def convert_example_to_features(example, tokenizer, max_seq_length):
@@ -231,7 +231,7 @@ def pretrain_on_domain(args):
             train_sampler = RandomSampler(epoch_dataset)
         else:
             train_sampler = DistributedSampler(epoch_dataset)
-        train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
+        train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size, num_workers=NUM_CPU)
         tr_loss = 0
         nb_tr_examples, nb_tr_steps = 0, 0
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
@@ -321,14 +321,11 @@ def main():
                         help="random seed for initialization")
     args = parser.parse_args()
 
-    for domain in SENTIMENT_DOMAINS:
-        logger.info(f"\nPretraining on domain: {domain}")
-        DATA_OUTPUT_DIR = Path(SENTIMENT_MLM_DATA_DIR) / domain
-        MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
-        args.pregenerated_data = DATA_OUTPUT_DIR
-        args.output_dir = MODEL_OUTPUT_DIR
-        args.fp16 = FP16
-        pretrain_on_domain(args)
+    MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / "model"
+    args.pregenerated_data = Path(POMS_PRETRAIN_DATA_DIR)
+    args.output_dir = MODEL_OUTPUT_DIR
+    args.fp16 = FP16
+    pretrain_on_domain(args)
 
 
 if __name__ == '__main__':
