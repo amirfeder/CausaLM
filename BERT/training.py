@@ -14,7 +14,7 @@ TEXT_COLUMN = "review"
 LABEL_COLUMN = "label"
 DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 # DEVICE = get_free_gpu()
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ### Constants
 PAD_ID = 0
 BATCH_SIZE = 128
@@ -29,7 +29,6 @@ HYPERPARAMETERS = {
     "text_column": TEXT_COLUMN,
     "label_column": LABEL_COLUMN,
     "bert_params": {
-        "device": DEVICE,
         "batch_size": BATCH_SIZE,
         "dropout": DROPOUT,
         "bert_state_dict": BERT_STATE_DICT,
@@ -76,7 +75,6 @@ def train_gender_models():
         "text_column": "Sentence_f",
         "label_column": "label",
         "bert_params": {
-            "device": DEVICE,
             "batch_size": 32,
             "dropout": DROPOUT,
             "bert_state_dict": BERT_STATE_DICT,

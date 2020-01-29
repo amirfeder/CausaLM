@@ -46,7 +46,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer):
 def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
     DOMAIN = "movies"
     TREATMENT = "adj"
-    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     HYPERPARAMETERS = {"bert_params": {}}
     # Factual OOB BERT Model training
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/COMPARE"
@@ -89,7 +89,7 @@ def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 @timer
 def test_gender_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
     TREATMENT = "gender"
-    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     HYPERPARAMETERS = {"bert_params": {}}
     # Factual OOB BERT Model training
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{TREATMENT}/COMPARE"
@@ -122,4 +122,4 @@ def test_gender_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 
 if __name__ == "__main__":
-    test_adj_models()
+    test_gender_models()
