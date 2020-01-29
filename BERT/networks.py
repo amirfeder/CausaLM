@@ -55,7 +55,7 @@ class HAN_Attention_Pooler_Layer(nn.Module):
         Args:
             encoder_h_seq (:class:`torch.FloatTensor` [batch size, sequence length, dimensions]): Data
                 over which to apply the attention mechanism.
-            mask (:class:`torch.ByteTensor` [batch size, sequence length]): Mask
+            mask (:class:`torch.BoolTensor` [batch size, sequence length]): Mask
                 for padded sequences of variable length.
 
         Returns:
@@ -76,6 +76,8 @@ class HAN_Attention_Pooler_Layer(nn.Module):
         # Compute weights across every context sequence
         attention_scores = attention_scores.view(batch_size, -1)
         if mask is not None:
+            if mask.dtype is not torch.bool:
+                mask = mask.bool()
             attention_scores[~mask] = float("-inf")
         attention_weights = self.softmax(attention_scores)
 
@@ -83,10 +85,11 @@ class HAN_Attention_Pooler_Layer(nn.Module):
         output = torch.bmm(attention_weights.unsqueeze(1), encoder_h_seq).squeeze()
         return output, attention_weights
 
-    def create_mask(self, valid_lengths: torch.Tensor, max_len: int = None) -> torch.Tensor:
+    @staticmethod
+    def create_mask(valid_lengths: torch.Tensor, max_len: int = None) -> torch.Tensor:
         if not max_len:
             max_len = valid_lengths.max()
-        return torch.arange(max_len, dtype=valid_lengths.dtype).expand(len(valid_lengths), max_len) < valid_lengths.unsqueeze(1)
+        return torch.arange(max_len, dtype=valid_lengths.dtype, device=valid_lengths.device).expand(len(valid_lengths), max_len) < valid_lengths.unsqueeze(1)
 
 
 class BertPretrainedClassifier(nn.Module):
