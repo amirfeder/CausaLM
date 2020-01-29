@@ -19,15 +19,16 @@ class BertGenderPredictionHead(nn.Module):
     def forward(self, sequence_output, sequence_mask):
         # hidden_states = self.transform(hidden_states)
         reversed_sequence_output = GradReverseLayerFunction.apply(sequence_output, self.alpha)
-        pooler_seq_mask = self.pooler.create_mask(sequence_mask.sum(dim=1), sequence_mask.size(1))
-        pooled_output = self.pooler(reversed_sequence_output, pooler_seq_mask)
+        # pooler_seq_mask = self.pooler.create_mask(sequence_mask.sum(dim=-1), sequence_mask.size(-1))
+        pooled_output, attention_weights = self.pooler(reversed_sequence_output, sequence_mask)
         output = self.decoder(pooled_output)
         return output
 
-    # TODO: Verify masked_avg_pooler is correct
     @staticmethod
-    def masked_avg_pooler(sequence: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
-        return sequence.sum(dim=-1) / mask.sum(dim=-1)
+    def masked_avg_pooler(sequences: torch.Tensor, masks: torch.Tensor = None) -> torch.Tensor:
+        masked_sequences = sequences * masks.float().unsqueeze(dim=-1).expand_as(sequences)
+        sequence_lengths = masks.sum(dim=-1).view(-1, 1, 1).expand_as(sequences)
+        return torch.sum(masked_sequences / sequence_lengths, dim=1)
 
 
 class BertGenderPreTrainingHeads(nn.Module):
