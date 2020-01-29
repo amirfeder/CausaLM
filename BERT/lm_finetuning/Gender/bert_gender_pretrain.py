@@ -1,23 +1,33 @@
 from transformers.modeling_bert import BertLMPredictionHead, BertPreTrainedModel, BertModel
 from BERT.lm_finetuning.grad_reverse_layer import GradReverseLayerFunction
+from BERT.networks import HAN_Attention_Pooler_Layer
 from torch.nn import CrossEntropyLoss
 import torch.nn as nn
+import torch
 
 
 class BertGenderPredictionHead(nn.Module):
     def __init__(self, config):
         super().__init__()
         # self.transform = BertPredictionHeadTransform(config)
+        self.pooler = HAN_Attention_Pooler_Layer(config.hidden_size) # torch.mean
         self.decoder = nn.Linear(config.hidden_size, 2)
         # p = float(i + epoch * len_dataloader) / n_epoch / len_dataloader
         # self.alpha = 2. / (1. + np.exp(-10 * p)) - 1
         self.alpha = 1.
 
-    def forward(self, pooled_output):
+    def forward(self, sequence_output, sequence_mask):
         # hidden_states = self.transform(hidden_states)
-        reversed_pooled_output = GradReverseLayerFunction.apply(pooled_output, self.alpha)
-        output = self.decoder(reversed_pooled_output)
+        reversed_sequence_output = GradReverseLayerFunction.apply(sequence_output, self.alpha)
+        pooler_seq_mask = self.pooler.create_mask(sequence_mask.sum(dim=1), sequence_mask.size(1))
+        pooled_output = self.pooler(reversed_sequence_output, pooler_seq_mask)
+        output = self.decoder(pooled_output)
         return output
+
+    # TODO: Verify masked_avg_pooler is correct
+    @staticmethod
+    def masked_avg_pooler(sequence: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
+        return sequence.sum(dim=-1) / mask.sum(dim=-1)
 
 
 class BertGenderPreTrainingHeads(nn.Module):
@@ -26,9 +36,9 @@ class BertGenderPreTrainingHeads(nn.Module):
         self.predictions = BertLMPredictionHead(config)
         self.gender_prediction = BertGenderPredictionHead(config)
 
-    def forward(self, sequence_output, pooled_output):
+    def forward(self, sequence_output, sequence_mask):
         lm_prediction_scores = self.predictions(sequence_output)
-        gender_prediction_score = self.gender_prediction(pooled_output)
+        gender_prediction_score = self.gender_prediction(sequence_output, sequence_mask)
         return lm_prediction_scores, gender_prediction_score
 
 
@@ -95,7 +105,7 @@ class BertForGenderPreTraining(BertPreTrainedModel):
                             head_mask=head_mask)
 
         sequence_output, pooled_output = outputs[:2]
-        lm_prediction_scores, gender_prediction_score = self.cls(sequence_output, pooled_output)
+        lm_prediction_scores, gender_prediction_score = self.cls(sequence_output, attention_mask)
 
         outputs = (lm_prediction_scores, gender_prediction_score,) + outputs[2:]  # add hidden states and attention if they are here
 
