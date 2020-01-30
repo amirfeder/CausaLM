@@ -21,7 +21,8 @@ class BertGenderPredictionHead(nn.Module):
         # hidden_states = self.transform(hidden_states)
         reversed_sequence_output = GradReverseLayerFunction.apply(sequence_output, self.alpha)
         # pooler_seq_mask = self.pooler.create_mask(sequence_mask.sum(dim=-1), sequence_mask.size(-1))
-        pooled_output, attention_weights = self.pooler(reversed_sequence_output, sequence_mask)
+        pooled_output = self.pooler(reversed_sequence_output, sequence_mask)
+        # pooled_output, attention_weights = self.pooler(reversed_sequence_output, sequence_mask)
         output = self.decoder(pooled_output)
         return output
 
