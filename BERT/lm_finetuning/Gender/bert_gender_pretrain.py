@@ -10,7 +10,8 @@ class BertGenderPredictionHead(nn.Module):
     def __init__(self, config):
         super().__init__()
         # self.transform = BertPredictionHeadTransform(config)
-        self.pooler = HAN_Attention_Pooler_Layer(config.hidden_size) # torch.mean
+        self.pooler = BertGenderPredictionHead.masked_avg_pooler
+        # self.pooler = HAN_Attention_Pooler_Layer(config.hidden_size)
         self.decoder = nn.Linear(config.hidden_size, 2)
         # p = float(i + epoch * len_dataloader) / n_epoch / len_dataloader
         # self.alpha = 2. / (1. + np.exp(-10 * p)) - 1
@@ -26,6 +27,8 @@ class BertGenderPredictionHead(nn.Module):
 
     @staticmethod
     def masked_avg_pooler(sequences: torch.Tensor, masks: torch.Tensor = None) -> torch.Tensor:
+        if masks is None:
+            return sequences.mean(dim=1)
         masked_sequences = sequences * masks.float().unsqueeze(dim=-1).expand_as(sequences)
         sequence_lengths = masks.sum(dim=-1).view(-1, 1, 1).expand_as(sequences)
         return torch.sum(masked_sequences / sequence_lengths, dim=1)
