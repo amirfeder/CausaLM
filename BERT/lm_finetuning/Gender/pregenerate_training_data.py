@@ -36,6 +36,7 @@ class DocumentDatabase:
             self.documents = None
         else:
             self.documents = []
+            self.document_ids = []
             self.documents_labels = []
             self.document_shelf = None
             self.document_shelf_filepath = None
@@ -45,7 +46,7 @@ class DocumentDatabase:
         self.cumsum_max = None
         self.reduce_memory = reduce_memory
 
-    def add_document(self, document, label):
+    def add_document(self, document, label, unique_id):
         if not document:
             return
         if self.reduce_memory:
@@ -53,6 +54,7 @@ class DocumentDatabase:
             self.document_shelf[str(current_idx)] = document
         else:
             self.documents.append(document)
+            self.document_ids.append(unique_id)
             self.documents_labels.append(label)
         self.doc_lengths.append(len(document))
 
@@ -86,7 +88,7 @@ class DocumentDatabase:
         if self.reduce_memory:
             return self.document_shelf[str(item)]
         else:
-            return self.documents[item], self.documents_labels[item]
+            return self.documents[item], self.documents_labels[item], self.document_ids[item]
 
     def __enter__(self):
         return self
@@ -202,7 +204,7 @@ def create_instances_from_document(
     However, we make some changes and improvements. Sampling is improved and no longer requires a loop in this function.
     Also, documents are sampled proportionally to the number of sentences they contain, which means each sentence
     (rather than each document) has an equal chance of being sampled as a false example for the NextSentence task."""
-    document, label = doc_database[doc_idx]
+    document, label, unique_id = doc_database[doc_idx]
     # Account for [CLS], [SEP], [SEP]
     max_num_tokens = max_seq_length - 2
 
@@ -242,6 +244,7 @@ def create_instances_from_document(
                                                                                               num_to_mask, vocab_list)
 
         instance = {
+            "unique_id": str(unique_id),
             "tokens": [str(i) for i in instance_tokens],
             "masked_lm_positions": [str(i) for i in masked_lm_positions],
             "masked_lm_labels": [str(i) for i in masked_lm_labels],
@@ -315,11 +318,12 @@ def main():
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
         df = pd.read_csv(DATASET_FILE, header=0, converters={"ID": lambda i: int(i.split("-")[-1])})
         df = df.set_index(keys="ID", drop=False).sort_index()
+        unique_ids = df["ID"].sort_index()
         documents = df["Sentence"].apply(tokenizer.tokenize).sort_index()
         gender_labels = df["Gender"].apply(lambda gender: int(str(gender) == "female")).sort_index()
-        for doc, label in tqdm(zip(documents, gender_labels)):
+        for doc, label, unique_id in tqdm(zip(documents, gender_labels, unique_ids)):
             if doc:
-                docs.add_document(doc, label)  # If the last doc didn't end on a newline, make sure it still gets added
+                docs.add_document(doc, label, unique_id)  # If the last doc didn't end on a newline, make sure it still gets added
         if len(docs) <= 1:
             exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
                  "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "

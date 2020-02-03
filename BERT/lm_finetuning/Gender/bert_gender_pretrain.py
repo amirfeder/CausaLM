@@ -101,7 +101,8 @@ class BertForGenderPreTraining(BertPreTrainedModel):
                                    self.bert.embeddings.word_embeddings)
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None,
-                position_ids=None, head_mask=None, masked_lm_labels=None, gender_label=None):
+                position_ids=None, head_mask=None, masked_lm_labels=None,
+                gender_label=None):
 
         outputs = self.bert(input_ids,
                             attention_mask=attention_mask,
@@ -119,6 +120,10 @@ class BertForGenderPreTraining(BertPreTrainedModel):
             masked_lm_loss = loss_fct(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
             gender_loss = loss_fct(gender_prediction_score.view(-1, 2), gender_label.view(-1))
             loss = masked_lm_loss + gender_loss
-            outputs = (loss,) + outputs
+            loss_fct_per_sample = CrossEntropyLoss(ignore_index=-1, reduction='none')
+            outputs = (loss,
+                       torch.stack([loss_fct_per_sample(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
+                                   .view_as(masked_lm_labels)[i,:].masked_select(masked_lm_labels[i,:] > -1).mean() for i in range(masked_lm_labels.size(0))]),
+                       loss_fct_per_sample(gender_prediction_score, gender_label),) + outputs
 
         return outputs  # (loss), prediction_scores, seq_relationship_score, (hidden_states), (attentions)

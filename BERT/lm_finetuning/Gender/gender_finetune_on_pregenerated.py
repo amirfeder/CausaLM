@@ -6,7 +6,8 @@ import logging
 import json
 import random
 import numpy as np
-from collections import namedtuple
+import pandas as pd
+from collections import namedtuple, defaultdict
 from tempfile import TemporaryDirectory
 
 from torch.utils.data import DataLoader, Dataset, RandomSampler
@@ -26,7 +27,7 @@ from constants import RANDOM_SEED, POMS_GENDER_DATA_DIR, BERT_PRETRAINED_MODEL, 
 BATCH_SIZE = 8
 FP16 = False
 
-InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids gender_label")
+InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids gender_label unique_id")
 
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
@@ -38,6 +39,7 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
     masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
     masked_lm_labels = example["masked_lm_labels"]
     gender_label = int(example["gender_label"])
+    unique_id = int(example["unique_id"])
 
     # assert len(tokens) == len(segment_ids) <= max_seq_length  # The preprocessed data should be already truncated
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
@@ -55,7 +57,8 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
     features = InputFeatures(input_ids=input_array,
                              input_mask=mask_array,
                              lm_label_ids=lm_label_array,
-                             gender_label=gender_label)
+                             gender_label=gender_label,
+                             unique_id=unique_id)
     return features
 
 
@@ -88,6 +91,7 @@ class PregeneratedDataset(Dataset):
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
             lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
             gender_labels = np.zeros(shape=(num_samples,), dtype=np.int32)
+            unique_ids = np.zeros(shape=(num_samples,), dtype=np.int32)
         logging.info(f"Loading training examples for epoch {epoch}")
         with data_file.open() as f:
             for i, line in enumerate(tqdm(f, total=num_samples, desc="Training examples")):
@@ -98,6 +102,7 @@ class PregeneratedDataset(Dataset):
                 input_masks[i] = features.input_mask
                 lm_label_ids[i] = features.lm_label_ids
                 gender_labels[i] = features.gender_label
+                unique_ids[i] = features.unique_id
         assert i == num_samples - 1  # Assert that the sample count metric was true
         logging.info("Loading complete!")
         self.num_samples = num_samples
@@ -106,6 +111,7 @@ class PregeneratedDataset(Dataset):
         self.input_masks = input_masks
         self.lm_label_ids = lm_label_ids
         self.gender_labels = gender_labels
+        self.unique_ids = unique_ids
 
     def __len__(self):
         return self.num_samples
@@ -114,7 +120,8 @@ class PregeneratedDataset(Dataset):
         return (torch.tensor(self.input_ids[item].astype(np.int64)),
                 torch.tensor(self.input_masks[item].astype(np.int64)),
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
-                torch.tensor(self.gender_labels[item].astype(np.int64)))
+                torch.tensor(self.gender_labels[item].astype(np.int64)),
+                torch.tensor(self.unique_ids[item].astype(np.int64)))
 
 
 def pretrain_on_domain(args):
@@ -230,6 +237,7 @@ def pretrain_on_domain(args):
     logging.info("  Batch size = %d", args.train_batch_size)
     logging.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
+    loss_dict = defaultdict(list)
     for epoch in range(args.epochs):
         epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
                                             num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
@@ -243,12 +251,16 @@ def pretrain_on_domain(args):
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, lm_label_ids, gender_label = batch
+                input_ids, input_mask, lm_label_ids, gender_label, unique_id = batch
                 outputs = model(input_ids=input_ids, attention_mask=input_mask,
                                 masked_lm_labels=lm_label_ids, gender_label=gender_label)
                 loss = outputs[0]
+                mlm_loss = outputs[1]
+                adversarial_loss = outputs[2]
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
+                    mlm_loss = mlm_loss.mean()
+                    adversarial_loss = adversarial_loss.mean()
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
@@ -266,12 +278,25 @@ def pretrain_on_domain(args):
                     scheduler.step()  # Update learning rate schedule
                     optimizer.zero_grad()
                     global_step += 1
+                for i in range(unique_id.size(0)):
+                    loss_dict["epoch"].append(epoch)
+                    loss_dict["unique_id"].append(unique_id[i].item())
+                    loss_dict["mlm_loss"].append(mlm_loss[i].item())
+                    loss_dict["adversarial_loss"].append(adversarial_loss[i].item())
+                    loss_dict["total_loss"].append(mlm_loss[i].item() + adversarial_loss[i].item())
+        # Save a trained model
+        if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
+            logging.info("** ** * Saving fine-tuned model ** ** * ")
+            model.save_pretrained(args.output_dir / f"epoch_{epoch}")
+            tokenizer.save_pretrained(args.output_dir / f"epoch_{epoch}")
 
     # Save a trained model
-    if  n_gpu > 1 and torch.distributed.get_rank() == 0  or n_gpu <=1 :
+    if n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <=1:
         logging.info("** ** * Saving fine-tuned model ** ** * ")
         model.save_pretrained(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
+        df = pd.Dataframe.from_dict(loss_dict)
+        df.to_csv(args.output_dir/"losses.csv")
 
 
 @timer(logger=logger)
