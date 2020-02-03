@@ -297,7 +297,7 @@ def pretrain_on_domain(args):
         logging.info("** ** * Saving fine-tuned model ** ** * ")
         model.save_pretrained(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
-        df = pd.Dataframe.from_dict(loss_dict)
+        df = pd.DataFrame.from_dict(loss_dict)
         df.to_csv(args.output_dir/"losses.csv")
 
 
