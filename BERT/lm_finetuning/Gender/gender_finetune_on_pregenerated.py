@@ -287,8 +287,10 @@ def pretrain_on_domain(args):
         # Save a trained model
         if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
             logging.info("** ** * Saving fine-tuned model ** ** * ")
-            model.save_pretrained(args.output_dir / f"epoch_{epoch}")
-            tokenizer.save_pretrained(args.output_dir / f"epoch_{epoch}")
+            epoch_output_dir = args.output_dir / f"epoch_{epoch}"
+            epoch_output_dir.mkdir(parents=True, exist_ok=True)
+            model.save_pretrained(epoch_output_dir)
+            tokenizer.save_pretrained(epoch_output_dir)
 
     # Save a trained model
     if n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <=1:
