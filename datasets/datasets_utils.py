@@ -1,5 +1,6 @@
 from constants import RANDOM_SEED
 from sklearn.model_selection import train_test_split
+from Timer import timer
 import spacy
 import re
 
@@ -27,6 +28,7 @@ def tag_review(review: str) -> str:
     return TOKEN_SEPARATOR.join(tagged_review)
 
 
+@timer
 def split_data(df, path, prefix, label_column="label"):
     train, test = train_test_split(df, test_size=0.2, stratify=df[label_column], random_state=RANDOM_SEED)
     train, dev = train_test_split(train, test_size=0.2, stratify=train[label_column], random_state=RANDOM_SEED)
