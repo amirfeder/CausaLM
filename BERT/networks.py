@@ -95,7 +95,7 @@ class HAN_Attention_Pooler_Layer(nn.Module):
 class BertPretrainedClassifier(nn.Module):
     def __init__(self, batch_size: int = 8, dropout: float = 0.1, label_size: int = 2,
                  loss_func: Callable = F.cross_entropy, bert_pretrained_model: str = BERT_PRETRAINED_MODEL,
-                 bert_state_dict: str = None, name: str = "OOB", device = None):
+                 bert_state_dict: str = None, name: str = "OOB", device: torch.device = None):
         super().__init__()
         self.name = f"{self.__class__.__name__}-{name}"
         self.batch_size = batch_size

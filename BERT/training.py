@@ -40,12 +40,12 @@ HYPERPARAMETERS = {
 
 @timer
 def bert_train_eval(hparams, output_dir):
-    print(f"Training for {EPOCHS} epochs")
+    print(f"Training for {hparams['epochs']} epochs")
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=output_dir,
                       show_progress_bar=True,
-                      accumulate_grad_batches=ACCUMULATE,
-                      max_nb_epochs=EPOCHS,
+                      accumulate_grad_batches=hparams["accumulate"],
+                      max_nb_epochs=hparams["epochs"],
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     model = LightningBertPretrainedClassifier(LightningHyperparameters(hparams))
@@ -69,18 +69,18 @@ def train_adj_models():
 
 
 @timer
-def train_gender_models(HYPERPARAMETERS: Dict):
+def train_gender_models(hparams: Dict):
     # Factual OOB BERT Model training
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{HYPERPARAMETERS['treatment']}/OOB_F"
-    HYPERPARAMETERS["text_column"] = "Sentence_F"
-    HYPERPARAMETERS["bert_params"]["name"] = "OOB_F"
-    factual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/OOB_F"
+    hparams["text_column"] = "Sentence_F"
+    hparams["bert_params"]["name"] = "OOB_F"
+    factual_oob_model = bert_train_eval(hparams, OUTPUT_DIR)
     # CounterFactual OOB BERT Model training
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{HYPERPARAMETERS['treatment']}/OOB_CF"
-    HYPERPARAMETERS["text_column"] = "Sentence_CF"
-    HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
-    counterfactual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
-    test_gender_models(HYPERPARAMETERS["treatment"], factual_oob_model, counterfactual_oob_model)
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/OOB_CF"
+    hparams["text_column"] = "Sentence_CF"
+    hparams["bert_params"]["name"] = "OOB_CF"
+    counterfactual_oob_model = bert_train_eval(hparams, OUTPUT_DIR)
+    test_gender_models(hparams["treatment"], factual_oob_model, counterfactual_oob_model)
 
 
 @timer
@@ -90,8 +90,10 @@ def train_all_gender_models():
         "treatment": "gender",
         "text_column": "Sentence_F",
         "label_column": "label",
+        "epochs": EPOCHS,
+        "accumulate": ACCUMULATE,
         "bert_params": {
-            "batch_size": 32,
+            "batch_size": 64,
             "dropout": DROPOUT,
             "bert_state_dict": BERT_STATE_DICT,
             "label_size": 5,
