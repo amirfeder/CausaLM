@@ -1,7 +1,9 @@
 from constants import RANDOM_SEED
 from sklearn.model_selection import train_test_split
+from pandas import DataFrame
 import spacy
 import re
+import numpy as np
 
 TOKEN_SEPARATOR = " "
 WORD_POS_SEPARATOR = "_"
@@ -27,10 +29,18 @@ def tag_review(review: str) -> str:
     return TOKEN_SEPARATOR.join(tagged_review)
 
 
-def split_data(df, path, prefix, label_column="label"):
+def split_data(df: DataFrame, path: str, prefix: str, label_column: str = "label"):
     train, test = train_test_split(df, test_size=0.2, stratify=df[label_column], random_state=RANDOM_SEED)
     train, dev = train_test_split(train, test_size=0.2, stratify=train[label_column], random_state=RANDOM_SEED)
     df.sort_index().to_csv(f"{path}/{prefix}_all.csv")
     train.sort_index().to_csv(f"{path}/{prefix}_train.csv")
     dev.sort_index().to_csv(f"{path}/{prefix}_dev.csv")
     test.sort_index().to_csv(f"{path}/{prefix}_test.csv")
+
+
+def print_text_stats(df: DataFrame, text_column: str):
+    sequence_lengths = df[text_column].apply(lambda text: int(len(str(text).split(TOKEN_SEPARATOR))))
+    print(f"Max sequence length in dataset: {np.max(sequence_lengths)}")
+    print(f"Min sequence length in dataset: {np.min(sequence_lengths)}")
+    print(f"Median sequence length in dataset: {np.median(sequence_lengths)}")
+    print(f"Mean sequence length in dataset: {np.mean(sequence_lengths)}")
