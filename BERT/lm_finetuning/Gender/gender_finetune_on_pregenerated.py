@@ -24,7 +24,7 @@ from utils import init_logger, INIT_TIME
 from Timer import timer
 from constants import RANDOM_SEED, POMS_GENDER_DATA_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, POMS_PRETRAIN_DATA_DIR
 
-BATCH_SIZE = 8
+BATCH_SIZE = 32
 FP16 = False
 
 InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids gender_label unique_id")
