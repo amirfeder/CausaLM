@@ -70,6 +70,7 @@ def train_adj_models():
 
 @timer
 def train_gender_models(hparams: Dict):
+    print(f"Training {hparams['treatment']} models")
     # Factual OOB BERT Model training
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/OOB_F"
     hparams["text_column"] = "Sentence_F"
@@ -93,7 +94,7 @@ def train_all_gender_models():
         "epochs": EPOCHS,
         "accumulate": ACCUMULATE,
         "bert_params": {
-            "batch_size": 64,
+            "batch_size": BATCH_SIZE,
             "dropout": DROPOUT,
             "bert_state_dict": BERT_STATE_DICT,
             "label_size": 5,
