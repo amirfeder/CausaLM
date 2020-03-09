@@ -1,4 +1,4 @@
-from constants import POMS_GENDER_DATA_DIR, POMS_RAW_DATA_DIR
+from constants import POMS_GENDER_DATASETS_DIR, POMS_RAW_DATA_DIR
 from datasets_utils import split_data, print_text_stats
 from Timer import timer
 import pandas as pd
@@ -34,4 +34,4 @@ if __name__ == "__main__":
     df_final, _, _ = create_gender_datasets()
     print(df_final)
     print_text_stats(df_final, "Sentence_F")
-    split_data(df_final, POMS_GENDER_DATA_DIR, "gender")
+    split_data(df_final, POMS_GENDER_DATASETS_DIR, "gender")

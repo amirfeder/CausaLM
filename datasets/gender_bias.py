@@ -1,4 +1,4 @@
-from constants import POMS_GENDER_DATA_DIR, RANDOM_SEED
+from constants import POMS_GENDER_DATASETS_DIR, RANDOM_SEED
 from gender_poms_datasets import create_gender_datasets
 from datasets_utils import split_data, print_text_stats
 from Timer import timer
@@ -89,7 +89,7 @@ def create_biased_gender_datasets(df_female, df_male, biased_label, biasing_fact
     df_biased = df_biased.set_index(keys=["ID_F", "ID_CF"]).sort_index()
     print(df_biased)
     print_text_stats(df_biased, "Sentence_F")
-    split_data(df_biased, POMS_GENDER_DATA_DIR, f"gender_biased_{biased_label}_{biasing_method.__name__}")
+    split_data(df_biased, POMS_GENDER_DATASETS_DIR, f"gender_biased_{biased_label}_{biasing_method.__name__}")
 
 
 if __name__ == "__main__":

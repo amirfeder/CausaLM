@@ -1,8 +1,9 @@
-from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATA_DIR
+from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR
 from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
 from BERT.predict import test_adj_models, print_final_metrics, test_gender_models
 from Timer import timer
+from typing import Dict
 import torch
 
 # LOGGER = init_logger("OOB_training")
@@ -68,11 +69,26 @@ def train_adj_models():
 
 
 @timer
-def train_gender_models():
+def train_gender_models(HYPERPARAMETERS: Dict):
+    # Factual OOB BERT Model training
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{HYPERPARAMETERS['treatment']}/OOB_F"
+    HYPERPARAMETERS["text_column"] = "Sentence_F"
+    HYPERPARAMETERS["bert_params"]["name"] = "OOB_F"
+    factual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
+    # CounterFactual OOB BERT Model training
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{HYPERPARAMETERS['treatment']}/OOB_CF"
+    HYPERPARAMETERS["text_column"] = "Sentence_CF"
+    HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
+    counterfactual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
+    test_gender_models(HYPERPARAMETERS["treatment"], factual_oob_model, counterfactual_oob_model)
+
+
+@timer
+def train_all_gender_models():
     HYPERPARAMETERS = {
-        "data_path": POMS_GENDER_DATA_DIR,
+        "data_path": POMS_GENDER_DATASETS_DIR,
         "treatment": "gender",
-        "text_column": "Sentence_f",
+        "text_column": "Sentence_F",
         "label_column": "label",
         "bert_params": {
             "batch_size": 32,
@@ -82,16 +98,12 @@ def train_gender_models():
             "name": "OOB_F"
         }
     }
-    # Factual OOB BERT Model training
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/gender/OOB_F"
-    factual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
-    # CounterFactual OOB BERT Model training
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/gender/OOB_M"
-    HYPERPARAMETERS["text_column"] = "Sentence_m"
-    HYPERPARAMETERS["bert_params"]["name"] = "OOB_M"
-    counterfactual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
-    test_gender_models(factual_oob_model, counterfactual_oob_model)
+    train_gender_models(HYPERPARAMETERS)
+    HYPERPARAMETERS["treatment"] = "gender_biased_joy_gentle"
+    train_gender_models(HYPERPARAMETERS)
+    HYPERPARAMETERS["treatment"] = "gender_biased_joy_aggressive"
+    train_gender_models(HYPERPARAMETERS)
 
 
 if __name__ == "__main__":
-    train_gender_models()
+    train_all_gender_models()

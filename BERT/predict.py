@@ -87,20 +87,19 @@ def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 
 @timer
-def test_gender_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
-    TREATMENT = "gender"
+def test_gender_models(treatment="gender", factual_model_ckpt=None, counterfactual_model_ckpt=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     HYPERPARAMETERS = {"bert_params": {}}
     # Factual OOB BERT Model training
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{TREATMENT}/COMPARE"
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{treatment}/COMPARE"
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=OUTPUT_DIR,
                       show_progress_bar=True,
                       early_stop_callback=None)
     HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     if not factual_model_ckpt:
-        factual_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{TREATMENT}/OOB_F/best_model/checkpoints"
-    HYPERPARAMETERS["text_column"] = "Sentence_f"
+        factual_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/OOB_F/best_model/checkpoints"
+    HYPERPARAMETERS["text_column"] = "Sentence_F"
     HYPERPARAMETERS["bert_params"]["name"] = "OOB_F"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
     bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
@@ -113,12 +112,14 @@ def test_gender_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/model/pytorch_model.bin"
     bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
     # CounterFactual OOB BERT Model training
-    HYPERPARAMETERS["text_column"] = "Sentence_m"
-    HYPERPARAMETERS["bert_params"]["name"] = "OOB_M"
+    HYPERPARAMETERS["text_column"] = "Sentence_CF"
+    HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
     if not counterfactual_model_ckpt:
-        counterfactual_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{TREATMENT}/OOB_M/best_model/checkpoints"
+        counterfactual_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/OOB_CF/best_model/checkpoints"
     bert_treatment_test(counterfactual_model_ckpt, HYPERPARAMETERS, trainer)
+
+
 
 
 if __name__ == "__main__":
