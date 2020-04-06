@@ -356,11 +356,11 @@ def main():
     parser.add_argument("--enriched", action="store_true")
     args = parser.parse_args()
     if args.enriched:
-        MODEL_OUTPUT_DIR = Path(POMS_GENDER_DATA_DIR) / "model"
-        args.pregenerated_data = Path(POMS_PRETRAIN_DATA_DIR)
-    else:
         MODEL_OUTPUT_DIR = Path(POMS_GENDER_DATA_DIR) / "model_enriched"
         args.pregenerated_data = Path(POMS_PRETRAIN_DATA_DIR) / "enriched"
+    else:
+        MODEL_OUTPUT_DIR = Path(POMS_GENDER_DATA_DIR) / "model"
+        args.pregenerated_data = Path(POMS_PRETRAIN_DATA_DIR)
     args.output_dir = MODEL_OUTPUT_DIR
     args.fp16 = FP16
     pretrain_on_domain(args)
