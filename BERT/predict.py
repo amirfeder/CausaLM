@@ -87,37 +87,63 @@ def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 
 @timer
-def test_gender_models(treatment="gender", factual_model_ckpt=None, counterfactual_model_ckpt=None):
+def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counterfactual_poms_model_ckpt=None,
+                       factual_control_model_ckpt=None, counterfactual_control_model_ckpt=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     HYPERPARAMETERS = {"bert_params": {}}
-    # Factual OOB BERT Model training
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{treatment}/COMPARE"
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=OUTPUT_DIR,
                       show_progress_bar=True,
                       early_stop_callback=None)
     HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
-    if not factual_model_ckpt:
-        factual_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/OOB_F/best_model/checkpoints"
+    # Factual POMS BERT Model training
     HYPERPARAMETERS["text_column"] = "Sentence_F"
-    HYPERPARAMETERS["bert_params"]["name"] = "OOB_F"
+    HYPERPARAMETERS["bert_params"]["name"] = "POMS_F"
+    if not factual_poms_model_ckpt:
+        factual_poms_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
-    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
-    # Factual OOB BERT Model test with MLM LM
-    HYPERPARAMETERS["bert_params"]["name"] = "MLM"
+    bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
+    # Factual POMS BERT Model test with MLM LM
+    HYPERPARAMETERS["bert_params"]["name"] = "POMS_MLM"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
-    # Factual OOB BERT Model test with IMA LM
-    HYPERPARAMETERS["bert_params"]["name"] = "Gender"
+    bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
+    # Factual POMS BERT Model test with Gender LM
+    HYPERPARAMETERS["bert_params"]["name"] = "POMS_Gender"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
-    # CounterFactual OOB BERT Model training
+    bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
+    # CounterFactual POMS BERT Model training
     HYPERPARAMETERS["text_column"] = "Sentence_CF"
-    HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
+    HYPERPARAMETERS["bert_params"]["name"] = "POMS_CF"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
-    if not counterfactual_model_ckpt:
-        counterfactual_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/OOB_CF/best_model/checkpoints"
-    bert_treatment_test(counterfactual_model_ckpt, HYPERPARAMETERS, trainer)
+    if not counterfactual_poms_model_ckpt:
+        counterfactual_poms_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
+    bert_treatment_test(counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer)
+    # Factual CONTROL BERT Model training
+    HYPERPARAMETERS["label_column"] = "Gender_F"
+    HYPERPARAMETERS["text_column"] = "Sentence_F"
+    HYPERPARAMETERS["bert_params"]["name"] = "CONTROL_F"
+    HYPERPARAMETERS["bert_params"]["label_size"] = 2
+    if not factual_control_model_ckpt:
+        factual_control_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
+    bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
+    # Factual CONTROL BERT Model test with MLM LM
+    HYPERPARAMETERS["bert_params"]["name"] = "CONTROL_MLM"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/model/pytorch_model.bin"
+    bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
+    # Factual CONTROL BERT Model test with Gender LM
+    HYPERPARAMETERS["bert_params"]["name"] = "CONTROL_Gender"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/model/pytorch_model.bin"
+    bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
+    # CounterFactual CONTROL BERT Model training
+    HYPERPARAMETERS["label_column"] = "Gender_CF"
+    HYPERPARAMETERS["text_column"] = "Sentence_CF"
+    HYPERPARAMETERS["bert_params"]["name"] = "CONTROL_CF"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
+    if not counterfactual_control_model_ckpt:
+        counterfactual_control_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
+    bert_treatment_test(counterfactual_control_model_ckpt, HYPERPARAMETERS, trainer)
 
 
 

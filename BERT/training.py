@@ -3,6 +3,7 @@ from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
 from BERT.predict import test_adj_models, print_final_metrics, test_gender_models
 from Timer import timer
+from argparse import ArgumentParser
 from typing import Dict
 import torch
 
@@ -38,6 +39,16 @@ HYPERPARAMETERS = {
 }
 
 
+def main():
+    parser = ArgumentParser()
+    parser.add_argument("--treatment", type=str, required=True, help="Specify treatment for experiments")
+    args = parser.parse_args()
+    if "gender" in args.treatment:
+        train_all_gender_models(args.treatment)
+    elif "adj" in args.treatment:
+        train_adj_models(args.treatment)
+
+
 @timer
 def bert_train_eval(hparams, output_dir):
     print(f"Training for {hparams['epochs']} epochs")
@@ -71,24 +82,37 @@ def train_adj_models():
 @timer
 def train_gender_models(hparams: Dict):
     print(f"Training {hparams['treatment']} models")
-    # Factual OOB BERT Model training
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/OOB_F"
+    # Factual POMS BERT Model training
+    hparams["bert_params"]["name"] = "POMS_F"
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
     hparams["text_column"] = "Sentence_F"
-    hparams["bert_params"]["name"] = "OOB_F"
-    factual_oob_model = bert_train_eval(hparams, OUTPUT_DIR)
-    # CounterFactual OOB BERT Model training
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/OOB_CF"
+    factual_poms_model = bert_train_eval(hparams, OUTPUT_DIR)
+    # CounterFactual POMS BERT Model training
+    hparams["bert_params"]["name"] = "POMS_CF"
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
     hparams["text_column"] = "Sentence_CF"
-    hparams["bert_params"]["name"] = "OOB_CF"
-    counterfactual_oob_model = bert_train_eval(hparams, OUTPUT_DIR)
-    test_gender_models(hparams["treatment"], factual_oob_model, counterfactual_oob_model)
+    counterfactual_poms_model = bert_train_eval(hparams, OUTPUT_DIR)
+    # Factual CONTROL BERT Model training
+    hparams["bert_params"]["label_size"] = 2
+    hparams["bert_params"]["name"] = "CONTROL_F"
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
+    hparams["text_column"] = "Sentence_F"
+    hparams["label_column"] = "Gender_F"
+    factual_control_model = bert_train_eval(hparams, OUTPUT_DIR)
+    # CounterFactual CONTROL BERT Model training
+    hparams["bert_params"]["name"] = "CONTROL_CF"
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
+    hparams["text_column"] = "Sentence_CF"
+    hparams["label_column"] = "Gender_CF"
+    counterfactual_control_model = bert_train_eval(hparams, OUTPUT_DIR)
+    test_gender_models(hparams["treatment"], factual_poms_model, counterfactual_poms_model, factual_control_model, counterfactual_control_model)
 
 
 @timer
-def train_all_gender_models():
+def train_all_gender_models(treatment="gender"):
     HYPERPARAMETERS = {
         "data_path": POMS_GENDER_DATASETS_DIR,
-        "treatment": "gender",
+        "treatment": treatment,
         "text_column": "Sentence_F",
         "label_column": "label",
         "epochs": EPOCHS,
@@ -98,15 +122,15 @@ def train_all_gender_models():
             "dropout": DROPOUT,
             "bert_state_dict": BERT_STATE_DICT,
             "label_size": 5,
-            "name": "OOB_F"
+            "name": "POMS_F"
         }
     }
     train_gender_models(HYPERPARAMETERS)
-    HYPERPARAMETERS["treatment"] = "gender_biased_joy_gentle"
+    HYPERPARAMETERS["treatment"] = f"{treatment}_biased_joy_gentle"
     train_gender_models(HYPERPARAMETERS)
-    HYPERPARAMETERS["treatment"] = "gender_biased_joy_aggressive"
+    HYPERPARAMETERS["treatment"] = f"{treatment}_biased_joy_aggressive"
     train_gender_models(HYPERPARAMETERS)
 
 
 if __name__ == "__main__":
-    train_all_gender_models()
+    main()
