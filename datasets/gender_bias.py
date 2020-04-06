@@ -96,6 +96,7 @@ if __name__ == "__main__":
     _, df_female, df_male = create_gender_datasets()
     create_biased_gender_datasets(df_female, df_male, "joy", 0.1, aggressive)
     create_biased_gender_datasets(df_female, df_male, "joy", 0.1, gentle)
+
     _, df_female, df_male = create_gender_enriched_datasets()
     create_biased_gender_datasets(df_female, df_male, "joy", 0.1, aggressive, "gender_enriched")
     create_biased_gender_datasets(df_female, df_male, "joy", 0.1, gentle, "gender_enriched")
