@@ -305,7 +305,7 @@ def main():
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=MAX_PRED_PER_SEQ,
                         help="Maximum number of tokens to mask in each sequence")
-
+    parser.add_argument("--enriched", action="store_true")
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
@@ -313,13 +313,19 @@ def main():
     args.epochs_to_generate = EPOCHS
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
-    DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
-    PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_PRETRAIN_DATA_DIR)
+    if args.enriched:
+        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_enriched.csv"
+        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_PRETRAIN_DATA_DIR) / "enriched"
+        text_column = "Sentence_enriched"
+    else:
+        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
+        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_PRETRAIN_DATA_DIR)
+        text_column = "Sentence"
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
         df = pd.read_csv(DATASET_FILE, header=0, converters={"ID": lambda i: int(i.split("-")[-1])})
         df = df.set_index(keys="ID", drop=False).sort_index()
         unique_ids = df["ID"].sort_index()
-        documents = df["Sentence"].apply(tokenizer.tokenize).sort_index()
+        documents = df[text_column].apply(tokenizer.tokenize).sort_index()
         gender_labels = df["Gender"].apply(lambda gender: int(str(gender) == "female")).sort_index()
         for doc, label, unique_id in tqdm(zip(documents, gender_labels, unique_ids)):
             if doc:

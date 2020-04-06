@@ -97,6 +97,10 @@ def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counter
                       show_progress_bar=True,
                       early_stop_callback=None)
     HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
+    if "enriched" in treatment:
+        state_dict_dir = "model_enriched"
+    else:
+        state_dict_dir = "model"
     # Factual POMS BERT Model training
     HYPERPARAMETERS["text_column"] = "Sentence_F"
     HYPERPARAMETERS["bert_params"]["name"] = "POMS_F"
@@ -107,11 +111,11 @@ def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counter
     bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
     # Factual POMS BERT Model test with MLM LM
     HYPERPARAMETERS["bert_params"]["name"] = "POMS_MLM"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/model/pytorch_model.bin"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
     bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
     # Factual POMS BERT Model test with Gender LM
     HYPERPARAMETERS["bert_params"]["name"] = "POMS_Gender"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/model/pytorch_model.bin"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
     bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
     # CounterFactual POMS BERT Model training
     HYPERPARAMETERS["text_column"] = "Sentence_CF"
@@ -131,11 +135,11 @@ def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counter
     bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
     # Factual CONTROL BERT Model test with MLM LM
     HYPERPARAMETERS["bert_params"]["name"] = "CONTROL_MLM"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/model/pytorch_model.bin"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
     bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
     # Factual CONTROL BERT Model test with Gender LM
     HYPERPARAMETERS["bert_params"]["name"] = "CONTROL_Gender"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/model/pytorch_model.bin"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
     bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
     # CounterFactual CONTROL BERT Model training
     HYPERPARAMETERS["label_column"] = "Gender_CF"
