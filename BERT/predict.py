@@ -100,6 +100,7 @@ def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counter
     # Factual POMS BERT Model training
     HYPERPARAMETERS["text_column"] = "Sentence_F"
     HYPERPARAMETERS["bert_params"]["name"] = "POMS_F"
+    HYPERPARAMETERS["bert_params"]["label_size"] = 5
     if not factual_poms_model_ckpt:
         factual_poms_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
