@@ -1,5 +1,5 @@
-from constants import POMS_GENDER_DATASETS_DIR, RANDOM_SEED
-from gender_poms_datasets import create_gender_datasets, create_gender_enriched_datasets
+from constants import POMS_GENDER_DATASETS_DIR, RANDOM_SEED, POMS_RACE_DATASETS_DIR
+from create_poms_datasets import create_gender_datasets, create_gender_enriched_datasets, create_race_datasets, create_race_enriched_datasets
 from datasets_utils import split_data, print_text_stats
 from Timer import timer
 import pandas as pd
@@ -84,19 +84,41 @@ def gentle(df_female, df_male, biased_label, biasing_factor):
 
 
 @timer
-def create_biased_gender_datasets(df_female, df_male, biased_label, biasing_factor, biasing_method, dataset_type="gender"):
-    df_biased = biasing_method(df_female, df_male, biased_label, biasing_factor)
+def create_biased_datasets(df_a, df_b, biased_label, biasing_factor, biasing_method, dataset_type="gender", output_dir=POMS_GENDER_DATASETS_DIR):
+    df_biased = biasing_method(df_a, df_b, biased_label, biasing_factor)
     df_biased = df_biased.set_index(keys=["ID_F", "ID_CF"]).sort_index()
     print(df_biased)
     print_text_stats(df_biased, "Sentence_F")
-    split_data(df_biased, POMS_GENDER_DATASETS_DIR, f"{dataset_type}_biased_{biased_label}_{biasing_method.__name__}")
+    split_data(df_biased, output_dir, f"{dataset_type}_biased_{biased_label}_{biasing_method.__name__}")
+
+
+@timer
+def create_all_biased_gender_datasets():
+    _, df_female, df_male = create_gender_datasets()
+    create_biased_datasets(df_female, df_male, "joy", 0.1, aggressive)
+    create_biased_datasets(df_female, df_male, "joy", 0.1, gentle)
+
+    _, df_female, df_male = create_gender_enriched_datasets()
+    create_biased_datasets(df_female, df_male, "joy", 0.1, aggressive, "gender_enriched")
+    create_biased_datasets(df_female, df_male, "joy", 0.1, gentle, "gender_enriched")
+
+
+@timer
+def create_all_biased_race_datasets():
+    _, df_afro, df_euro = create_race_datasets()
+    create_biased_datasets(df_afro, df_euro, "joy", 0.1, aggressive, "race", POMS_RACE_DATASETS_DIR)
+    create_biased_datasets(df_afro, df_euro, "joy", 0.1, gentle, "race", POMS_RACE_DATASETS_DIR)
+
+    _, df_afro, df_euro = create_race_enriched_datasets()
+    create_biased_datasets(df_afro, df_euro, "joy", 0.1, aggressive, "race_enriched", POMS_RACE_DATASETS_DIR)
+    create_biased_datasets(df_afro, df_euro, "joy", 0.1, gentle, "race_enriched", POMS_RACE_DATASETS_DIR)
+
+
+@timer
+def create_all_biased_datasets():
+    create_all_biased_gender_datasets()
+    create_all_biased_race_datasets()
 
 
 if __name__ == "__main__":
-    _, df_female, df_male = create_gender_datasets()
-    create_biased_gender_datasets(df_female, df_male, "joy", 0.1, aggressive)
-    create_biased_gender_datasets(df_female, df_male, "joy", 0.1, gentle)
-
-    _, df_female, df_male = create_gender_enriched_datasets()
-    create_biased_gender_datasets(df_female, df_male, "joy", 0.1, aggressive, "gender_enriched")
-    create_biased_gender_datasets(df_female, df_male, "joy", 0.1, gentle, "gender_enriched")
+    create_all_biased_race_datasets()
