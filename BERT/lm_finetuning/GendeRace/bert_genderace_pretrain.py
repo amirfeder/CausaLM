@@ -6,11 +6,11 @@ import torch.nn as nn
 import torch
 
 
-class BertGenderPredictionHead(nn.Module):
+class BertGendeRacePredictionHead(nn.Module):
     def __init__(self, config):
         super().__init__()
         # self.transform = BertPredictionHeadTransform(config)
-        self.pooler = BertGenderPredictionHead.masked_avg_pooler
+        self.pooler = BertGendeRacePredictionHead.masked_avg_pooler
         # self.pooler = HAN_Attention_Pooler_Layer(config.hidden_size)
         self.decoder = nn.Linear(config.hidden_size, 2)
         # p = float(i + epoch * len_dataloader) / n_epoch / len_dataloader
@@ -35,19 +35,19 @@ class BertGenderPredictionHead(nn.Module):
         return torch.sum(masked_sequences / sequence_lengths, dim=1)
 
 
-class BertGenderPreTrainingHeads(nn.Module):
+class BertGendeRacePreTrainingHeads(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.predictions = BertLMPredictionHead(config)
-        self.gender_prediction = BertGenderPredictionHead(config)
+        self.genderace_prediction = BertGendeRacePredictionHead(config)
 
     def forward(self, sequence_output, sequence_mask):
         lm_prediction_scores = self.predictions(sequence_output)
-        gender_prediction_score = self.gender_prediction(sequence_output, sequence_mask)
-        return lm_prediction_scores, gender_prediction_score
+        genderace_prediction_score = self.genderace_prediction(sequence_output, sequence_mask)
+        return lm_prediction_scores, genderace_prediction_score
 
 
-class BertForGenderPreTraining(BertPreTrainedModel):
+class BertForGendeRacePreTraining(BertPreTrainedModel):
     r"""
         **masked_lm_labels**: (`optional`) ``torch.LongTensor`` of shape ``(batch_size, sequence_length)``:
             Labels for computing the masked language modeling loss.
@@ -88,7 +88,7 @@ class BertForGenderPreTraining(BertPreTrainedModel):
         super().__init__(config)
 
         self.bert = BertModel(config)
-        self.cls = BertGenderPreTrainingHeads(config)
+        self.cls = BertGendeRacePreTrainingHeads(config)
 
         self.init_weights()
         self.tie_weights()

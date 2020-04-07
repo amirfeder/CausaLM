@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 import json
 import collections
-from constants import BERT_PRETRAINED_MODEL, POMS_PRETRAIN_DATA_DIR, MAX_POMS_SEQ_LENGTH, POMS_RAW_DATA_DIR
+from constants import BERT_PRETRAINED_MODEL, POMS_GENDER_PRETRAIN_DATA_DIR, POMS_RACE_PRETRAIN_DATA_DIR, MAX_POMS_SEQ_LENGTH, POMS_RAW_DATA_DIR
 from Timer import timer
 
 WORDPIECE_PREFIX = "##"
@@ -305,7 +305,8 @@ def main():
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=MAX_PRED_PER_SEQ,
                         help="Maximum number of tokens to mask in each sequence")
-    parser.add_argument("--enriched", action="store_true")
+    parser.add_argument("--treatment", type=str, required=False, default="gender",
+                        help="Treatment can be: gender, gender_enriched, race, race_enriched")
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
@@ -313,14 +314,26 @@ def main():
     args.epochs_to_generate = EPOCHS
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
-    if args.enriched:
+
+    if args.treatment == "gender_enriched":
         DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_enriched.csv"
-        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_PRETRAIN_DATA_DIR) / "enriched"
+        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_GENDER_PRETRAIN_DATA_DIR) / "enriched"
         text_column = "Sentence_enriched"
-    else:
+    elif args.treatment == "gender":
         DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
-        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_PRETRAIN_DATA_DIR)
+        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_GENDER_PRETRAIN_DATA_DIR)
         text_column = "Sentence"
+    elif args.treatment == "race_enriched":
+        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_enriched.csv"
+        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_RACE_PRETRAIN_DATA_DIR) / "enriched"
+        text_column = "Sentence_enriched"
+    elif args.treatment == "race":
+        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
+        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_RACE_PRETRAIN_DATA_DIR)
+        text_column = "Sentence"
+    else:
+        raise ValueError("--treatment can only be gender, gender_enriched, race, race_enriched")
+
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
         df = pd.read_csv(DATASET_FILE, header=0, converters={"ID": lambda i: int(i.split("-")[-1])})
         df = df.set_index(keys="ID", drop=False).sort_index()
