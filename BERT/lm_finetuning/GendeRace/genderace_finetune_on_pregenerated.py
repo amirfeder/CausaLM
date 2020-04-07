@@ -27,7 +27,7 @@ from constants import RANDOM_SEED, POMS_GENDER_DATA_DIR, BERT_PRETRAINED_MODEL, 
 BATCH_SIZE = 24
 FP16 = False
 
-InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids gender_label unique_id")
+InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids genderace_label unique_id")
 
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
