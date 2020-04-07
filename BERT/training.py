@@ -1,7 +1,7 @@
-from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR
+from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, POMS_RACE_DATASETS_DIR
 from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
-from BERT.predict import test_adj_models, print_final_metrics, test_gender_models
+from BERT.predict import test_adj_models, print_final_metrics, test_genderace_models
 from Timer import timer
 from argparse import ArgumentParser
 from typing import Dict
@@ -19,7 +19,7 @@ DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ### Constants
 PAD_ID = 0
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 ACCUMULATE = 4
 DROPOUT = 0.1
 EPOCHS = 50
@@ -41,10 +41,10 @@ HYPERPARAMETERS = {
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=True, help="Specify treatment for experiments")
+    parser.add_argument("--treatment", type=str, required=False, default="gender", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
     args = parser.parse_args()
-    if "gender" in args.treatment:
-        train_all_gender_models(args.treatment)
+    if "gender" in args.treatment or "race" in args.treatment:
+        train_all_genderace_models(args.treatment)
     elif "adj" in args.treatment:
         train_adj_models(args.treatment)
 
@@ -80,7 +80,7 @@ def train_adj_models():
 
 
 @timer
-def train_gender_models(hparams: Dict):
+def train_genderace_models(hparams: Dict):
     print(f"Training {hparams['treatment']} models")
     # Factual POMS BERT Model training
     hparams["bert_params"]["name"] = "POMS_F"
@@ -97,21 +97,21 @@ def train_gender_models(hparams: Dict):
     hparams["bert_params"]["name"] = "CONTROL_F"
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
     hparams["text_column"] = "Sentence_F"
-    hparams["label_column"] = "Gender_F"
+    hparams["label_column"] = "Gender_F" if "gender" in hparams['treatment'] else "Race_F"
     factual_control_model = bert_train_eval(hparams, OUTPUT_DIR)
     # CounterFactual CONTROL BERT Model training
     hparams["bert_params"]["name"] = "CONTROL_CF"
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
     hparams["text_column"] = "Sentence_CF"
-    hparams["label_column"] = "Gender_CF"
+    hparams["label_column"] = "Gender_CF" if "gender" in hparams['treatment'] else "Race_CF"
     counterfactual_control_model = bert_train_eval(hparams, OUTPUT_DIR)
-    test_gender_models(hparams["treatment"], factual_poms_model, counterfactual_poms_model, factual_control_model, counterfactual_control_model)
+    test_genderace_models(hparams["treatment"], factual_poms_model, counterfactual_poms_model, factual_control_model, counterfactual_control_model)
 
 
 @timer
-def train_all_gender_models(treatment="gender"):
+def train_all_genderace_models(treatment: str):
     HYPERPARAMETERS = {
-        "data_path": POMS_GENDER_DATASETS_DIR,
+        "data_path": POMS_GENDER_DATASETS_DIR if "gender" in treatment else POMS_RACE_DATASETS_DIR,
         "treatment": treatment,
         "text_column": "Sentence_F",
         "label_column": "label",
@@ -125,11 +125,11 @@ def train_all_gender_models(treatment="gender"):
             "name": "POMS_F"
         }
     }
-    train_gender_models(HYPERPARAMETERS)
+    train_genderace_models(HYPERPARAMETERS)
     HYPERPARAMETERS["treatment"] = f"{treatment}_biased_joy_gentle"
-    train_gender_models(HYPERPARAMETERS)
+    train_genderace_models(HYPERPARAMETERS)
     HYPERPARAMETERS["treatment"] = f"{treatment}_biased_joy_aggressive"
-    train_gender_models(HYPERPARAMETERS)
+    train_genderace_models(HYPERPARAMETERS)
 
 
 if __name__ == "__main__":

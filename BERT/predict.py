@@ -1,5 +1,5 @@
 from typing import Dict
-from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR, POMS_MLM_DATA_DIR, POMS_GENDER_DATA_DIR, POMS_EXPERIMENTS_DIR
+from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR, POMS_MLM_DATA_DIR, POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR, POMS_EXPERIMENTS_DIR
 from pytorch_lightning import Trainer, LightningModule
 from BERT.networks import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir
@@ -87,8 +87,8 @@ def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 
 @timer
-def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counterfactual_poms_model_ckpt=None,
-                       factual_control_model_ckpt=None, counterfactual_control_model_ckpt=None):
+def test_genderace_models(treatment="gender", factual_poms_model_ckpt=None, counterfactual_poms_model_ckpt=None,
+                          factual_control_model_ckpt=None, counterfactual_control_model_ckpt=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     HYPERPARAMETERS = {"bert_params": {}}
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{treatment}/COMPARE"
@@ -101,6 +101,12 @@ def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counter
         state_dict_dir = "model_enriched"
     else:
         state_dict_dir = "model"
+    if "gender" in treatment:
+        TREATMENT = "Gender"
+        pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
+    else:
+        TREATMENT = "Race"
+        pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
     # Factual POMS BERT Model training
     HYPERPARAMETERS["text_column"] = "Sentence_F"
     HYPERPARAMETERS["bert_params"]["name"] = "POMS_F"
@@ -113,9 +119,9 @@ def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counter
     HYPERPARAMETERS["bert_params"]["name"] = "POMS_MLM"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
     bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
-    # Factual POMS BERT Model test with Gender LM
-    HYPERPARAMETERS["bert_params"]["name"] = "POMS_Gender"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
+    # Factual POMS BERT Model test with Gender/Race LM
+    HYPERPARAMETERS["bert_params"]["name"] = f"POMS_{TREATMENT}"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
     # CounterFactual POMS BERT Model training
     HYPERPARAMETERS["text_column"] = "Sentence_CF"
@@ -137,9 +143,9 @@ def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counter
     HYPERPARAMETERS["bert_params"]["name"] = "CONTROL_MLM"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
     bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
-    # Factual CONTROL BERT Model test with Gender LM
-    HYPERPARAMETERS["bert_params"]["name"] = "CONTROL_Gender"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
+    # Factual CONTROL BERT Model test with Gender/Race LM
+    HYPERPARAMETERS["bert_params"]["name"] = f"CONTROL_{TREATMENT}"
+    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
     # CounterFactual CONTROL BERT Model training
     HYPERPARAMETERS["label_column"] = "Gender_CF"
@@ -151,7 +157,5 @@ def test_gender_models(treatment="gender", factual_poms_model_ckpt=None, counter
     bert_treatment_test(counterfactual_control_model_ckpt, HYPERPARAMETERS, trainer)
 
 
-
-
 if __name__ == "__main__":
-    test_gender_models()
+    test_genderace_models()
