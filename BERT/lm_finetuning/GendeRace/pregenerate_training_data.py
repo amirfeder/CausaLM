@@ -248,7 +248,7 @@ def create_instances_from_document(
             "tokens": [str(i) for i in instance_tokens],
             "masked_lm_positions": [str(i) for i in masked_lm_positions],
             "masked_lm_labels": [str(i) for i in masked_lm_labels],
-            "gender_label": str(label)
+            "genderace_label": str(label)
         }
 
         instances.append(instance)
@@ -345,10 +345,10 @@ def main():
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
         df = pd.read_csv(DATASET_FILE, header=0, converters={"ID": lambda i: int(i.split("-")[-1])})
         df = df.set_index(keys="ID", drop=False).sort_index()
-        unique_ids = df["ID"].sort_index()
-        documents = df[text_column].apply(tokenizer.tokenize).sort_index()
-        gender_labels = df[treatment_column].apply(lambda t: int(str(t) == treatment_condition)).sort_index()
-        for doc, label, unique_id in tqdm(zip(documents, gender_labels, unique_ids)):
+        unique_ids = df["ID"]
+        documents = df[text_column].apply(tokenizer.tokenize)
+        genderace_labels = df[treatment_column].apply(lambda t: int(str(t) == treatment_condition))
+        for doc, label, unique_id in tqdm(zip(documents, genderace_labels, unique_ids)):
             if doc:
                 docs.add_document(doc, label, unique_id)  # If the last doc didn't end on a newline, make sure it still gets added
         if len(docs) <= 1:
