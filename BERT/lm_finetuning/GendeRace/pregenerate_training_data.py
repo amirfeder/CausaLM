@@ -319,18 +319,26 @@ def main():
         DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_enriched.csv"
         PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_GENDER_PRETRAIN_DATA_DIR) / "enriched"
         text_column = "Sentence_enriched"
+        treatment_column = "Gender"
+        treatment_condition = "female"
     elif args.treatment == "gender":
         DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
         PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_GENDER_PRETRAIN_DATA_DIR)
         text_column = "Sentence"
+        treatment_column = "Gender"
+        treatment_condition = "female"
     elif args.treatment == "race_enriched":
         DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_enriched.csv"
         PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_RACE_PRETRAIN_DATA_DIR) / "enriched"
         text_column = "Sentence_enriched"
+        treatment_column = "Race"
+        treatment_condition = "African-American"
     elif args.treatment == "race":
         DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
         PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_RACE_PRETRAIN_DATA_DIR)
         text_column = "Sentence"
+        treatment_column = "Race"
+        treatment_condition = "African-American"
     else:
         raise ValueError("--treatment can only be gender, gender_enriched, race, race_enriched")
 
@@ -339,7 +347,7 @@ def main():
         df = df.set_index(keys="ID", drop=False).sort_index()
         unique_ids = df["ID"].sort_index()
         documents = df[text_column].apply(tokenizer.tokenize).sort_index()
-        gender_labels = df["Gender"].apply(lambda gender: int(str(gender) == "female")).sort_index()
+        gender_labels = df[treatment_column].apply(lambda t: int(str(t) == treatment_condition)).sort_index()
         for doc, label, unique_id in tqdm(zip(documents, gender_labels, unique_ids)):
             if doc:
                 docs.add_document(doc, label, unique_id)  # If the last doc didn't end on a newline, make sure it still gets added
