@@ -4,6 +4,7 @@ from pytorch_lightning import Trainer, LightningModule
 from BERT.networks import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir
 from Timer import timer
+from utils import GoogleDriveHandler
 import torch
 
 # LOGGER = init_logger("OOB_training")
@@ -155,6 +156,21 @@ def test_genderace_models(treatment="gender", factual_poms_model_ckpt=None, coun
     if not counterfactual_control_model_ckpt:
         counterfactual_control_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
     bert_treatment_test(counterfactual_control_model_ckpt, HYPERPARAMETERS, trainer)
+    push_results_to_google_drive(HYPERPARAMETERS["output_path"])
+
+
+def push_results_to_google_drive(path: str):
+    try:
+        handler = GoogleDriveHandler()
+        push_return = handler.push_files(path)
+        if push_return[0] == 0:
+            print(f"Successfully pushed results to Google Drive: {path}")
+        else:
+            print(f"Failed to push results to Google Drive: {path}")
+            print(f"Exit Code: {push_return[0]}\nSTDOUT: {push_return[1]}\nSTDERR: {push_return[2]}")
+    except Exception as e:
+        print(f"ERROR: {e}")
+        print(f"Failed to push results to Google Drive: {path}")
 
 
 if __name__ == "__main__":
