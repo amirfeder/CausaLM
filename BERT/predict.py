@@ -159,6 +159,7 @@ def test_genderace_models(treatment="gender", factual_poms_model_ckpt=None, coun
     push_results_to_google_drive(HYPERPARAMETERS["output_path"])
 
 
+@timer
 def push_results_to_google_drive(path: str):
     try:
         handler = GoogleDriveHandler()
