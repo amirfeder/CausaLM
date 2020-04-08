@@ -18,7 +18,7 @@ HOME_DIR = getenv('HOME', "/home/{}".format(getenv('USER', "/home/amirf")))
 PROJECT_DIR = f"{HOME_DIR}/GoogleDrive/AmirNadav/CausaLM"
 
 
-def init_logger(name=None, path=None):
+def init_logger(name=None, path=None, screen=True):
     if name is None:
         name = __name__
     logger = logging.getLogger(name)
@@ -29,9 +29,10 @@ def init_logger(name=None, path=None):
         file_handler = logging.FileHandler(f"{path}/{name}-{INIT_TIME}.log")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-    screen_handler = logging.StreamHandler()
-    screen_handler.setFormatter(formatter)
-    logger.addHandler(screen_handler)
+    if screen:
+        screen_handler = logging.StreamHandler()
+        screen_handler.setFormatter(formatter)
+        logger.addHandler(screen_handler)
     return logger
 
 
