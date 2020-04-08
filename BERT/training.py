@@ -8,6 +8,8 @@ from typing import Dict
 import torch
 
 # LOGGER = init_logger("OOB_training")
+from utils import init_logger
+
 DOMAIN = "movies"
 MODE = "OOB_F"
 BERT_STATE_DICT = None
@@ -51,7 +53,6 @@ def main():
 
 @timer
 def bert_train_eval(hparams, output_dir):
-    print(f"Training for {hparams['epochs']} epochs")
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=output_dir,
                       show_progress_bar=True,
@@ -59,10 +60,12 @@ def bert_train_eval(hparams, output_dir):
                       max_nb_epochs=hparams["epochs"],
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
+    logger = init_logger("training", hparams["output_path"])
+    logger.info(f"Training for {hparams['epochs']} epochs")
     model = LightningBertPretrainedClassifier(LightningHyperparameters(hparams))
     trainer.fit(model)
     trainer.test()
-    print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics)
+    print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
     return model
 
 

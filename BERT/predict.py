@@ -4,7 +4,7 @@ from pytorch_lightning import Trainer, LightningModule
 from BERT.networks import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir
 from Timer import timer
-from utils import GoogleDriveHandler, send_email
+from utils import GoogleDriveHandler, send_email, init_logger
 import torch
 
 # LOGGER = init_logger("OOB_training")
@@ -18,16 +18,25 @@ def get_checkpoint_file(ckpt_dir):
         return None
 
 
-def print_final_metrics(name: str, metrics: Dict):
-    print(f"{name} Metrics:")
-    for metric, val in metrics.items():
-        print(f"{metric}: {val:.4f}")
-    print()
+def print_final_metrics(name: str, metrics: Dict, logger=None):
+    if logger:
+        logger.info(f"{name} Metrics:")
+        for metric, val in metrics.items():
+            logger.info(f"{metric}: {val:.4f}")
+        logger.info("\n")
+    else:
+        print(f"{name} Metrics:")
+        for metric, val in metrics.items():
+            print(f"{metric}: {val:.4f}")
+        print()
 
 
 @timer
-def bert_treatment_test(model_ckpt, hparams, trainer):
-    print(f"Testing model with {hparams['bert_params']['name']} LM")
+def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
+    if logger:
+        logger.info(f"Testing model with {hparams['bert_params']['name']} LM")
+    else:
+        print(f"Testing model with {hparams['bert_params']['name']} LM")
     if isinstance(model_ckpt, LightningModule):
         model = model_ckpt
     else:
@@ -40,7 +49,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer):
         model.bert_classifier.name = f"{hparams['bert_params']['name']}"
     model.freeze()
     trainer.test(model)
-    print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics)
+    print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
 
 
 @timer
@@ -98,6 +107,7 @@ def test_genderace_models(treatment="gender", factual_poms_model_ckpt=None, coun
                       show_progress_bar=True,
                       early_stop_callback=None)
     HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
+    logger = init_logger(f"testing", HYPERPARAMETERS["output_path"])
     if "enriched" in treatment:
         state_dict_dir = "model_enriched"
     else:
@@ -115,22 +125,22 @@ def test_genderace_models(treatment="gender", factual_poms_model_ckpt=None, coun
     if not factual_poms_model_ckpt:
         factual_poms_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
-    bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
+    bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
     # Factual POMS BERT Model test with MLM LM
     HYPERPARAMETERS["bert_params"]["name"] = "POMS_MLM"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
-    bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
+    bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
     # Factual POMS BERT Model test with Gender/Race LM
     HYPERPARAMETERS["bert_params"]["name"] = f"POMS_{TREATMENT}"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
-    bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer)
+    bert_treatment_test(factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
     # CounterFactual POMS BERT Model training
     HYPERPARAMETERS["text_column"] = "Sentence_CF"
     HYPERPARAMETERS["bert_params"]["name"] = "POMS_CF"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
     if not counterfactual_poms_model_ckpt:
         counterfactual_poms_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
-    bert_treatment_test(counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer)
+    bert_treatment_test(counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
     # Factual CONTROL BERT Model training
     HYPERPARAMETERS["label_column"] = "Gender_F"
     HYPERPARAMETERS["text_column"] = "Sentence_F"
@@ -139,15 +149,15 @@ def test_genderace_models(treatment="gender", factual_poms_model_ckpt=None, coun
     if not factual_control_model_ckpt:
         factual_control_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
-    bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
+    bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer, logger)
     # Factual CONTROL BERT Model test with MLM LM
     HYPERPARAMETERS["bert_params"]["name"] = "CONTROL_MLM"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
-    bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
+    bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer, logger)
     # Factual CONTROL BERT Model test with Gender/Race LM
     HYPERPARAMETERS["bert_params"]["name"] = f"CONTROL_{TREATMENT}"
     HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
-    bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer)
+    bert_treatment_test(factual_control_model_ckpt, HYPERPARAMETERS, trainer, logger)
     # CounterFactual CONTROL BERT Model training
     HYPERPARAMETERS["label_column"] = "Gender_CF"
     HYPERPARAMETERS["text_column"] = "Sentence_CF"
@@ -157,6 +167,7 @@ def test_genderace_models(treatment="gender", factual_poms_model_ckpt=None, coun
         counterfactual_control_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
     bert_treatment_test(counterfactual_control_model_ckpt, HYPERPARAMETERS, trainer)
     message = push_results_to_google_drive(HYPERPARAMETERS["output_path"])
+    logger.info(message)
     send_email(message, treatment)
 
 
