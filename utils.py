@@ -70,9 +70,14 @@ def send_email(message, module_name):
     msg['From'] = 'someserver@technion.ac.il'
     msg['To'] = ', '.join(recipients)
     msg.set_content(message_string)
-    sender = SMTP('localhost')
-    sender.send_message(msg)
-    sender.quit()
+    try:
+        sender = SMTP('localhost')
+        sender.send_message(msg)
+        sender.quit()
+        print(f"Email successfully sent to {recipients}")
+    except Exception as e:
+        print(f"ERROR: Failed to send email to {recipients}\n{e}")
+
 
 class StreamToLogger:
     """

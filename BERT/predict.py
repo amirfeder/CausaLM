@@ -4,7 +4,7 @@ from pytorch_lightning import Trainer, LightningModule
 from BERT.networks import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir
 from Timer import timer
-from utils import GoogleDriveHandler
+from utils import GoogleDriveHandler, send_email
 import torch
 
 # LOGGER = init_logger("OOB_training")
@@ -156,7 +156,8 @@ def test_genderace_models(treatment="gender", factual_poms_model_ckpt=None, coun
     if not counterfactual_control_model_ckpt:
         counterfactual_control_model_ckpt = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{HYPERPARAMETERS['bert_params']['name']}/best_model/checkpoints"
     bert_treatment_test(counterfactual_control_model_ckpt, HYPERPARAMETERS, trainer)
-    push_results_to_google_drive(HYPERPARAMETERS["output_path"])
+    message = push_results_to_google_drive(HYPERPARAMETERS["output_path"])
+    send_email(message, treatment)
 
 
 @timer
@@ -165,13 +166,13 @@ def push_results_to_google_drive(path: str):
         handler = GoogleDriveHandler()
         push_return = handler.push_files(path)
         if push_return[0] == 0:
-            print(f"Successfully pushed results to Google Drive: {path}")
+            message = f"Successfully pushed results to Google Drive: {path}"
         else:
-            print(f"Failed to push results to Google Drive: {path}")
-            print(f"Exit Code: {push_return[0]}\nSTDOUT: {push_return[1]}\nSTDERR: {push_return[2]}")
+            message = f"Failed to push results to Google Drive: {path}\nExit Code: {push_return[0]}\nSTDOUT: {push_return[1]}\nSTDERR: {push_return[2]}"
     except Exception as e:
-        print(f"ERROR: {e}")
-        print(f"Failed to push results to Google Drive: {path}")
+        message = f"ERROR: {e}\nFailed to push results to Google Drive: {path}"
+    print(message)
+    return message
 
 
 if __name__ == "__main__":
