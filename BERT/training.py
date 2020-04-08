@@ -83,6 +83,7 @@ def train_adj_models():
 def train_genderace_models(hparams: Dict):
     print(f"Training {hparams['treatment']} models")
     # Factual POMS BERT Model training
+    hparams["bert_params"]["label_size"] = 5
     hparams["bert_params"]["name"] = "POMS_F"
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
     hparams["text_column"] = "Sentence_F"
