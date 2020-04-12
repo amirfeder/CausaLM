@@ -9,6 +9,14 @@ LABELS = {'None': 0, 'anger': 1, 'fear': 2, 'joy': 3, 'sadness': 4}
 
 @timer
 def aggressive(df_female, df_male, biased_label, biasing_factor):
+    """
+    Biases selected class by biasing factor, and uses same factor to inversely bias all other classes.
+    :param df_female:
+    :param df_male:
+    :param biased_label:
+    :param biasing_factor:
+    :return:
+    """
     df_biased = pd.DataFrame(columns=df_female.columns)
     for label in sorted(df_female["label"].unique()):
         df_label_f = df_female[df_female["label"] == label]
@@ -26,6 +34,14 @@ def aggressive(df_female, df_male, biased_label, biasing_factor):
 
 @timer
 def gentle(df_female, df_male, biased_label, biasing_factor):
+    """
+    Biases selected class by biasing factor, and leaves other classes untouched.
+    :param df_female:
+    :param df_male:
+    :param biased_label:
+    :param biasing_factor:
+    :return:
+    """
     df_biased = pd.DataFrame(columns=df_female.columns)
     for label in sorted(df_female["label"].unique()):
         df_label_f = df_female[df_female["label"] == label]
