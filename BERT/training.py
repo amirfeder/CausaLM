@@ -120,7 +120,7 @@ def train_all_genderace_models(treatment: str):
         "data_path": POMS_GENDER_DATASETS_DIR if "gender" in treatment else POMS_RACE_DATASETS_DIR,
         "treatment": treatment,
         "text_column": "Sentence_F",
-        "label_column": "label",
+        "label_column": "POMS_label",
         "epochs": EPOCHS,
         "accumulate": ACCUMULATE,
         "bert_params": {
