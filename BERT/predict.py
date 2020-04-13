@@ -123,11 +123,11 @@ def test_genderace_models_unit(task, treatment, group,
     if task == "POMS":
         label_column = "label"
         label_size = 5
-    elif task.lower() in treatment:
-        label_column = f"{task}_{group}"
+    elif task.split("_")[-1].lower() in treatment:
+        label_column = f"{task.split('_')[-1]}_{group}"
         label_size = 2
     else:
-        label_column = task
+        label_column = task.split("_")[-1]
         label_size = 2
     # Group Task BERT Model training
     hparams["label_column"] = label_column
