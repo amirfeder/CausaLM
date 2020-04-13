@@ -83,33 +83,31 @@ def train_adj_models():
 
 
 @timer
+def train_genderace_models_unit(hparams: Dict, task, label_size):
+    # Factual Task BERT Model training
+    hparams["bert_params"]["label_size"] = label_size
+    hparams["bert_params"]["name"] = f"{task}_F"
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
+    hparams["text_column"] = f"Sentence_F"
+    factual_model = bert_train_eval(hparams, OUTPUT_DIR)
+    # CounterFactual Task BERT Model training
+    hparams["bert_params"]["name"] = f"{task}_CF"
+    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
+    hparams["text_column"] = "Sentence_CF"
+    counterfactual_model = bert_train_eval(hparams, OUTPUT_DIR)
+    return factual_model, counterfactual_model
+
+
+@timer
 def train_genderace_models(hparams: Dict):
     print(f"Training {hparams['treatment']} models")
-    # Factual POMS BERT Model training
-    hparams["bert_params"]["label_size"] = 5
-    hparams["bert_params"]["name"] = "POMS_F"
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
-    hparams["text_column"] = "Sentence_F"
-    factual_poms_model = bert_train_eval(hparams, OUTPUT_DIR)
-    # CounterFactual POMS BERT Model training
-    hparams["bert_params"]["name"] = "POMS_CF"
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
-    hparams["text_column"] = "Sentence_CF"
-    counterfactual_poms_model = bert_train_eval(hparams, OUTPUT_DIR)
-    # Factual CONTROL BERT Model training
-    hparams["bert_params"]["label_size"] = 2
-    hparams["bert_params"]["name"] = "CONTROL_F"
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
-    hparams["text_column"] = "Sentence_F"
-    hparams["label_column"] = "Gender_F" if "gender" in hparams['treatment'] else "Race_F"
-    factual_control_model = bert_train_eval(hparams, OUTPUT_DIR)
-    # CounterFactual CONTROL BERT Model training
-    hparams["bert_params"]["name"] = "CONTROL_CF"
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
-    hparams["text_column"] = "Sentence_CF"
-    hparams["label_column"] = "Gender_CF" if "gender" in hparams['treatment'] else "Race_CF"
-    counterfactual_control_model = bert_train_eval(hparams, OUTPUT_DIR)
-    test_genderace_models(hparams["treatment"], factual_poms_model, counterfactual_poms_model, factual_control_model, counterfactual_control_model)
+    factual_poms_model, counterfactual_poms_model = train_genderace_models_unit(hparams, "POMS", 5)
+    factual_gender_model, counterfactual_gender_model = train_genderace_models_unit(hparams, "Gender", 2)
+    factual_race_model, counterfactual_race_model = train_genderace_models_unit(hparams, "Race", 2)
+    test_genderace_models(hparams["treatment"],
+                          factual_poms_model, counterfactual_poms_model,
+                          factual_gender_model, counterfactual_gender_model,
+                          factual_race_model, counterfactual_race_model)
 
 
 @timer

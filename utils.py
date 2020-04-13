@@ -6,6 +6,7 @@ from email.message import EmailMessage
 from subprocess import Popen, PIPE, run
 from multiprocessing import cpu_count
 from pathlib import Path
+from Timer import timer
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -190,8 +191,17 @@ class GoogleDriveHandler:
         cmd_return = run(cmd, capture_output=True, text=True, timeout=self.default_timeout, cwd=HOME_DIR)
         return cmd_return.returncode, cmd_return.stdout, cmd_return.stderr
 
+    @timer
     def push_files(self, path: str, cmd_args: list = []):
-        return self._execute_drive_cmd("push", path, ["-files"] + cmd_args)
+        try:
+            push_return = self._execute_drive_cmd("push", path, ["-files"] + cmd_args)
+            if push_return[0] == 0:
+                message = f"Successfully pushed results to Google Drive: {path}"
+            else:
+                message = f"Failed to push results to Google Drive: {path}\nExit Code: {push_return[0]}\nSTDOUT: {push_return[1]}\nSTDERR: {push_return[2]}"
+        except Exception as e:
+            message = f"ERROR: {e}\nFailed to push results to Google Drive: {path}"
+        return message
 
     def pull_files(self, path: str, cmd_args: list = []):
         return self._execute_drive_cmd("pull", path, ["-files"] + cmd_args)
