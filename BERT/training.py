@@ -107,7 +107,7 @@ def train_genderace_models(hparams: Dict):
     factual_gender_model = train_genderace_models_unit(hparams, "Gender", "F")
     counterfactual_gender_model = train_genderace_models_unit(hparams, "Gender", "CF")
     factual_race_model = train_genderace_models_unit(hparams, "Race", "F")
-    counterfactual_race_model = train_genderace_models_unit(hparams, "Race", "F")
+    counterfactual_race_model = train_genderace_models_unit(hparams, "Race", "CF")
     test_genderace_models(hparams["treatment"],
                           factual_poms_model, counterfactual_poms_model,
                           factual_gender_model, counterfactual_gender_model,
