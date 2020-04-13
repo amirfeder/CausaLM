@@ -25,9 +25,10 @@ def find_latest_model_checkpoint(models_dir: str):
     model_ckpt = None
     while not model_ckpt:
         model_versions = sorted(glob(models_dir), key=path.getctime)
-        latest_model = model_versions.pop()
-        model_ckpt_dir = f"{latest_model}/checkpoints"
-        model_ckpt = get_checkpoint_file(model_ckpt_dir)
+        if model_versions:
+            latest_model = model_versions.pop()
+            model_ckpt_dir = f"{latest_model}/checkpoints"
+            model_ckpt = get_checkpoint_file(model_ckpt_dir)
     return model_ckpt
 
 
@@ -149,7 +150,8 @@ def test_genderace_models_unit(task, treatment, group,
     logger.info(f"Task: {hparams['bert_params']['name']}")
     logger.info(f"Treatment: {treatment}")
     if not model_ckpt:
-        models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{label_column}/lightning_logs/*"
+        model_name = f"{label_column.split('_')[0]}_{group}"
+        models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{model_name}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
         logger.info(f"Loading model for {treatment} {task}_{group} from: {model_ckpt}")
     hparams["bert_params"]["bert_state_dict"] = None
