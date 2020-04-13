@@ -120,15 +120,14 @@ def test_genderace_models_unit(task, treatment, group,
     else:
         TREATMENT = "Race"
         pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
+    label_size = 2
     if task == "POMS":
-        label_column = "label"
+        label_column = f"{task}_label"
         label_size = 5
     elif task.split("_")[-1].lower() in treatment:
-        label_column = f"{task.split('_')[-1]}_{group}"
-        label_size = 2
+        label_column = f"{task.split('_')[-1]}_{group}_label"
     else:
-        label_column = task.split("_")[-1]
-        label_size = 2
+        label_column = f"{task.split('_')[-1]}_label"
     # Group Task BERT Model training
     hparams["label_column"] = label_column
     hparams["bert_params"]["label_size"] = label_size

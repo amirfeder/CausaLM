@@ -18,9 +18,9 @@ def aggressive(df_female, df_male, biased_label, biasing_factor):
     :return:
     """
     df_biased = pd.DataFrame(columns=df_female.columns)
-    for label in sorted(df_female["label"].unique()):
-        df_label_f = df_female[df_female["label"] == label]
-        df_label_m = df_male[df_male["label"] == label]
+    for label in sorted(df_female["POMS_label"].unique()):
+        df_label_f = df_female[df_female["POMS_label"] == label]
+        df_label_m = df_male[df_male["POMS_label"] == label]
         if label == LABELS.get(biased_label, 0):
             df_biased = df_biased.append(df_label_f, ignore_index=True)
             df_sampled_m = df_label_m.sample(frac=biasing_factor, random_state=RANDOM_SEED)
@@ -43,9 +43,9 @@ def gentle(df_female, df_male, biased_label, biasing_factor):
     :return:
     """
     df_biased = pd.DataFrame(columns=df_female.columns)
-    for label in sorted(df_female["label"].unique()):
-        df_label_f = df_female[df_female["label"] == label]
-        df_label_m = df_male[df_male["label"] == label]
+    for label in sorted(df_female["POMS_label"].unique()):
+        df_label_f = df_female[df_female["POMS_label"] == label]
+        df_label_m = df_male[df_male["POMS_label"] == label]
         if label == LABELS.get(biased_label, 0):
             df_biased = df_biased.append(df_label_f, ignore_index=True)
             df_sampled_m = df_label_m.sample(frac=biasing_factor, random_state=RANDOM_SEED)
@@ -65,9 +65,9 @@ def gentle(df_female, df_male, biased_label, biasing_factor):
 #     #         return i % b != 0
 #     df_biased = pd.DataFrame(columns=df_female.columns)
 #     b = (1 - biasing_factor) * 10
-#     for label in tqdm(sorted(df_female["label"].unique()), desc="label"):
-#         df_label_f = df_female[df_female["label"] == label]
-#         df_label_m = df_male[df_male["label"] == label]
+#     for label in tqdm(sorted(df_female["POMS_label"].unique()), desc="POMS_label"):
+#         df_label_f = df_female[df_female["POMS_label"] == label]
+#         df_label_m = df_male[df_male["POMS_label"] == label]
 #         for i, row in enumerate(tqdm(df_label_f.itertuples(), total=len(df_label_f), desc="num_samples")):
 #             if not(bool(i % b == 0) ^ bool(label == biased_label)):
 #                 new_row = {
@@ -80,7 +80,7 @@ def gentle(df_female, df_male, biased_label, biasing_factor):
 #                     "Template": str(row.Template),
 #                     "Race": str(row.Race),
 #                     "Emotion_word": str(row.Emotion_word),
-#                     "label": int(label)
+#                     "POMS_label": int(label)
 #                 }
 #             else:
 #                 new_row = {
@@ -93,7 +93,7 @@ def gentle(df_female, df_male, biased_label, biasing_factor):
 #                     "Template": str(row.Template),
 #                     "Race": str(row.Race),
 #                     "Emotion_word": str(row.Emotion_word),
-#                     "label": int(label)
+#                     "POMS_label": int(label)
 #                 }
 #             df_biased = df_biased.append(new_row, ignore_index=True)
 #     return df_biased

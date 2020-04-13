@@ -84,15 +84,12 @@ def train_adj_models():
 
 @timer
 def train_genderace_models_unit(hparams: Dict, task, group):
+    label_column = f"{task}_label"
+    label_size = 2
     if task == "POMS":
-        label_column = "label"
         label_size = 5
     elif task.lower() in hparams["treatment"]:
-        label_column = f"{task}_{group}"
-        label_size = 2
-    else:
-        label_column = task
-        label_size = 2
+        label_column = f"{task}_{group}_label"
     hparams["label_column"] = label_column
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"

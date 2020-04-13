@@ -16,20 +16,21 @@ def create_gender_datasets():
     df_joined = pd.merge(df_female, df_male, left_on=["Template", "Race", "Emotion", "Emotion word"],
                          right_on=["Template", "Race", "Emotion", "Emotion word"], how="inner",
                          suffixes=("_f", "_m"), sort=True)
-    df_joined["label"] = df_joined["Emotion"].apply(lambda label: emotion_labels_dict.get(str(label), 0))
+    df_joined["POMS_label"] = df_joined["Emotion"].apply(lambda label: emotion_labels_dict.get(str(label), 0))
     df_joined["Gender_m"] = 0
     df_joined["Gender_f"] = 1
     df_joined = df_joined.rename(columns={"Emotion word": "Emotion_word"})
-    df_joined = df_joined[["ID_f", "ID_m", "Person_f", "Person_m", "Sentence_f", "Sentence_m", "Gender_f", "Gender_m", "Template", "Race", "Emotion_word", "label"]]
+    df_joined["Race_label"] = df_joined["Race"].apply(lambda t: int(str(t) == "African-American"))
+    df_joined = df_joined[["ID_f", "ID_m", "Person_f", "Person_m", "Sentence_f", "Sentence_m", "Gender_f", "Gender_m", "Template", "Race", "Race_label", "Emotion_word", "Emotion", "POMS_label"]]
     df_joined_grouped_f = df_joined.groupby(by="ID_f", as_index=False).apply(lambda g: g.sample(n=1)).set_index(keys=["ID_f", "ID_m"], drop=False).sort_index()
-    df_joined = df_joined[["ID_m", "ID_f", "Person_m", "Person_f", "Sentence_m", "Sentence_f", "Gender_m", "Gender_f", "Template", "Race", "Emotion_word", "label"]]
+    df_joined = df_joined[["ID_m", "ID_f", "Person_m", "Person_f", "Sentence_m", "Sentence_f", "Gender_m", "Gender_f", "Template", "Race", "Race_label", "Emotion_word", "Emotion", "POMS_label"]]
     df_joined_grouped_m = df_joined.groupby(by="ID_m", as_index=False).apply(lambda g: g.sample(n=1)).set_index(keys=["ID_m", "ID_f"], drop=False).sort_index()
     df_joined_grouped_f = df_joined_grouped_f.rename(columns={"ID_m": "ID_CF", "Person_m": "Person_CF", "Sentence_m": "Sentence_CF",
                                                               "ID_f": "ID_F", "Person_f": "Person_F", "Sentence_f": "Sentence_F",
-                                                              "Gender_m": "Gender_CF", "Gender_f": "Gender_F"})
+                                                              "Gender_m": "Gender_CF_label", "Gender_f": "Gender_F_label"})
     df_joined_grouped_m = df_joined_grouped_m.rename(columns={"ID_f": "ID_CF", "Person_f": "Person_CF", "Sentence_f": "Sentence_CF",
                                                               "ID_m": "ID_F", "Person_m": "Person_F", "Sentence_m": "Sentence_F",
-                                                              "Gender_m": "Gender_F", "Gender_f": "Gender_CF"})
+                                                              "Gender_m": "Gender_F_label", "Gender_f": "Gender_CF_label"})
     df_final = pd.concat([df_joined_grouped_f, df_joined_grouped_m]).set_index(keys=["ID_F", "ID_CF"]).sort_index()
     return df_final, df_joined_grouped_f, df_joined_grouped_m
 
@@ -45,19 +46,20 @@ def create_gender_enriched_datasets():
     df_joined = pd.merge(df_female, df_male, left_on=["Race", "Emotion", "Emotion_word"],
                          right_on=["Race", "Emotion", "Emotion_word"], how="inner",
                          suffixes=("_f", "_m"), sort=True)
-    df_joined["label"] = df_joined["Emotion"].apply(lambda label: emotion_labels_dict.get(str(label), 0))
+    df_joined["POMS_label"] = df_joined["Emotion"].apply(lambda label: emotion_labels_dict.get(str(label), 0))
     df_joined["Gender_m"] = 0
     df_joined["Gender_f"] = 1
-    df_joined = df_joined[["ID_f", "ID_m", "Person_f", "Person_m", "Sentence_f", "Sentence_m", "Gender_f", "Gender_m", "Race", "Emotion_word", "label"]]
+    df_joined["Race_label"] = df_joined["Race"].apply(lambda t: int(str(t) == "African-American"))
+    df_joined = df_joined[["ID_f", "ID_m", "Person_f", "Person_m", "Sentence_f", "Sentence_m", "Gender_f", "Gender_m", "Race", "Race_label", "Emotion_word", "Emotion", "POMS_label"]]
     df_joined_grouped_f = df_joined.groupby(by="ID_f", as_index=False).apply(lambda g: g.sample(n=1)).set_index(keys=["ID_f", "ID_m"], drop=False).sort_index()
-    df_joined = df_joined[["ID_m", "ID_f", "Person_m", "Person_f", "Sentence_m", "Sentence_f", "Gender_m", "Gender_f", "Race", "Emotion_word", "label"]]
+    df_joined = df_joined[["ID_m", "ID_f", "Person_m", "Person_f", "Sentence_m", "Sentence_f", "Gender_m", "Gender_f", "Race", "Race_label", "Emotion_word", "Emotion", "POMS_label"]]
     df_joined_grouped_m = df_joined.groupby(by="ID_m", as_index=False).apply(lambda g: g.sample(n=1)).set_index(keys=["ID_m", "ID_f"], drop=False).sort_index()
     df_joined_grouped_f = df_joined_grouped_f.rename(columns={"ID_m": "ID_CF", "Person_m": "Person_CF", "Sentence_m": "Sentence_CF",
                                                               "ID_f": "ID_F", "Person_f": "Person_F", "Sentence_f": "Sentence_F",
-                                                              "Gender_m": "Gender_CF", "Gender_f": "Gender_F"})
+                                                              "Gender_m": "Gender_CF_label", "Gender_f": "Gender_F_label"})
     df_joined_grouped_m = df_joined_grouped_m.rename(columns={"ID_f": "ID_CF", "Person_f": "Person_CF", "Sentence_f": "Sentence_CF",
                                                               "ID_m": "ID_F", "Person_m": "Person_F", "Sentence_m": "Sentence_F",
-                                                              "Gender_m": "Gender_F", "Gender_f": "Gender_CF"})
+                                                              "Gender_m": "Gender_F_label", "Gender_f": "Gender_CF_label"})
     df_final = pd.concat([df_joined_grouped_f, df_joined_grouped_m]).set_index(keys=["ID_F", "ID_CF"]).sort_index()
     return df_final, df_joined_grouped_f, df_joined_grouped_m
 
@@ -74,20 +76,21 @@ def create_race_datasets():
     df_joined = pd.merge(df_afro, df_euro, left_on=["Template", "Gender", "Emotion", "Emotion word"],
                          right_on=["Template", "Gender", "Emotion", "Emotion word"], how="inner",
                          suffixes=("_a", "_e"), sort=True)
-    df_joined["label"] = df_joined["Emotion"].apply(lambda label: emotion_labels_dict.get(str(label), 0))
+    df_joined["POMS_label"] = df_joined["Emotion"].apply(lambda label: emotion_labels_dict.get(str(label), 0))
     df_joined["Race_e"] = 0
     df_joined["Race_a"] = 1
     df_joined = df_joined.rename(columns={"Emotion word": "Emotion_word"})
-    df_joined = df_joined[["ID_a", "ID_e", "Person_a", "Person_e", "Sentence_a", "Sentence_e", "Race_a", "Race_e", "Template", "Gender", "Emotion_word", "label"]]
+    df_joined["Gender_label"] = df_joined["Gender"].apply(lambda t: int(str(t) == "female"))
+    df_joined = df_joined[["ID_a", "ID_e", "Person_a", "Person_e", "Sentence_a", "Sentence_e", "Race_a", "Race_e", "Template", "Gender", "Gender_label", "Emotion_word", "Emotion", "POMS_label"]]
     df_joined_grouped_a = df_joined.groupby(by="ID_a", as_index=False).apply(lambda g: g.sample(n=1)).set_index(keys=["ID_a", "ID_e"], drop=False).sort_index()
-    df_joined = df_joined[["ID_e", "ID_a", "Person_e", "Person_a", "Sentence_e", "Sentence_a", "Race_e", "Race_a", "Template", "Gender", "Emotion_word", "label"]]
+    df_joined = df_joined[["ID_e", "ID_a", "Person_e", "Person_a", "Sentence_e", "Sentence_a", "Race_e", "Race_a", "Template", "Gender", "Gender_label", "Emotion_word", "Emotion", "POMS_label"]]
     df_joined_grouped_e = df_joined.groupby(by="ID_e", as_index=False).apply(lambda g: g.sample(n=1)).set_index(keys=["ID_e", "ID_a"], drop=False).sort_index()
     df_joined_grouped_a = df_joined_grouped_a.rename(columns={"ID_e": "ID_CF", "Person_e": "Person_CF", "Sentence_e": "Sentence_CF",
                                                               "ID_a": "ID_F", "Person_a": "Person_F", "Sentence_a": "Sentence_F",
-                                                              "Race_e": "Race_CF", "Race_a": "Race_F"})
+                                                              "Race_e": "Race_CF_label", "Race_a": "Race_F_label"})
     df_joined_grouped_e = df_joined_grouped_e.rename(columns={"ID_a": "ID_CF", "Person_a": "Person_CF", "Sentence_a": "Sentence_CF",
                                                               "ID_e": "ID_F", "Person_e": "Person_F", "Sentence_e": "Sentence_F",
-                                                              "Race_e": "Race_F", "Race_a": "Race_CF"})
+                                                              "Race_e": "Race_F_label", "Race_a": "Race_CF_label"})
     df_final = pd.concat([df_joined_grouped_a, df_joined_grouped_e]).set_index(keys=["ID_F", "ID_CF"]).sort_index()
     return df_final, df_joined_grouped_a, df_joined_grouped_e
 
@@ -103,19 +106,20 @@ def create_race_enriched_datasets():
     df_joined = pd.merge(df_afro, df_euro, left_on=["Gender", "Emotion", "Emotion_word"],
                          right_on=["Gender", "Emotion", "Emotion_word"], how="inner",
                          suffixes=("_a", "_e"), sort=True)
-    df_joined["label"] = df_joined["Emotion"].apply(lambda label: emotion_labels_dict.get(str(label), 0))
+    df_joined["POMS_label"] = df_joined["Emotion"].apply(lambda label: emotion_labels_dict.get(str(label), 0))
     df_joined["Race_e"] = 0
     df_joined["Race_a"] = 1
-    df_joined = df_joined[["ID_a", "ID_e", "Person_a", "Person_e", "Sentence_a", "Sentence_e", "Race_a", "Race_e", "Gender", "Emotion_word", "label"]]
+    df_joined["Gender_label"] = df_joined["Gender"].apply(lambda t: int(str(t) == "female"))
+    df_joined = df_joined[["ID_a", "ID_e", "Person_a", "Person_e", "Sentence_a", "Sentence_e", "Race_a", "Race_e", "Gender", "Gender_label", "Emotion_word", "Emotion", "POMS_label"]]
     df_joined_grouped_a = df_joined.groupby(by="ID_a", as_index=False).apply(lambda g: g.sample(n=1)).set_index(keys=["ID_a", "ID_e"], drop=False).sort_index()
-    df_joined = df_joined[["ID_e", "ID_a", "Person_e", "Person_a", "Sentence_e", "Sentence_a", "Race_e", "Race_a", "Gender", "Emotion_word", "label"]]
+    df_joined = df_joined[["ID_e", "ID_a", "Person_e", "Person_a", "Sentence_e", "Sentence_a", "Race_e", "Race_a", "Gender", "Gender_label", "Emotion_word", "Emotion", "POMS_label"]]
     df_joined_grouped_e = df_joined.groupby(by="ID_e", as_index=False).apply(lambda g: g.sample(n=1)).set_index(keys=["ID_e", "ID_a"], drop=False).sort_index()
     df_joined_grouped_a = df_joined_grouped_a.rename(columns={"ID_e": "ID_CF", "Person_e": "Person_CF", "Sentence_e": "Sentence_CF",
                                                               "ID_a": "ID_F", "Person_a": "Person_F", "Sentence_a": "Sentence_F",
-                                                              "Race_e": "Race_CF", "Race_a": "Race_F"})
+                                                              "Race_e": "Race_CF_label", "Race_a": "Race_F_label"})
     df_joined_grouped_e = df_joined_grouped_e.rename(columns={"ID_a": "ID_CF", "Person_a": "Person_CF", "Sentence_a": "Sentence_CF",
                                                               "ID_e": "ID_F", "Person_e": "Person_F", "Sentence_e": "Sentence_F",
-                                                              "Race_e": "Race_F", "Race_a": "Race_CF"})
+                                                              "Race_e": "Race_F_label", "Race_a": "Race_CF_label"})
     df_final = pd.concat([df_joined_grouped_a, df_joined_grouped_e]).set_index(keys=["ID_F", "ID_CF"]).sort_index()
     return df_final, df_joined_grouped_a, df_joined_grouped_e
 
