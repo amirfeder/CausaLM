@@ -83,9 +83,18 @@ def train_adj_models():
 
 
 @timer
-def train_genderace_models_unit(hparams: Dict, task, group, label_column):
+def train_genderace_models_unit(hparams: Dict, task, group):
+    if task == "POMS":
+        label_column = "label"
+        label_size = 5
+    elif task.lower() in hparams["treatment"]:
+        label_column = f"{task}_{group}"
+        label_size = 2
+    else:
+        label_column = task
+        label_size = 2
     hparams["label_column"] = label_column
-    hparams["bert_params"]["label_size"] = 5 if label_column == "label" else 2
+    hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
@@ -96,25 +105,12 @@ def train_genderace_models_unit(hparams: Dict, task, group, label_column):
 @timer
 def train_genderace_models(hparams: Dict):
     print(f"Training {hparams['treatment']} models")
-    task = "POMS"
-    factual_poms_model = train_genderace_models_unit(hparams, task, "F", "label")
-    counterfactual_poms_model = train_genderace_models_unit(hparams, task, "CF", "label")
-    task = "Gender"
-    if task.lower() in hparams["treatment"]:
-        f_label_column = f"{task}_F"
-        cf_label_column = f"{task}_CF"
-    else:
-        f_label_column = cf_label_column = task
-    factual_gender_model = train_genderace_models_unit(hparams, task, "F", f_label_column)
-    counterfactual_gender_model = train_genderace_models_unit(hparams, task, "CF", cf_label_column)
-    task = "Race"
-    if task.lower() in hparams["treatment"]:
-        f_label_column = f"{task}_F"
-        cf_label_column = f"{task}_CF"
-    else:
-        f_label_column = cf_label_column = task
-    factual_race_model = train_genderace_models_unit(hparams, task, "F", f_label_column)
-    counterfactual_race_model = train_genderace_models_unit(hparams, task, "F", cf_label_column)
+    factual_poms_model = train_genderace_models_unit(hparams, "POMS", "F")
+    counterfactual_poms_model = train_genderace_models_unit(hparams, "POMS", "CF")
+    factual_gender_model = train_genderace_models_unit(hparams, "Gender", "F")
+    counterfactual_gender_model = train_genderace_models_unit(hparams, "Gender", "CF")
+    factual_race_model = train_genderace_models_unit(hparams, "Race", "F")
+    counterfactual_race_model = train_genderace_models_unit(hparams, "Race", "F")
     test_genderace_models(hparams["treatment"],
                           factual_poms_model, counterfactual_poms_model,
                           factual_gender_model, counterfactual_gender_model,

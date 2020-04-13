@@ -108,7 +108,7 @@ def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 
 @timer
-def test_genderace_models_unit(task, treatment, group, label_column,
+def test_genderace_models_unit(task, treatment, group,
                                model_ckpt, hparams, trainer, logger):
     if "enriched" in treatment:
         state_dict_dir = "model_enriched"
@@ -120,9 +120,18 @@ def test_genderace_models_unit(task, treatment, group, label_column,
     else:
         TREATMENT = "Race"
         pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
+    if task == "POMS":
+        label_column = "label"
+        label_size = 5
+    elif task.lower() in treatment:
+        label_column = f"{task}_{group}"
+        label_size = 2
+    else:
+        label_column = task
+        label_size = 2
     # Group Task BERT Model training
     hparams["label_column"] = label_column
-    hparams["bert_params"]["label_size"] = 5 if label_column == "label" else 2
+    hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
     if not model_ckpt:
@@ -156,22 +165,10 @@ def test_genderace_models(treatment="gender",
     logger = init_logger(f"testing", HYPERPARAMETERS["output_path"])
     test_genderace_models_unit("POMS", treatment, "F", "label", factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
     test_genderace_models_unit("POMS", treatment, "CF", "label", counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    task = "Gender"
-    if task.lower() in treatment:
-        f_label_column = f"{task}_F"
-        cf_label_column = f"{task}_CF"
-    else:
-        f_label_column = cf_label_column = task
-    test_genderace_models_unit(f"CONTROL_{task}", treatment, "F", f_label_column, factual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_{task}", treatment, "CF", cf_label_column, counterfactual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    task = "Race"
-    if task.lower() in treatment:
-        f_label_column = f"{task}_F"
-        cf_label_column = f"{task}_CF"
-    else:
-        f_label_column = cf_label_column = task
-    test_genderace_models_unit(f"CONTROL_{task}", treatment, "F", f_label_column, factual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_{task}", treatment, "CF", cf_label_column, counterfactual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_Gender", treatment, "F", factual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_Gender", treatment, "CF", counterfactual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_Race", treatment, "F", factual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_Race", treatment, "CF", counterfactual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
     handler = GoogleDriveHandler()
     push_message = handler.push_files(HYPERPARAMETERS["output_path"])
     logger.info(push_message)
