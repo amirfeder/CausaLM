@@ -1,5 +1,7 @@
+from argparse import ArgumentParser
 from typing import Dict
-from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR, POMS_MLM_DATA_DIR, POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR, POMS_EXPERIMENTS_DIR
+from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR, POMS_MLM_DATA_DIR, \
+    POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, POMS_RACE_DATASETS_DIR
 from pytorch_lightning import Trainer, LightningModule
 from BERT.networks import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir, path
@@ -40,6 +42,14 @@ def print_final_metrics(name: str, metrics: Dict, logger=None):
         for metric, val in metrics.items():
             print(f"{metric}: {val:.4f}")
         print()
+
+
+def main():
+    parser = ArgumentParser()
+    parser.add_argument("--treatment", type=str, required=False, default="gender", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
+    args = parser.parse_args()
+    if "gender" in args.treatment or "race" in args.treatment:
+        test_all_genderace_models(args.treatment)
 
 
 @timer
@@ -133,9 +143,15 @@ def test_genderace_models_unit(task, treatment, group,
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
+    logger.info("Label Column:", label_column)
+    logger.info("Label Size:", label_size)
+    logger.info("Text Column:", hparams["text_column"])
+    logger.info("Task:", hparams["bert_params"]["name"])
+    logger.info("Treatment:", treatment)
     if not model_ckpt:
         models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{hparams['bert_params']['name']}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
+        logger.info(f"Loading model for {treatment} {task}_{group} from: {model_ckpt}")
     hparams["bert_params"]["bert_state_dict"] = None
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
     # Group Task BERT Model test with MLM LM
@@ -174,5 +190,12 @@ def test_genderace_models(treatment="gender",
     send_email(push_message, treatment)
 
 
+@timer
+def test_all_genderace_models(treatment: str):
+    test_genderace_models(treatment)
+    test_genderace_models(f"{treatment}_biased_joy_gentle")
+    test_genderace_models(f"{treatment}_biased_joy_aggressive")
+
+
 if __name__ == "__main__":
-    test_genderace_models()
+    main()
