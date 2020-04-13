@@ -149,7 +149,7 @@ def test_genderace_models_unit(task, treatment, group,
     logger.info(f"Task: {hparams['bert_params']['name']}")
     logger.info(f"Treatment: {treatment}")
     if not model_ckpt:
-        models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{hparams['bert_params']['name']}/lightning_logs/*"
+        models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{label_column}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
         logger.info(f"Loading model for {treatment} {task}_{group} from: {model_ckpt}")
     hparams["bert_params"]["bert_state_dict"] = None
