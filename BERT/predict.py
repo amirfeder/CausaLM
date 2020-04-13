@@ -11,12 +11,22 @@ import torch
 # LOGGER = init_logger("OOB_training")
 
 
-def get_checkpoint_file(ckpt_dir):
+def get_checkpoint_file(ckpt_dir: str):
     for file in sorted(listdir(ckpt_dir)):
         if file.endswith(".ckpt"):
             return f"{ckpt_dir}/{file}"
     else:
         return None
+
+
+def find_latest_model_checkpoint(models_dir: str):
+    model_ckpt = None
+    while not model_ckpt:
+        model_versions = sorted(glob(models_dir), key=path.getctime)
+        latest_model = model_versions.pop()
+        model_ckpt_dir = f"{latest_model}/checkpoints"
+        model_ckpt = get_checkpoint_file(model_ckpt_dir)
+    return model_ckpt
 
 
 def print_final_metrics(name: str, metrics: Dict, logger=None):
@@ -41,7 +51,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     if isinstance(model_ckpt, LightningModule):
         model = model_ckpt
     else:
-        model_ckpt_file = get_checkpoint_file(model_ckpt)
+        model_ckpt_file = model_ckpt
         model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt_file)
     model.hparams.output_path = hparams["output_path"]
     if hparams["bert_params"]["bert_state_dict"]:
@@ -98,7 +108,7 @@ def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 
 @timer
-def test_genderace_models_unit(task, treatment, group, label_size,
+def test_genderace_models_unit(task, treatment, group, label_column,
                                model_ckpt, hparams, trainer, logger):
     if "enriched" in treatment:
         state_dict_dir = "model_enriched"
@@ -111,15 +121,14 @@ def test_genderace_models_unit(task, treatment, group, label_size,
         TREATMENT = "Race"
         pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
     # Group Task BERT Model training
-    hparams["label_column"] = f"{TREATMENT}_{group}"
+    hparams["label_column"] = label_column
+    hparams["bert_params"]["label_size"] = 5 if label_column == "label" else 2
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
     if not model_ckpt:
-        model_ckpt_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{hparams['bert_params']['name']}/lightning_logs/"
-        latest_model = max(glob(model_ckpt_dir), key=path.getctime)
-        model_ckpt = f"{latest_model}/checkpoints"
+        models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{hparams['bert_params']['name']}/lightning_logs/*"
+        model_ckpt = find_latest_model_checkpoint(models_dir)
     hparams["bert_params"]["bert_state_dict"] = None
-    hparams["bert_params"]["label_size"] = label_size
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
     # Group Task BERT Model test with MLM LM
     hparams["bert_params"]["name"] = f"{task}_MLM_{group}"
@@ -145,12 +154,24 @@ def test_genderace_models(treatment="gender",
                       early_stop_callback=None)
     HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     logger = init_logger(f"testing", HYPERPARAMETERS["output_path"])
-    test_genderace_models_unit("POMS", treatment, "F", 5, factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit("POMS", treatment, "CF", 5, counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Gender", treatment, "F", 2, factual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Gender", treatment, "CF", 2, counterfactual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Race", treatment, "F", 2, factual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Race", treatment, "CF", 2, counterfactual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit("POMS", treatment, "F", "label", factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit("POMS", treatment, "CF", "label", counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    task = "Gender"
+    if task.lower() in treatment:
+        f_label_column = f"{task}_F"
+        cf_label_column = f"{task}_CF"
+    else:
+        f_label_column = cf_label_column = task
+    test_genderace_models_unit(f"CONTROL_{task}", treatment, "F", f_label_column, factual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_{task}", treatment, "CF", cf_label_column, counterfactual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    task = "Race"
+    if task.lower() in treatment:
+        f_label_column = f"{task}_F"
+        cf_label_column = f"{task}_CF"
+    else:
+        f_label_column = cf_label_column = task
+    test_genderace_models_unit(f"CONTROL_{task}", treatment, "F", f_label_column, factual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_{task}", treatment, "CF", cf_label_column, counterfactual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
     handler = GoogleDriveHandler()
     push_message = handler.push_files(HYPERPARAMETERS["output_path"])
     logger.info(push_message)

@@ -83,27 +83,38 @@ def train_adj_models():
 
 
 @timer
-def train_genderace_models_unit(hparams: Dict, task, label_size):
-    # Factual Task BERT Model training
-    hparams["bert_params"]["label_size"] = label_size
-    hparams["bert_params"]["name"] = f"{task}_F"
+def train_genderace_models_unit(hparams: Dict, task, group, label_column):
+    hparams["label_column"] = label_column
+    hparams["bert_params"]["label_size"] = 5 if label_column == "label" else 2
+    hparams["text_column"] = f"Sentence_{group}"
+    hparams["bert_params"]["name"] = f"{task}_{group}"
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
-    hparams["text_column"] = f"Sentence_F"
     factual_model = bert_train_eval(hparams, OUTPUT_DIR)
-    # CounterFactual Task BERT Model training
-    hparams["bert_params"]["name"] = f"{task}_CF"
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
-    hparams["text_column"] = "Sentence_CF"
-    counterfactual_model = bert_train_eval(hparams, OUTPUT_DIR)
-    return factual_model, counterfactual_model
+    return factual_model
 
 
 @timer
 def train_genderace_models(hparams: Dict):
     print(f"Training {hparams['treatment']} models")
-    factual_poms_model, counterfactual_poms_model = train_genderace_models_unit(hparams, "POMS", 5)
-    factual_gender_model, counterfactual_gender_model = train_genderace_models_unit(hparams, "Gender", 2)
-    factual_race_model, counterfactual_race_model = train_genderace_models_unit(hparams, "Race", 2)
+    task = "POMS"
+    factual_poms_model = train_genderace_models_unit(hparams, task, "F", "label")
+    counterfactual_poms_model = train_genderace_models_unit(hparams, task, "CF", "label")
+    task = "Gender"
+    if task.lower() in hparams["treatment"]:
+        f_label_column = f"{task}_F"
+        cf_label_column = f"{task}_CF"
+    else:
+        f_label_column = cf_label_column = task
+    factual_gender_model = train_genderace_models_unit(hparams, task, "F", f_label_column)
+    counterfactual_gender_model = train_genderace_models_unit(hparams, task, "CF", cf_label_column)
+    task = "Race"
+    if task.lower() in hparams["treatment"]:
+        f_label_column = f"{task}_F"
+        cf_label_column = f"{task}_CF"
+    else:
+        f_label_column = cf_label_column = task
+    factual_race_model = train_genderace_models_unit(hparams, task, "F", f_label_column)
+    counterfactual_race_model = train_genderace_models_unit(hparams, task, "F", cf_label_column)
     test_genderace_models(hparams["treatment"],
                           factual_poms_model, counterfactual_poms_model,
                           factual_gender_model, counterfactual_gender_model,
