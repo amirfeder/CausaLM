@@ -21,8 +21,8 @@ DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ### Constants
 PAD_ID = 0
-BATCH_SIZE = 256
-ACCUMULATE = 4
+BATCH_SIZE = 200
+ACCUMULATE = 5
 DROPOUT = 0.1
 EPOCHS = 50
 FP16 = False
@@ -43,10 +43,11 @@ HYPERPARAMETERS = {
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=False, default="gender", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
+    parser.add_argument("--treatment", type=str, required=True, default="gender_enriched", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
+    parser.add_argument("--group", type=str, required=True, default="F", help="Specify data group for experiments: F (factual) or CF (counterfactual)")
     args = parser.parse_args()
     if "gender" in args.treatment or "race" in args.treatment:
-        train_all_genderace_models(args.treatment)
+        train_all_genderace_models(args.treatment, args.group)
     elif "adj" in args.treatment:
         train_adj_models(args.treatment)
 
@@ -99,27 +100,36 @@ def train_genderace_models_unit(hparams: Dict, task, group):
     return factual_model
 
 
-@timer
-def train_genderace_models(hparams: Dict):
-    print(f"Training {hparams['treatment']} models")
-    factual_poms_model = train_genderace_models_unit(hparams, "POMS", "F")
-    counterfactual_poms_model = train_genderace_models_unit(hparams, "POMS", "CF")
-    factual_gender_model = train_genderace_models_unit(hparams, "Gender", "F")
-    counterfactual_gender_model = train_genderace_models_unit(hparams, "Gender", "CF")
-    factual_race_model = train_genderace_models_unit(hparams, "Race", "F")
-    counterfactual_race_model = train_genderace_models_unit(hparams, "Race", "CF")
-    test_genderace_models(hparams["treatment"],
-                          factual_poms_model, counterfactual_poms_model,
-                          factual_gender_model, counterfactual_gender_model,
-                          factual_race_model, counterfactual_race_model)
+# @timer
+# def train_genderace_models(hparams: Dict):
+#     print(f"Training {hparams['treatment']} models")
+#     factual_poms_model = train_genderace_models_unit(hparams, "POMS", "F")
+#     # counterfactual_poms_model = train_genderace_models_unit(hparams, "POMS", "CF")
+#     factual_gender_model = train_genderace_models_unit(hparams, "Gender", "F")
+#     # counterfactual_gender_model = train_genderace_models_unit(hparams, "Gender", "CF")
+#     factual_race_model = train_genderace_models_unit(hparams, "Race", "F")
+#     # counterfactual_race_model = train_genderace_models_unit(hparams, "Race", "CF")
+#     test_genderace_models(hparams["treatment"],
+#                           factual_poms_model, counterfactual_poms_model,
+#                           factual_gender_model, counterfactual_gender_model,
+#                           factual_race_model, counterfactual_race_model)
 
 
 @timer
-def train_all_genderace_models(treatment: str):
+def train_genderace_models(hparams: Dict, treatment: str, group: str):
+    print(f"Training {treatment} models")
+    poms_model = train_genderace_models_unit(hparams, "POMS", group)
+    gender_model = train_genderace_models_unit(hparams, "Gender", group)
+    race_model = train_genderace_models_unit(hparams, "Race", group)
+    test_genderace_models(treatment, group, poms_model, gender_model, race_model)
+
+
+@timer
+def train_all_genderace_models(treatment: str, group: str):
     HYPERPARAMETERS = {
         "data_path": POMS_GENDER_DATASETS_DIR if "gender" in treatment else POMS_RACE_DATASETS_DIR,
         "treatment": treatment,
-        "text_column": "Sentence_F",
+        "text_column": f"Sentence_{group}",
         "label_column": "POMS_label",
         "epochs": EPOCHS,
         "accumulate": ACCUMULATE,
@@ -128,14 +138,14 @@ def train_all_genderace_models(treatment: str):
             "dropout": DROPOUT,
             "bert_state_dict": BERT_STATE_DICT,
             "label_size": 5,
-            "name": "POMS_F"
+            "name": f"POMS_{group}"
         }
     }
-    train_genderace_models(HYPERPARAMETERS)
+    train_genderace_models(HYPERPARAMETERS, treatment, group)
     HYPERPARAMETERS["treatment"] = f"{treatment}_biased_joy_gentle"
-    train_genderace_models(HYPERPARAMETERS)
+    train_genderace_models(HYPERPARAMETERS, f"{treatment}_biased_joy_gentle", group)
     HYPERPARAMETERS["treatment"] = f"{treatment}_biased_joy_aggressive"
-    train_genderace_models(HYPERPARAMETERS)
+    train_genderace_models(HYPERPARAMETERS, f"{treatment}_biased_joy_aggressive", group)
 
 
 if __name__ == "__main__":

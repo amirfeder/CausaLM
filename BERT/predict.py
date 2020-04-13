@@ -48,9 +48,10 @@ def print_final_metrics(name: str, metrics: Dict, logger=None):
 def main():
     parser = ArgumentParser()
     parser.add_argument("--treatment", type=str, required=False, default="gender", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
+    parser.add_argument("--trained_group", type=str, required=True, default="F", help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     args = parser.parse_args()
     if "gender" in args.treatment or "race" in args.treatment:
-        test_all_genderace_models(args.treatment)
+        test_all_genderace_models(args.treatment, args.trained_group)
 
 
 @timer
@@ -119,8 +120,7 @@ def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 
 @timer
-def test_genderace_models_unit(task, treatment, group,
-                               model_ckpt, hparams, trainer, logger):
+def test_genderace_models_unit(task, treatment, trained_group, group, model_ckpt, hparams, trainer, logger):
     if "enriched" in treatment:
         state_dict_dir = "model_enriched"
     else:
@@ -144,13 +144,13 @@ def test_genderace_models_unit(task, treatment, group,
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
+    logger.info(f"Treatment: {treatment}")
+    logger.info(f"Task: {hparams['bert_params']['name']}")
+    logger.info(f"Text Column: {hparams['text_column']}")
     logger.info(f"Label Column: {label_column}")
     logger.info(f"Label Size: {label_size}")
-    logger.info(f"Text Column: {hparams['text_column']}")
-    logger.info(f"Task: {hparams['bert_params']['name']}")
-    logger.info(f"Treatment: {treatment}")
     if not model_ckpt:
-        model_name = f"{label_column.split('_')[0]}_{group}"
+        model_name = f"{label_column.split('_')[0]}_{trained_group}"
         models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{model_name}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
         logger.info(f"Loading model for {treatment} {task}_{group} from: {model_ckpt}")
@@ -166,11 +166,35 @@ def test_genderace_models_unit(task, treatment, group,
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
 
 
+# @timer
+# def test_genderace_models(treatment="gender",
+#                           factual_poms_model_ckpt=None, counterfactual_poms_model_ckpt=None,
+#                           factual_gender_model_ckpt=None, counterfactual_gender_model_ckpt=None,
+#                           factual_race_model_ckpt=None, counterfactual_race_model_ckpt=None):
+#     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     HYPERPARAMETERS = {"bert_params": {}}
+#     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{treatment}/COMPARE"
+#     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
+#                       default_save_path=OUTPUT_DIR,
+#                       show_progress_bar=True,
+#                       early_stop_callback=None)
+#     HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
+#     logger = init_logger(f"testing", HYPERPARAMETERS["output_path"])
+#     test_genderace_models_unit("POMS", treatment, "F", factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     test_genderace_models_unit("POMS", treatment, "CF", counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     test_genderace_models_unit(f"CONTROL_Gender", treatment, "F", factual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     test_genderace_models_unit(f"CONTROL_Gender", treatment, "CF", counterfactual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     test_genderace_models_unit(f"CONTROL_Race", treatment, "F", factual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     test_genderace_models_unit(f"CONTROL_Race", treatment, "CF", counterfactual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     handler = GoogleDriveHandler()
+#     push_message = handler.push_files(HYPERPARAMETERS["output_path"])
+#     logger.info(push_message)
+#     send_email(push_message, treatment)
+
+
 @timer
-def test_genderace_models(treatment="gender",
-                          factual_poms_model_ckpt=None, counterfactual_poms_model_ckpt=None,
-                          factual_gender_model_ckpt=None, counterfactual_gender_model_ckpt=None,
-                          factual_race_model_ckpt=None, counterfactual_race_model_ckpt=None):
+def test_genderace_models(treatment="gender", trained_group="F",
+                          poms_model_ckpt=None, gender_model_ckpt=None, race_model_ckpt=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     HYPERPARAMETERS = {"bert_params": {}}
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{treatment}/COMPARE"
@@ -180,12 +204,12 @@ def test_genderace_models(treatment="gender",
                       early_stop_callback=None)
     HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     logger = init_logger(f"testing", HYPERPARAMETERS["output_path"])
-    test_genderace_models_unit("POMS", treatment, "F", factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit("POMS", treatment, "CF", counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Gender", treatment, "F", factual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Gender", treatment, "CF", counterfactual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Race", treatment, "F", factual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Race", treatment, "CF", counterfactual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit("POMS", treatment, trained_group, "F", poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit("POMS", treatment, trained_group, "CF", poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "F", gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "CF", gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "F", race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    test_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "CF", race_model_ckpt, HYPERPARAMETERS, trainer, logger)
     handler = GoogleDriveHandler()
     push_message = handler.push_files(HYPERPARAMETERS["output_path"])
     logger.info(push_message)
@@ -193,10 +217,10 @@ def test_genderace_models(treatment="gender",
 
 
 @timer
-def test_all_genderace_models(treatment: str):
-    test_genderace_models(treatment)
-    test_genderace_models(f"{treatment}_biased_joy_gentle")
-    test_genderace_models(f"{treatment}_biased_joy_aggressive")
+def test_all_genderace_models(treatment: str, trained_group: str):
+    test_genderace_models(treatment, trained_group)
+    test_genderace_models(f"{treatment}_biased_joy_gentle", trained_group)
+    test_genderace_models(f"{treatment}_biased_joy_aggressive", trained_group)
 
 
 if __name__ == "__main__":
