@@ -143,11 +143,11 @@ def test_genderace_models_unit(task, treatment, group,
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
-    logger.info("Label Column:", label_column)
-    logger.info("Label Size:", label_size)
-    logger.info("Text Column:", hparams["text_column"])
-    logger.info("Task:", hparams["bert_params"]["name"])
-    logger.info("Treatment:", treatment)
+    logger.info(f"Label Column: {label_column}")
+    logger.info(f"Label Size: {label_size}")
+    logger.info(f"Text Column: {hparams['text_column']}")
+    logger.info(f"Task: {hparams['bert_params']['name']}")
+    logger.info(f"Treatment: {treatment}")
     if not model_ckpt:
         models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{hparams['bert_params']['name']}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
