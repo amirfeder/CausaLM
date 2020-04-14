@@ -1,4 +1,5 @@
 from os import getenv
+from utils import count_num_cpu_gpu
 
 HOME_DIR = getenv('HOME', "/home/{}".format(getenv('USER', "/home/amirf")))
 CAUSALM_DIR = f"{HOME_DIR}/GoogleDrive/AmirNadav/CausaLM"
@@ -17,7 +18,7 @@ BERT_PRETRAINED_MODEL = 'bert-base-cased'
 MAX_SENTIMENT_SEQ_LENGTH = 384
 MAX_POMS_SEQ_LENGTH = 32
 RANDOM_SEED = 212
-NUM_CPU = 4
+NUM_CPU = count_num_cpu_gpu()[0]
 NUM_GPU = 1
 SENTIMENT_IMA_DATA_DIR = f"{DATA_DIR}/Sentiment/IMA"
 SENTIMENT_MLM_DATA_DIR = f"{DATA_DIR}/Sentiment/MLM"

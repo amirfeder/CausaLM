@@ -26,8 +26,8 @@ def find_latest_model_checkpoint(models_dir: str):
     while not model_ckpt:
         model_versions = sorted(glob(models_dir), key=path.getctime)
         if model_versions:
-            latest_model = model_versions.pop()
-            model_ckpt_dir = f"{latest_model}/checkpoints"
+            lapredict_model = model_versions.pop()
+            model_ckpt_dir = f"{lapredict_model}/checkpoints"
             model_ckpt = get_checkpoint_file(model_ckpt_dir)
     return model_ckpt
 
@@ -47,11 +47,11 @@ def print_final_metrics(name: str, metrics: Dict, logger=None):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=False, default="gender", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
+    parser.add_argument("--treatment", type=str, required=True, default="gender", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
     parser.add_argument("--trained_group", type=str, required=True, default="F", help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     args = parser.parse_args()
     if "gender" in args.treatment or "race" in args.treatment:
-        test_all_genderace_models(args.treatment, args.trained_group)
+        predict_all_genderace_models(args.treatment, args.trained_group)
 
 
 @timer
@@ -65,62 +65,66 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     else:
         model_ckpt_file = model_ckpt
         model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt_file)
+    # Update model hyperparameters
     model.hparams.output_path = hparams["output_path"]
+    model.hparams.label_column = hparams["label_column"]
+    model.hparams.text_column = hparams["text_column"]
+    model.bert_classifier.name = hparams['bert_params']['name']
+    model.bert_classifier.label_size = hparams["bert_params"]["label_size"]
     if hparams["bert_params"]["bert_state_dict"]:
         model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
                                                                                hparams["bert_params"]["bert_state_dict"])
-        model.bert_classifier.name = f"{hparams['bert_params']['name']}"
     model.freeze()
     trainer.test(model)
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
 
 
 @timer
-def test_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
+def predict_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
     DOMAIN = "movies"
     TREATMENT = "adj"
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    HYPERPARAMETERS = {"bert_params": {}}
+    hparams = {"bert_params": {}}
     # Factual OOB BERT Model training
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/COMPARE"
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=OUTPUT_DIR,
                       show_progress_bar=True,
                       early_stop_callback=None)
-    HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
+    hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     if not factual_model_ckpt:
         factual_model_ckpt = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_F/best_model/checkpoints"
-    HYPERPARAMETERS["text_column"] = "review"
-    HYPERPARAMETERS["bert_params"]["name"] = "OOB_F"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
-    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    hparams["text_column"] = "review"
+    hparams["bert_params"]["name"] = "OOB_F"
+    hparams["bert_params"]["bert_state_dict"] = None
+    bert_treatment_test(factual_model_ckpt, hparams, trainer)
     # Factual OOB BERT Model test with MLM LM
-    HYPERPARAMETERS["bert_params"]["name"] = "MLM"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    hparams["bert_params"]["name"] = "MLM"
+    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
+    bert_treatment_test(factual_model_ckpt, hparams, trainer)
     # Factual OOB BERT Model test with IMA LM
-    HYPERPARAMETERS["bert_params"]["name"] = "IMA"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{SENTIMENT_IMA_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    hparams["bert_params"]["name"] = "IMA"
+    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_IMA_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
+    bert_treatment_test(factual_model_ckpt, hparams, trainer)
     # Factual OOB BERT Model test with MLM LM (double_samples)
-    HYPERPARAMETERS["bert_params"]["name"] = "MLM_double_samples"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/double/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    hparams["bert_params"]["name"] = "MLM_double_samples"
+    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/double/{DOMAIN}/model/pytorch_model.bin"
+    bert_treatment_test(factual_model_ckpt, hparams, trainer)
     # Factual OOB BERT Model test with IMA LM (double_adj)
-    HYPERPARAMETERS["bert_params"]["name"] = "IMA_double_adj"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = f"{SENTIMENT_IMA_DATA_DIR}/double/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, HYPERPARAMETERS, trainer)
+    hparams["bert_params"]["name"] = "IMA_double_adj"
+    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_IMA_DATA_DIR}/double/{DOMAIN}/model/pytorch_model.bin"
+    bert_treatment_test(factual_model_ckpt, hparams, trainer)
     # CounterFactual OOB BERT Model training
-    HYPERPARAMETERS["text_column"] = "no_adj_review"
-    HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
-    HYPERPARAMETERS["bert_params"]["bert_state_dict"] = None
+    hparams["text_column"] = "no_adj_review"
+    hparams["bert_params"]["name"] = "OOB_CF"
+    hparams["bert_params"]["bert_state_dict"] = None
     if not counterfactual_model_ckpt:
         counterfactual_model_ckpt = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF/best_model/checkpoints"
-    bert_treatment_test(counterfactual_model_ckpt, HYPERPARAMETERS, trainer)
+    bert_treatment_test(counterfactual_model_ckpt, hparams, trainer)
 
 
 @timer
-def test_genderace_models_unit(task, treatment, trained_group, group, model_ckpt, hparams, trainer, logger):
+def predict_genderace_models_unit(task, treatment, trained_group, group, model_ckpt, hparams, trainer, logger):
     if "enriched" in treatment:
         state_dict_dir = "model_enriched"
     else:
@@ -144,6 +148,7 @@ def test_genderace_models_unit(task, treatment, trained_group, group, model_ckpt
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
+    hparams["bert_params"]["bert_state_dict"] = None
     logger.info(f"Treatment: {treatment}")
     logger.info(f"Task: {hparams['bert_params']['name']}")
     logger.info(f"Text Column: {hparams['text_column']}")
@@ -154,7 +159,6 @@ def test_genderace_models_unit(task, treatment, trained_group, group, model_ckpt
         models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{model_name}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
         logger.info(f"Loading model for {treatment} {task}_{group} from: {model_ckpt}")
-    hparams["bert_params"]["bert_state_dict"] = None
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
     # Group Task BERT Model test with MLM LM
     hparams["bert_params"]["name"] = f"{task}_MLM_{group}"
@@ -167,7 +171,7 @@ def test_genderace_models_unit(task, treatment, trained_group, group, model_ckpt
 
 
 # @timer
-# def test_genderace_models(treatment="gender",
+# def predict_genderace_models(treatment="gender",
 #                           factual_poms_model_ckpt=None, counterfactual_poms_model_ckpt=None,
 #                           factual_gender_model_ckpt=None, counterfactual_gender_model_ckpt=None,
 #                           factual_race_model_ckpt=None, counterfactual_race_model_ckpt=None):
@@ -180,12 +184,12 @@ def test_genderace_models_unit(task, treatment, trained_group, group, model_ckpt
 #                       early_stop_callback=None)
 #     HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
 #     logger = init_logger(f"testing", HYPERPARAMETERS["output_path"])
-#     test_genderace_models_unit("POMS", treatment, "F", factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     test_genderace_models_unit("POMS", treatment, "CF", counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     test_genderace_models_unit(f"CONTROL_Gender", treatment, "F", factual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     test_genderace_models_unit(f"CONTROL_Gender", treatment, "CF", counterfactual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     test_genderace_models_unit(f"CONTROL_Race", treatment, "F", factual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     test_genderace_models_unit(f"CONTROL_Race", treatment, "CF", counterfactual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     predict_genderace_models_unit("POMS", treatment, "F", factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     predict_genderace_models_unit("POMS", treatment, "CF", counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     predict_genderace_models_unit(f"CONTROL_Gender", treatment, "F", factual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     predict_genderace_models_unit(f"CONTROL_Gender", treatment, "CF", counterfactual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     predict_genderace_models_unit(f"CONTROL_Race", treatment, "F", factual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+#     predict_genderace_models_unit(f"CONTROL_Race", treatment, "CF", counterfactual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
 #     handler = GoogleDriveHandler()
 #     push_message = handler.push_files(HYPERPARAMETERS["output_path"])
 #     logger.info(push_message)
@@ -193,34 +197,34 @@ def test_genderace_models_unit(task, treatment, trained_group, group, model_ckpt
 
 
 @timer
-def test_genderace_models(treatment="gender", trained_group="F",
+def predict_genderace_models(treatment="gender", trained_group="F",
                           poms_model_ckpt=None, gender_model_ckpt=None, race_model_ckpt=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    HYPERPARAMETERS = {"bert_params": {}}
+    hparams = {"bert_params": {}}
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{treatment}/COMPARE"
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=OUTPUT_DIR,
                       show_progress_bar=True,
                       early_stop_callback=None)
-    HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
-    logger = init_logger(f"testing", HYPERPARAMETERS["output_path"])
-    test_genderace_models_unit("POMS", treatment, trained_group, "F", poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit("POMS", treatment, trained_group, "CF", poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "F", gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "CF", gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "F", race_model_ckpt, HYPERPARAMETERS, trainer, logger)
-    test_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "CF", race_model_ckpt, HYPERPARAMETERS, trainer, logger)
+    hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
+    logger = init_logger(f"testing", hparams["output_path"])
+    predict_genderace_models_unit("POMS", treatment, trained_group, "F", poms_model_ckpt, hparams, trainer, logger)
+    predict_genderace_models_unit("POMS", treatment, trained_group, "CF", poms_model_ckpt, hparams, trainer, logger)
+    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "F", gender_model_ckpt, hparams, trainer, logger)
+    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "CF", gender_model_ckpt, hparams, trainer, logger)
+    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "F", race_model_ckpt, hparams, trainer, logger)
+    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "CF", race_model_ckpt, hparams, trainer, logger)
     handler = GoogleDriveHandler()
-    push_message = handler.push_files(HYPERPARAMETERS["output_path"])
+    push_message = handler.push_files(hparams["output_path"])
     logger.info(push_message)
     send_email(push_message, treatment)
 
 
 @timer
-def test_all_genderace_models(treatment: str, trained_group: str):
-    test_genderace_models(treatment, trained_group)
-    test_genderace_models(f"{treatment}_biased_joy_gentle", trained_group)
-    test_genderace_models(f"{treatment}_biased_joy_aggressive", trained_group)
+def predict_all_genderace_models(treatment: str, trained_group: str):
+    predict_genderace_models(treatment, trained_group)
+    predict_genderace_models(f"{treatment}_biased_joy_gentle", trained_group)
+    predict_genderace_models(f"{treatment}_biased_joy_aggressive", trained_group)
 
 
 if __name__ == "__main__":
