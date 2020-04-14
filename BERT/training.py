@@ -1,7 +1,7 @@
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, POMS_RACE_DATASETS_DIR
 from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
-from BERT.predict import test_adj_models, print_final_metrics, test_genderace_models
+from BERT.predict import predict_adj_models, print_final_metrics, predict_genderace_models
 from Timer import timer
 from argparse import ArgumentParser
 from typing import Dict
@@ -80,7 +80,7 @@ def train_adj_models():
     HYPERPARAMETERS["text_column"] = "no_adj_review"
     HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
     counterfactual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
-    test_adj_models(factual_oob_model, counterfactual_oob_model)
+    predict_adj_models(factual_oob_model, counterfactual_oob_model)
 
 
 @timer
@@ -121,7 +121,7 @@ def train_genderace_models(hparams: Dict, treatment: str, group: str):
     poms_model = train_genderace_models_unit(hparams, "POMS", group)
     gender_model = train_genderace_models_unit(hparams, "Gender", group)
     race_model = train_genderace_models_unit(hparams, "Race", group)
-    test_genderace_models(treatment, group, poms_model, gender_model, race_model)
+    predict_genderace_models(treatment, group, poms_model, gender_model, race_model)
 
 
 @timer
