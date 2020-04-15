@@ -96,8 +96,8 @@ def train_genderace_models_unit(hparams: Dict, task, group):
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
-    factual_model = bert_train_eval(hparams, OUTPUT_DIR)
-    return factual_model
+    model = bert_train_eval(hparams, OUTPUT_DIR)
+    return model
 
 
 # @timer
