@@ -238,7 +238,7 @@ def pretrain_on_domain(args):
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, lm_label_ids, _, unique_id = batch
+                input_ids, input_mask, lm_label_ids = batch
                 outputs = model(input_ids=input_ids, attention_mask=input_mask, masked_lm_labels=lm_label_ids)
                 loss = outputs[0]
                 if n_gpu > 1:
@@ -260,9 +260,8 @@ def pretrain_on_domain(args):
                     scheduler.step()  # Update learning rate schedule
                     optimizer.zero_grad()
                     global_step += 1
-                for i in range(unique_id.size(0)):
+                for i in range(loss.size(0)):
                     loss_dict["epoch"].append(epoch)
-                    loss_dict["unique_id"].append(unique_id[i].item())
                     loss_dict["mlm_loss"].append(loss[i].item())
         # Save a trained model
         if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
