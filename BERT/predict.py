@@ -26,8 +26,8 @@ def find_latest_model_checkpoint(models_dir: str):
     while not model_ckpt:
         model_versions = sorted(glob(models_dir), key=path.getctime)
         if model_versions:
-            lapredict_model = model_versions.pop()
-            model_ckpt_dir = f"{lapredict_model}/checkpoints"
+            latest_model = model_versions.pop()
+            model_ckpt_dir = f"{latest_model}/checkpoints"
             model_ckpt = get_checkpoint_file(model_ckpt_dir)
     return model_ckpt
 
@@ -71,9 +71,8 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     model.hparams.text_column = hparams["text_column"]
     model.bert_classifier.name = hparams['bert_params']['name']
     model.bert_classifier.label_size = hparams["bert_params"]["label_size"]
-    if hparams["bert_params"]["bert_state_dict"]:
-        model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
-                                                                               hparams["bert_params"]["bert_state_dict"])
+    model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
+                                                                           hparams["bert_params"]["bert_state_dict"])
     model.freeze()
     trainer.test(model)
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
