@@ -260,9 +260,9 @@ def pretrain_on_domain(args):
                     scheduler.step()  # Update learning rate schedule
                     optimizer.zero_grad()
                     global_step += 1
-                for i in range(loss.size(0)):
-                    loss_dict["epoch"].append(epoch)
-                    loss_dict["mlm_loss"].append(loss[i].item())
+                loss_dict["epoch"].append(epoch)
+                loss_dict["batch_id"].append(step)
+                loss_dict["mlm_loss"].append(loss.item())
         # Save a trained model
         if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
             logging.info("** ** * Saving fine-tuned model ** ** * ")
