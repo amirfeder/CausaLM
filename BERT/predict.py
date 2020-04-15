@@ -48,7 +48,7 @@ def main():
     parser.add_argument("--treatment", type=str, required=True, default="gender", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
     parser.add_argument("--trained_group", type=str, required=True, default="F", help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=None,
-                        help="Specify epoch for pretrained models: 1-5")
+                        help="Specify epoch for pretrained models: 0-4")
     args = parser.parse_args()
     if "gender" in args.treatment or "race" in args.treatment:
         predict_all_genderace_models(args.treatment, args.trained_group, args.pretrained_epoch)
@@ -128,8 +128,8 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
         state_dict_dir = "model_enriched"
     else:
         state_dict_dir = "model"
-    if pretrained_epoch:
-        state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch - 1}"
+    if pretrained_epoch is not None:
+        state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
     if "gender" in treatment:
         TREATMENT = "Gender"
         pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
