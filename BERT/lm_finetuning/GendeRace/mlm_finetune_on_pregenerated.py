@@ -1,12 +1,12 @@
 from argparse import ArgumentParser
 from pathlib import Path
-import os
 import torch
 import logging
 import json
 import random
 import numpy as np
-from collections import namedtuple
+import pandas as pd
+from collections import namedtuple, defaultdict
 from tempfile import TemporaryDirectory
 
 from torch.utils.data import DataLoader, Dataset, RandomSampler
@@ -224,6 +224,7 @@ def pretrain_on_domain(args):
     logging.info("  Batch size = %d", args.train_batch_size)
     logging.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
+    loss_dict = defaultdict(list)
     for epoch in range(args.epochs):
         epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
                                             num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
@@ -237,7 +238,7 @@ def pretrain_on_domain(args):
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, lm_label_ids = batch
+                input_ids, input_mask, lm_label_ids, _, unique_id = batch
                 outputs = model(input_ids=input_ids, attention_mask=input_mask, masked_lm_labels=lm_label_ids)
                 loss = outputs[0]
                 if n_gpu > 1:
@@ -259,12 +260,25 @@ def pretrain_on_domain(args):
                     scheduler.step()  # Update learning rate schedule
                     optimizer.zero_grad()
                     global_step += 1
+                for i in range(unique_id.size(0)):
+                    loss_dict["epoch"].append(epoch)
+                    loss_dict["unique_id"].append(unique_id[i].item())
+                    loss_dict["mlm_loss"].append(loss[i].item())
+        # Save a trained model
+        if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
+            logging.info("** ** * Saving fine-tuned model ** ** * ")
+            epoch_output_dir = args.output_dir / f"epoch_{epoch}"
+            epoch_output_dir.mkdir(parents=True, exist_ok=True)
+            model.save_pretrained(epoch_output_dir)
+            tokenizer.save_pretrained(epoch_output_dir)
 
     # Save a trained model
-    if  n_gpu > 1 and torch.distributed.get_rank() == 0  or n_gpu <=1 :
+    if n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <=1:
         logging.info("** ** * Saving fine-tuned model ** ** * ")
         model.save_pretrained(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
+        df = pd.DataFrame.from_dict(loss_dict)
+        df.to_csv(args.output_dir/"losses.csv")
 
 
 @timer(logger=logger)
