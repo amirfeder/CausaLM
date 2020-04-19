@@ -353,24 +353,22 @@ def main():
                         type=int,
                         default=RANDOM_SEED,
                         help="random seed for initialization")
-    parser.add_argument("--treatment", type=str, required=False, default="gender",
-                        help="Treatment can be: gender, gender_enriched, race, race_enriched")
+    parser.add_argument("--treatment", type=str, required=True, default="gender",
+                        help="Treatment can be: gender or race")
+    parser.add_argument("--enriched", action="store_true")
     args = parser.parse_args()
 
-    if args.treatment == "gender_enriched":
-        MODEL_OUTPUT_DIR = Path(POMS_GENDER_DATA_DIR) / "model_enriched"
-        args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR) / "enriched"
-    elif args.treatment == "gender":
-        MODEL_OUTPUT_DIR = Path(POMS_GENDER_DATA_DIR) / "model"
+    if args.treatment == "gender":
+        MODEL_OUTPUT_DIR = Path(POMS_GENDER_DATA_DIR)
         args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR)
-    elif args.treatment == "race_enriched":
-        MODEL_OUTPUT_DIR = Path(POMS_RACE_DATA_DIR) / "model_enriched"
-        args.pregenerated_data = Path(POMS_RACE_PRETRAIN_DATA_DIR) / "enriched"
-    elif args.treatment == "race":
-        MODEL_OUTPUT_DIR = Path(POMS_RACE_DATA_DIR) / "model"
-        args.pregenerated_data = Path(POMS_RACE_PRETRAIN_DATA_DIR)
     else:
-        raise ValueError("--treatment can only be gender, gender_enriched, race, race_enriched")
+        MODEL_OUTPUT_DIR = Path(POMS_RACE_DATA_DIR)
+        args.pregenerated_data = Path(POMS_RACE_PRETRAIN_DATA_DIR)
+    if args.enriched:
+        MODEL_OUTPUT_DIR = MODEL_OUTPUT_DIR / "model_enriched"
+        args.pregenerated_data = args.pregenerated_data / "enriched"
+    else:
+        MODEL_OUTPUT_DIR = MODEL_OUTPUT_DIR / "model"
 
     args.output_dir = MODEL_OUTPUT_DIR
     args.fp16 = FP16
