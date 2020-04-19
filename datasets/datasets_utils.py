@@ -40,6 +40,7 @@ def split_data(df: DataFrame, path: str, prefix: str, label_column: str = "label
 
 def print_text_stats(df: DataFrame, text_column: str):
     sequence_lengths = df[text_column].apply(lambda text: int(len(str(text).split(TOKEN_SEPARATOR))))
+    print(f"Number of sequences in dataset: {len(sequence_lengths)}")
     print(f"Max sequence length in dataset: {np.max(sequence_lengths)}")
     print(f"Min sequence length in dataset: {np.min(sequence_lengths)}")
     print(f"Median sequence length in dataset: {np.median(sequence_lengths)}")
