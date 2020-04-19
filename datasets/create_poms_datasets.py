@@ -133,9 +133,9 @@ def create_poms_dataset(treatment: str, treatment_vals: tuple, enriched=True):
         control_column = "Gender"
         control_val = "female"
     if enriched:
-        df = pd.read_csv(corpus_file, header=0).set_index(keys="ID", drop=False).sort_index()
+        df = pd.read_csv(corpus_file, header=0, encoding='utf-8').set_index(keys="ID", drop=False).sort_index()
     else:
-        df = pd.read_csv(corpus_file, header=0, converters={"ID": lambda i: int(i.split("-")[-1])}).rename(columns={"Emotion word": "Emotion_word"}).set_index(keys="ID", drop=False).sort_index()
+        df = pd.read_csv(corpus_file, header=0, encoding='utf-8', converters={"ID": lambda i: int(i.split("-")[-1])}).rename(columns={"Emotion word": "Emotion_word"}).set_index(keys="ID", drop=False).sort_index()
     emotion_labels = sorted([str(i) for i in df["Emotion"].unique() if str(i) != "nan"])
     emotion_labels_dict = {label: i+1 for i, label in enumerate(emotion_labels)}
     df_one = df[df[treatment_column] == treatment_vals[0]].sort_index()

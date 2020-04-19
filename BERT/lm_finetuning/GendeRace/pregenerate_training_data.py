@@ -333,9 +333,9 @@ def main():
 
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
         if args.enriched:
-            df = pd.read_csv(DATASET_FILE, header=0).set_index(keys="ID", drop=False).sort_index()
+            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8').set_index(keys="ID", drop=False).sort_index()
         else:
-            df = pd.read_csv(DATASET_FILE, header=0, converters={"ID": lambda i: int(i.split("-")[-1])}).set_index(keys="ID", drop=False).sort_index()
+            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8', converters={"ID": lambda i: int(i.split("-")[-1])}).set_index(keys="ID", drop=False).sort_index()
         df = df[df[treatment_column].notnull()]
         unique_ids = df["ID"]
         documents = df["Sentence"].apply(tokenizer.tokenize)
