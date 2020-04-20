@@ -4,7 +4,8 @@ import torch
 import json
 import random
 import numpy as np
-from collections import namedtuple
+import pandas as pd
+from collections import namedtuple, defaultdict
 from tempfile import TemporaryDirectory
 
 from torch.utils.data import DataLoader, Dataset, RandomSampler
@@ -16,7 +17,7 @@ from utils import init_logger, INIT_TIME
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 
-from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR, SENTIMENT_DOMAINS, NUM_CPU
+from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR, SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_DOMAINS, NUM_CPU
 from BERT.lm_finetuning.IMA.pregenerate_training_data import EPOCHS
 from BERT.lm_finetuning.IMA.bert_ima_pretrain import BertForIMAPreTraining
 
@@ -25,12 +26,12 @@ BATCH_SIZE = 8
 FP16 = False
 
 # InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
-AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids adj_labels")
+AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids adj_labels unique_id")
 
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
 
-logger = init_logger("IMA-pretraining", f"{SENTIMENT_IMA_DATA_DIR}")
+logger = init_logger("IMA-pretraining", f"{SENTIMENT_IMA_PRETRAIN_DATA_DIR}")
 
 
 class PregeneratedPOSTaggedDataset(Dataset):
@@ -65,6 +66,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
             lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
             adj_labels = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
+            unique_ids = np.zeros(shape=(num_samples,), dtype=np.int32)
         logger.info(f"Loading training examples for epoch {epoch}")
         with data_file.open() as f:
             for i, line in enumerate(tqdm(f, total=num_samples, desc="Training examples")):
@@ -75,6 +77,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
                 input_masks[i] = features.input_mask
                 lm_label_ids[i] = features.lm_label_ids
                 adj_labels[i] = features.adj_labels
+                unique_ids[i] = features.unique_id
         assert i == num_samples - 1  # Assert that the sample count metric was true
         logger.info("Loading complete!")
         self.num_samples = num_samples
@@ -83,6 +86,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
         self.input_masks = input_masks
         self.lm_label_ids = lm_label_ids
         self.adj_labels = adj_labels
+        self.unique_ids = unique_ids
 
     def __len__(self):
         return self.num_samples
@@ -91,7 +95,8 @@ class PregeneratedPOSTaggedDataset(Dataset):
         return (torch.tensor(self.input_ids[item].astype(np.int64)),
                 torch.tensor(self.input_masks[item].astype(np.int64)),
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
-                torch.tensor(self.adj_labels[item].astype(np.int64)))
+                torch.tensor(self.adj_labels[item].astype(np.int64)),
+                torch.tensor(self.unique_ids[item].astype(np.int64)))
 
     @staticmethod
     def convert_example_to_features(example, tokenizer, max_seq_length):
@@ -99,6 +104,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
         masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
         masked_lm_labels = example["masked_lm_labels"]
         masked_adj_labels = [int(i) for i in example["masked_adj_labels"]]
+        unique_id = int(example["unique_id"])
 
         assert len(tokens) <= max_seq_length  # The preprocessed data should be already truncated
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
@@ -119,7 +125,8 @@ class PregeneratedPOSTaggedDataset(Dataset):
         features = AdjInputFeatures(input_ids=input_array,
                                     input_mask=mask_array,
                                     lm_label_ids=lm_label_array,
-                                    adj_labels=adj_label_array)
+                                    adj_labels=adj_label_array,
+                                    unique_id=unique_id)
         return features
 
 
@@ -230,7 +237,7 @@ def pretrain_on_domain(args):
     scheduler = get_linear_schedule_with_warmup(optimizer,
                                                 num_warmup_steps=args.warmup_steps,
                                                 num_training_steps=num_train_optimization_steps)
-
+    loss_dict = defaultdict(list)
     global_step = 0
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {total_train_examples}")
@@ -251,12 +258,16 @@ def pretrain_on_domain(args):
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, lm_label_ids, adj_labels = batch
+                input_ids, input_mask, lm_label_ids, adj_labels, unique_id = batch
                 outputs = model(input_ids=input_ids, attention_mask=input_mask,
                                 masked_lm_labels=lm_label_ids, masked_adj_labels=adj_labels)
                 loss = outputs[0]
-                # if n_gpu > 1:
-                #     loss = loss.mean() # mean() to average on multi-gpu.
+                mlm_loss = outputs[1]
+                adversarial_loss = outputs[2]
+                if n_gpu > 1:
+                    loss = loss.mean() # mean() to average on multi-gpu.
+                    mlm_loss = mlm_loss.mean()
+                    adversarial_loss = adversarial_loss.mean()
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
@@ -274,12 +285,27 @@ def pretrain_on_domain(args):
                     scheduler.step()  # Update learning rate schedule
                     optimizer.zero_grad()
                     global_step += 1
+                for i in range(unique_id.size(0)):
+                    loss_dict["epoch"].append(epoch)
+                    loss_dict["unique_id"].append(unique_id[i].item())
+                    loss_dict["mlm_loss"].append(mlm_loss[i].item())
+                    loss_dict["adversarial_loss"].append(adversarial_loss[i].item())
+                    loss_dict["total_loss"].append(mlm_loss[i].item() + adversarial_loss[i].item())
+        # Save a trained model
+        if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
+            logger.info("** ** * Saving fine-tuned model ** ** * ")
+            epoch_output_dir = args.output_dir / f"epoch_{epoch}"
+            epoch_output_dir.mkdir(parents=True, exist_ok=True)
+            model.save_pretrained(epoch_output_dir)
+            tokenizer.save_pretrained(epoch_output_dir)
 
     # Save a trained model
-    if n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1:
+    if n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <=1:
         logger.info("** ** * Saving fine-tuned model ** ** * ")
         model.save_pretrained(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
+        df = pd.DataFrame.from_dict(loss_dict)
+        df.to_csv(args.output_dir/"losses.csv")
 
 
 @timer(logger=logger)
@@ -334,16 +360,17 @@ def main():
                         type=int,
                         default=RANDOM_SEED,
                         help="random seed for initialization")
+    parser.add_argument("--masking_method", type=str, default="double_num_adj",
+                        help="Method of determining num masked tokens in sentence: mlm_prob or double_num_adj")
+    parser.add_argument("--domain", type=str, default="movies",
+                        help="Dataset Domain: unified, movies, books, dvd, kitchen, electronics")
     args = parser.parse_args()
 
-    for domain in SENTIMENT_DOMAINS:
-        logger.info(f"\nPretraining on domain: {domain}")
-        DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / "double" / domain
-        MODEL_OUTPUT_DIR = DATA_OUTPUT_DIR / "model"
-        args.pregenerated_data = DATA_OUTPUT_DIR
-        args.output_dir = MODEL_OUTPUT_DIR
-        args.fp16 = FP16
-        pretrain_on_domain(args)
+    logger.info(f"\nPretraining on domain: {args.domain}")
+    args.pregenerated_data = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.masking_method / args.domain
+    args.output_dir = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.masking_method / args.domain / "model"
+    args.fp16 = FP16
+    pretrain_on_domain(args)
 
 
 if __name__ == '__main__':

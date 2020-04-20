@@ -3,7 +3,7 @@ from pathlib import Path
 from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, SENTIMENT_IMA_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_DOMAINS
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_IMA_PRETRAIN_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_DOMAINS
 from datasets.datasets_utils import TOKEN_SEPARATOR
 from multiprocessing import Pool
 from random import random, randrange, choice
@@ -39,6 +39,7 @@ class POSTaggedDocumentDatabase:
         else:
             self.documents = []
             self.documents_pos_idx = []
+            self.document_ids = []
             self.document_shelf = None
             self.document_shelf_filepath = None
             self.temp_dir = None
@@ -48,7 +49,7 @@ class POSTaggedDocumentDatabase:
         self.cumsum_max = None
         self.reduce_memory = reduce_memory
 
-    def add_document(self, document, doc_pos_idx):
+    def add_document(self, document, doc_pos_idx, unique_id):
         if not document:
             return
         if self.reduce_memory:
@@ -57,6 +58,7 @@ class POSTaggedDocumentDatabase:
         else:
             self.documents.append(document)
             self.documents_pos_idx.append(doc_pos_idx)
+            self.document_ids.append(unique_id)
         self.doc_lengths.append(len(document))
         self.doc_pos_lengths.append(len(doc_pos_idx))
 
@@ -208,12 +210,12 @@ def generate_cand_indices(num_tokens: int, tokens_pos_idx: List[int]) -> List[Li
 
 def create_instances_from_document(
         doc_database, doc_idx, max_seq_length, short_seq_prob,
-        masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list):
+        masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list, masking_method):
     """This code is mostly a duplicate of the equivalent function from Google BERT's repo.
     However, we make some changes and improvements. Sampling is improved and no longer requires a loop in this function.
     Also, documents are sampled proportionally to the number of sentences they contain, which means each sentence
     (rather than each document) has an equal chance of being sampled as a false example for the NextSentence task."""
-    document, doc_pos_idx = doc_database[doc_idx]
+    document, doc_pos_idx, unique_id = doc_database[doc_idx]
     # Account for [CLS], [SEP], [SEP]
     max_num_tokens = max_seq_length - 2
 
@@ -253,8 +255,10 @@ def create_instances_from_document(
     # if num_to_mask > len(tokens):
     #     print(f"{num_to_mask} is more than {num_tokens}")
 
-    # num_to_mask = mlm_prob(num_adj, num_tokens, masked_lm_prob)
-    num_to_mask = double_num_adj(num_adj, num_tokens, 0.4)
+    if masking_method == "mlm_prob":
+        num_to_mask = mlm_prob(num_adj, num_tokens, masked_lm_prob)
+    else:
+        num_to_mask = double_num_adj(num_adj, num_tokens, 0.4)
 
     cand_indices = generate_cand_indices(num_tokens, tokens_pos_idx)
 
@@ -266,6 +270,7 @@ def create_instances_from_document(
             list(tokens), tokens_pos_idx, cand_indices[num_masked:], num_to_mask, vocab_list)
 
         instance = {
+            "unique_id": str(unique_id),
             "tokens": [str(i) for i in instance_tokens],
             "masked_lm_positions": [str(i) for i in masked_lm_positions],
             "masked_lm_labels": [str(i) for i in masked_lm_labels],
@@ -287,7 +292,7 @@ def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
             doc_instances = create_instances_from_document(
                 docs, doc_idx, max_seq_length=args.max_seq_len, short_seq_prob=args.short_seq_prob,
                 masked_lm_prob=args.masked_lm_prob, max_predictions_per_seq=args.max_predictions_per_seq,
-                whole_word_mask=args.do_whole_word_mask, vocab_list=vocab_list)
+                whole_word_mask=args.do_whole_word_mask, vocab_list=vocab_list, masking_method=args.masking_method)
             doc_instances = [json.dumps(instance) for instance in doc_instances]
             for instance in doc_instances:
                 epoch_file.write(instance + '\n')
@@ -327,7 +332,8 @@ def main():
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=MAX_PRED_PER_SEQ,
                         help="Maximum number of tokens to mask in each sequence")
-
+    parser.add_argument("--masking_method", type=str, default="double_num_adj",
+                        help="Method of determining num masked tokens in sentence: mlm_prob or double_num_adj")
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
@@ -335,13 +341,13 @@ def main():
     args.epochs_to_generate = EPOCHS
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
-    for domain in SENTIMENT_DOMAINS:
+    for domain in list(SENTIMENT_DOMAINS) + ["unified"]:
         print(f"\nGenerating data for domain: {domain}")
         DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
-        DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_DATA_DIR) / "double" / domain
+        DATA_OUTPUT_DIR = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.masking_method / domain
         with POSTaggedDocumentDatabase(reduce_memory=args.reduce_memory) as docs:
             with open(DATASET_FILE, "r") as dataset:
-                for line in tqdm(dataset):
+                for idx, line in tqdm(enumerate(dataset)):
                     tagged_tokens = []
                     adj_adv_idx = []
                     adj_adv_tokens = []
@@ -376,7 +382,7 @@ def main():
                                         adj_adv_idx.append(j + k)
                                         k += 1
                                     adj_token_idx += 1
-                        docs.add_document(tuple(doc), tuple(adj_adv_idx))  # If the last doc didn't end on a newline, make sure it still gets added
+                        docs.add_document(tuple(doc), tuple(adj_adv_idx), idx + 1)  # If the last doc didn't end on a newline, make sure it still gets added
                 if len(docs) <= 1:
                     exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
                          "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "

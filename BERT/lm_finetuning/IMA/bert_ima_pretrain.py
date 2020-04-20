@@ -2,6 +2,7 @@ from transformers.modeling_bert import BertLMPredictionHead, BertPredictionHeadT
 from BERT.lm_finetuning.grad_reverse_layer import GradReverseLayerFunction
 from torch.nn import CrossEntropyLoss
 import torch.nn as nn
+import torch
 
 
 class BertIMAPredictionHead(nn.Module):
@@ -104,6 +105,12 @@ class BertForIMAPreTraining(BertPreTrainedModel):
             masked_lm_loss = loss_fct(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
             masked_adj_loss = loss_fct(adj_prediction_scores.view(-1, 2), masked_adj_labels.view(-1))
             total_loss = masked_lm_loss + masked_adj_loss
-            outputs = (total_loss,) + outputs
+            loss_fct_per_sample = CrossEntropyLoss(ignore_index=-1, reduction='none')
+            outputs = (total_loss,
+                       torch.stack([loss_fct_per_sample(lm_prediction_scores.view(-1, self.config.vocab_size),
+                                                        masked_lm_labels.view(-1))
+                                   .view_as(masked_lm_labels)[i, :].masked_select(masked_lm_labels[i, :] > -1).mean()
+                                    for i in range(masked_lm_labels.size(0))]),
+                       loss_fct_per_sample(adj_prediction_scores, masked_adj_labels),) + outputs
 
         return outputs  # (loss), prediction_scores, seq_relationship_score, (hidden_states), (attentions)
