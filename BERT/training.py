@@ -121,7 +121,7 @@ def train_genderace_models(hparams: Dict, treatment: str, group: str):
     poms_model = train_genderace_models_unit(hparams, "POMS", group)
     gender_model = train_genderace_models_unit(hparams, "Gender", group)
     race_model = train_genderace_models_unit(hparams, "Race", group)
-    predict_genderace_models(treatment, group, poms_model, gender_model, race_model)
+    predict_genderace_models(treatment, group, 0, poms_model, gender_model, race_model)
 
 
 @timer
