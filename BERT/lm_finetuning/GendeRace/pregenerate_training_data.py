@@ -307,7 +307,8 @@ def main():
                         help="Maximum number of tokens to mask in each sequence")
     parser.add_argument("--treatment", type=str, required=True, default="gender",
                         help="Treatment can be: gender or race")
-    parser.add_argument("--enriched", action="store_true")
+    parser.add_argument("--corpus_type", type=str, required=False, default="",
+                        help="Corpus type can be: '', enriched or enriched_full")
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
@@ -325,14 +326,14 @@ def main():
         treatment_column = "Race"
         treatment_condition = "African-American"
 
-    if args.enriched:
-        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_enriched.csv"
-        PRETRAIN_DATA_OUTPUT_DIR = PRETRAIN_DATA_OUTPUT_DIR / "enriched"
+    if "enriched" in args.corpus_type:
+        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_{args.corpus_type}.csv"
+        PRETRAIN_DATA_OUTPUT_DIR = PRETRAIN_DATA_OUTPUT_DIR / args.corpus_type
     else:
         DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
 
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-        if args.enriched:
+        if "enriched" in args.corpus_type:
             df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8').set_index(keys="ID", drop=False).sort_index()
         else:
             df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8', converters={"ID": lambda i: int(i.split("-")[-1])}).set_index(keys="ID", drop=False).sort_index()
