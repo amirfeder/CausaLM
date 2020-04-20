@@ -4,6 +4,7 @@ from pandas import DataFrame
 import spacy
 import re
 import numpy as np
+import pandas as pd
 
 TOKEN_SEPARATOR = " "
 WORD_POS_SEPARATOR = "_"
@@ -45,3 +46,50 @@ def print_text_stats(df: DataFrame, text_column: str):
     print(f"Min sequence length in dataset: {np.min(sequence_lengths)}")
     print(f"Median sequence length in dataset: {np.median(sequence_lengths)}")
     print(f"Mean sequence length in dataset: {np.mean(sequence_lengths)}")
+
+
+def bias_aggressive(df_a, df_b, label_column, biased_label, biasing_factor):
+    """
+    Biases selected class by biasing factor, and uses same factor to inversely bias all other classes.
+    :param df_a:
+    :param df_b:
+    :param biased_label:
+    :param biasing_factor:
+    :return:
+    """
+    df_biased = pd.DataFrame(columns=df_a.columns)
+    for label in sorted(df_a[label_column].unique()):
+        df_label_a = df_a[df_a[label_column] == label]
+        df_label_b = df_b[df_b[label_column] == label]
+        if label == biased_label:
+            df_biased = df_biased.append(df_label_a, ignore_index=True)
+            df_sampled_b = df_label_b.sample(frac=biasing_factor, random_state=RANDOM_SEED)
+            df_biased = df_biased.append(df_sampled_b, ignore_index=True)
+        else:
+            df_biased = df_biased.append(df_label_b, ignore_index=True)
+            df_sampled_a = df_label_a.sample(frac=biasing_factor, random_state=RANDOM_SEED)
+            df_biased = df_biased.append(df_sampled_a, ignore_index=True)
+    return df_biased
+
+
+def bias_gentle(df_a, df_b, label_column, biased_label, biasing_factor):
+    """
+    Biases selected class by biasing factor, and leaves other classes untouched.
+    :param df_a:
+    :param df_b:
+    :param biased_label:
+    :param biasing_factor:
+    :return:
+    """
+    df_biased = pd.DataFrame(columns=df_a.columns)
+    for label in sorted(df_a[label_column].unique()):
+        df_label_a = df_a[df_a[label_column] == label]
+        df_label_b = df_b[df_b[label_column] == label]
+        if label == biased_label:
+            df_biased = df_biased.append(df_label_a, ignore_index=True)
+            df_sampled_b = df_label_b.sample(frac=biasing_factor, random_state=RANDOM_SEED)
+            df_biased = df_biased.append(df_sampled_b, ignore_index=True)
+        else:
+            df_biased = df_biased.append(df_label_a, ignore_index=True)
+            df_biased = df_biased.append(df_label_b, ignore_index=True)
+    return df_biased

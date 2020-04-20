@@ -1,62 +1,13 @@
 from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
 from constants import POMS_GENDER_DATASETS_DIR, POMS_RAW_DATA_DIR, POMS_RACE_DATASETS_DIR, RANDOM_SEED
-from datasets_utils import split_data, print_text_stats
+from datasets_utils import split_data, print_text_stats, bias_gentle, bias_aggressive
 from Timer import timer
 import pandas as pd
 
 LABELS = {'None': 0, 'anger': 1, 'fear': 2, 'joy': 3, 'sadness': 4}
 BIASED_LABEL = "joy"
 BIASING_FACTOR = 0.1
-
-
-@timer
-def aggressive(df_a, df_b, label_column, biased_label, biasing_factor):
-    """
-    Biases selected class by biasing factor, and uses same factor to inversely bias all other classes.
-    :param df_a:
-    :param df_b:
-    :param biased_label:
-    :param biasing_factor:
-    :return:
-    """
-    df_biased = pd.DataFrame(columns=df_a.columns)
-    for label in sorted(df_a[label_column].unique()):
-        df_label_f = df_a[df_a[label_column] == label]
-        df_label_m = df_b[df_b[label_column] == label]
-        if label == LABELS.get(biased_label, 0):
-            df_biased = df_biased.append(df_label_f, ignore_index=True)
-            df_sampled_m = df_label_m.sample(frac=biasing_factor, random_state=RANDOM_SEED)
-            df_biased = df_biased.append(df_sampled_m, ignore_index=True)
-        else:
-            df_biased = df_biased.append(df_label_m, ignore_index=True)
-            df_sampled_f = df_label_f.sample(frac=biasing_factor, random_state=RANDOM_SEED)
-            df_biased = df_biased.append(df_sampled_f, ignore_index=True)
-    return df_biased
-
-
-@timer
-def gentle(df_a, df_b, label_column, biased_label, biasing_factor):
-    """
-    Biases selected class by biasing factor, and leaves other classes untouched.
-    :param df_a:
-    :param df_b:
-    :param biased_label:
-    :param biasing_factor:
-    :return:
-    """
-    df_biased = pd.DataFrame(columns=df_a.columns)
-    for label in sorted(df_a[label_column].unique()):
-        df_label_f = df_a[df_a[label_column] == label]
-        df_label_m = df_b[df_b[label_column] == label]
-        if label == LABELS.get(biased_label, 0):
-            df_biased = df_biased.append(df_label_f, ignore_index=True)
-            df_sampled_m = df_label_m.sample(frac=biasing_factor, random_state=RANDOM_SEED)
-            df_biased = df_biased.append(df_sampled_m, ignore_index=True)
-        else:
-            df_biased = df_biased.append(df_label_f, ignore_index=True)
-            df_biased = df_biased.append(df_label_m, ignore_index=True)
-    return df_biased
 
 
 @timer
@@ -126,8 +77,8 @@ def create_all_datasets(corpus_type: str):
         split_data(df_final, output_dir, f"{treatment}{f'_{corpus_type}' if corpus_type else ''}", label_column)
 
         print(f"Biasing {treatment.capitalize()}{f' {corpus_type}' if corpus_type else ''} dataset")
-        for bias_method in (aggressive, gentle):
-            create_biased_datasets(df_one, df_zero, label_column, BIASED_LABEL, BIASING_FACTOR, bias_method,
+        for bias_method in (bias_aggressive, bias_gentle):
+            create_biased_datasets(df_one, df_zero, label_column, LABELS[BIASED_LABEL], BIASING_FACTOR, bias_method,
                                    f"{treatment}{f'_{corpus_type}' if corpus_type else ''}", output_dir)
 
 
