@@ -24,13 +24,16 @@ def write_dataset(domain, columns, columns_vals_list):
 
 
 def validate_dataset(df):
+    print("Num reviews:", len(df))
     print(df.columns)
     print(df["domain_label"].value_counts(dropna=False), "\n")
     print(df["sentiment_label"].value_counts(dropna=False), "\n")
-    print("Num reviews:", len(df))
     print("Mean review length:", df["review_len"].mean())
+    print("Median review length:", df["review_len"].median(), "\n")
     print("Mean num adjectives:", df["num_adj"].mean())
+    print("Median num adjectives:", df["num_adj"].median(), "\n")
     print("Mean ratio adjectives:", df["ratio_adj"].mean())
+    print("Median ratio adjectives:", df["ratio_adj"].median(), "\n")
 
 
 @timer
