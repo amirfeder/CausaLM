@@ -1,6 +1,6 @@
 """Create train/dev/test data with and without adjectives"""
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED
-from datasets.datasets_utils import output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, bias_gentle, bias_aggressive
+from datasets.datasets_utils import output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, bias_gentle, ADJ_POS_TAGS
 from Timer import timer
 from tqdm import tqdm
 import pandas as pd
@@ -80,15 +80,17 @@ def create_all_sentiment_datasets():
             example_as_list = tagged_review.split()
             num_adj = 0
             review_len = len(example_as_list)
-            example_as_list_no_pos = [word.split(WORD_POS_SEPARATOR)[0] for word in example_as_list]
+            example_as_list_no_pos = list()
+            no_adj_example_as_list = list()
+            for word_tag in example_as_list:
+                word, tag = word_tag.split(WORD_POS_SEPARATOR)
+                example_as_list_no_pos.append(word)
+                if tag in ADJ_POS_TAGS:
+                    num_adj += 1
+                else:
+                    no_adj_example_as_list.append(word)
             example = TOKEN_SEPARATOR.join(example_as_list_no_pos)
             examples.append(example)
-            no_adj_example_as_list = list()
-            for word in example_as_list:
-                if 'ADJ' not in word:
-                    no_adj_example_as_list.append(word.split(WORD_POS_SEPARATOR)[0])
-                else:
-                    num_adj += 1
             no_adj_example = TOKEN_SEPARATOR.join(no_adj_example_as_list)
             no_adj_examples.append(no_adj_example)
             num_adj_examples.append(num_adj)
@@ -119,5 +121,5 @@ def create_all_sentiment_datasets():
 
 
 if __name__ == "__main__":
-    # create_all_sentiment_datasets()
+    create_all_sentiment_datasets()
     create_all_biased_sentiment_datasets()

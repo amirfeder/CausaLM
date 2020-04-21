@@ -4,7 +4,7 @@ from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
 from constants import BERT_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_IMA_PRETRAIN_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_DOMAINS
-from datasets.datasets_utils import TOKEN_SEPARATOR
+from datasets.datasets_utils import TOKEN_SEPARATOR, ADJ_POS_TAGS
 from multiprocessing import Pool
 from random import random, randrange, choice
 from transformers.tokenization_bert import BertTokenizer
@@ -20,7 +20,6 @@ WORDPIECE_PREFIX = "##"
 CLS_TOKEN = "[CLS]"
 SEP_TOKEN = "[SEP]"
 MASK_TOKEN = "[MASK]"
-ADJ_POS_TAGS = ("ADJ", "ADV")
 
 EPOCHS = 5
 MLM_PROB = 0.15

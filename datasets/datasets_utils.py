@@ -8,6 +8,7 @@ import pandas as pd
 
 TOKEN_SEPARATOR = " "
 WORD_POS_SEPARATOR = "_"
+ADJ_POS_TAGS = ("ADJ", "ADV")
 
 tagger = spacy.load("en_core_web_lg")
 
