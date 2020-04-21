@@ -92,7 +92,7 @@ class POSTaggedDocumentDatabase:
         if self.reduce_memory:
             return self.document_shelf[str(item)]
         else:
-            return self.documents[item], self.documents_pos_idx[item]
+            return self.documents[item], self.documents_pos_idx[item], self.document_ids[item]
 
     def __enter__(self):
         return self
