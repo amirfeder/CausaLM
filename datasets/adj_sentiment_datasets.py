@@ -1,6 +1,6 @@
 """Create train/dev/test data with and without adjectives"""
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED
-from datasets.datasets_utils import output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split
+from datasets.datasets_utils import output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, bias_gentle, bias_aggressive
 from Timer import timer
 from tqdm import tqdm
 import pandas as pd
@@ -26,8 +26,9 @@ def write_dataset(domain, columns, columns_vals_list):
 def validate_dataset(df):
     print("Num reviews:", len(df))
     print(df.columns)
-    print(df["domain_label"].value_counts(dropna=False), "\n")
-    print(df["sentiment_label"].value_counts(dropna=False), "\n")
+    for col in df.columns:
+        if "label" in col:
+            print(df[col].value_counts(dropna=False), "\n")
     print("Mean review length:", df["review_len"].mean())
     print("Median review length:", df["review_len"].median(), "\n")
     print("Mean num adjectives:", df["num_adj"].mean())
@@ -36,9 +37,23 @@ def validate_dataset(df):
     print("Median ratio adjectives:", df["ratio_adj"].median(), "\n")
 
 
+
 @timer
 def create_all_biased_sentiment_datasets():
-    pass
+    label_column = "sentiment_label"
+    biased_label = 1
+    biasing_factor = 0.1
+    bias_column = "ratio_adj"
+    for domain in list(SENTIMENT_DOMAINS) + ["unified"]:
+        print(f'Biasing dataset for {domain} domain')
+        df = pd.read_csv(f"{SENTIMENT_RAW_DATA_DIR}/{domain}/adj_all.csv", header=0)
+        median = df[bias_column].median()
+        df[f"{bias_column}_label"] = (df[bias_column] >= median).astype(int)
+        df_zero = df[df[f"{bias_column}_label"] < median]
+        df_one = df[df[f"{bias_column}_label"] >= median]
+        df_biased = bias_gentle(df_zero.copy(), df_one.copy(), label_column, biased_label, biasing_factor).set_index(keys="id", drop=True)
+        validate_dataset(df_biased)
+        split_data(df_biased, f"{SENTIMENT_RAW_DATA_DIR}/{domain}", f"adj_{bias_column}_biased_{biased_label}", label_column)
 
 
 @timer
@@ -104,4 +119,5 @@ def create_all_sentiment_datasets():
 
 
 if __name__ == "__main__":
-    create_all_sentiment_datasets()
+    # create_all_sentiment_datasets()
+    create_all_biased_sentiment_datasets()
