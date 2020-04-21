@@ -1,4 +1,4 @@
-from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, POMS_RACE_DATASETS_DIR
+from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, POMS_RACE_DATASETS_DIR, MAX_POMS_SEQ_LENGTH
 from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
 from BERT.predict import predict_adj_models, print_final_metrics, predict_genderace_models
@@ -89,7 +89,7 @@ def train_genderace_models_unit(hparams: Dict, task, group):
     label_size = 2
     if task == "POMS":
         label_size = 5
-    elif task.lower() in hparams["treatment"]:
+    elif hparams["treatment"].startswith(task.lower()):
         label_column = f"{task}_{group}_label"
     hparams["label_column"] = label_column
     hparams["bert_params"]["label_size"] = label_size
@@ -98,21 +98,6 @@ def train_genderace_models_unit(hparams: Dict, task, group):
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
     model = bert_train_eval(hparams, OUTPUT_DIR)
     return model
-
-
-# @timer
-# def train_genderace_models(hparams: Dict):
-#     print(f"Training {hparams['treatment']} models")
-#     factual_poms_model = train_genderace_models_unit(hparams, "POMS", "F")
-#     # counterfactual_poms_model = train_genderace_models_unit(hparams, "POMS", "CF")
-#     factual_gender_model = train_genderace_models_unit(hparams, "Gender", "F")
-#     # counterfactual_gender_model = train_genderace_models_unit(hparams, "Gender", "CF")
-#     factual_race_model = train_genderace_models_unit(hparams, "Race", "F")
-#     # counterfactual_race_model = train_genderace_models_unit(hparams, "Race", "CF")
-#     test_genderace_models(hparams["treatment"],
-#                           factual_poms_model, counterfactual_poms_model,
-#                           factual_gender_model, counterfactual_gender_model,
-#                           factual_race_model, counterfactual_race_model)
 
 
 @timer
@@ -133,6 +118,7 @@ def train_all_genderace_models(treatment: str, group: str):
         "label_column": "POMS_label",
         "epochs": EPOCHS,
         "accumulate": ACCUMULATE,
+        "max_seq_len": MAX_POMS_SEQ_LENGTH,
         "bert_params": {
             "batch_size": BATCH_SIZE,
             "dropout": DROPOUT,

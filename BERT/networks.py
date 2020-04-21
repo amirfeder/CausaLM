@@ -194,7 +194,8 @@ class LightningBertPretrainedClassifier(LightningModule):
         if not self.training:
             return [] # PyTorch Lightning hack for test mode with frozen model
         dataset = BertTextClassificationDataset(self.hparams.data_path, self.hparams.treatment, "train",
-                                                self.hparams.text_column, self.hparams.label_column)
+                                                self.hparams.text_column, self.hparams.label_column,
+                                                max_seq_length=self.hparams.max_seq_len)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
         return dataloader
 
@@ -218,7 +219,8 @@ class LightningBertPretrainedClassifier(LightningModule):
         if not self.training:
             return [] # PyTorch Lightning hack for test mode with frozen model
         dataset = BertTextClassificationDataset(self.hparams.data_path, self.hparams.treatment, "dev",
-                                                self.hparams.text_column, self.hparams.label_column)
+                                                self.hparams.text_column, self.hparams.label_column,
+                                                max_seq_length=self.hparams.max_seq_len)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
         return dataloader
 
@@ -244,7 +246,8 @@ class LightningBertPretrainedClassifier(LightningModule):
     @data_loader
     def test_dataloader(self):
         dataset = BertTextClassificationDataset(self.hparams.data_path, self.hparams.treatment, "test",
-                                                self.hparams.text_column, self.hparams.label_column)
+                                                self.hparams.text_column, self.hparams.label_column,
+                                                max_seq_length=self.hparams.max_seq_len)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
         return dataloader
 

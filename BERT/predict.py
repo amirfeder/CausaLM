@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from typing import Dict
 from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR, POMS_MLM_DATA_DIR, \
-    POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR, POMS_EXPERIMENTS_DIR
+    POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR, POMS_EXPERIMENTS_DIR, MAX_POMS_SEQ_LENGTH
 from pytorch_lightning import Trainer, LightningModule
 from BERT.networks import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir, path
@@ -66,13 +66,15 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
         model_ckpt_file = model_ckpt
         model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt_file)
     # Update model hyperparameters
+    model.hparams.max_seq_len = hparams["max_seq_len"]
     model.hparams.output_path = hparams["output_path"]
     model.hparams.label_column = hparams["label_column"]
     model.hparams.text_column = hparams["text_column"]
     model.bert_classifier.name = hparams['bert_params']['name']
     model.bert_classifier.label_size = hparams["bert_params"]["label_size"]
+    model.bert_classifier.bert_state_dict = hparams["bert_params"]["bert_state_dict"]
     model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
-                                                                           hparams["bert_params"]["bert_state_dict"])
+                                                                           model.bert_classifier.bert_state_dict)
     model.freeze()
     trainer.test(model)
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
@@ -130,7 +132,7 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
         state_dict_dir = "model"
     if pretrained_epoch is not None:
         state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
-    if "gender" in treatment:
+    if treatment.startswith("gender"):
         TREATMENT = "Gender"
         pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
     else:
@@ -145,6 +147,7 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
     else:
         label_column = f"{task.split('_')[-1]}_label"
     # Group Task BERT Model training
+    hparams["max_seq_len"] = MAX_POMS_SEQ_LENGTH
     hparams["label_column"] = label_column
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
@@ -171,32 +174,6 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
     hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     logger.info(f"Treated Pretrained Model: {pretrained_treated_model_dir}/pytorch_model.bin")
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
-
-
-# @timer
-# def predict_genderace_models(treatment="gender",
-#                           factual_poms_model_ckpt=None, counterfactual_poms_model_ckpt=None,
-#                           factual_gender_model_ckpt=None, counterfactual_gender_model_ckpt=None,
-#                           factual_race_model_ckpt=None, counterfactual_race_model_ckpt=None):
-#     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#     HYPERPARAMETERS = {"bert_params": {}}
-#     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{treatment}/COMPARE"
-#     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
-#                       default_save_path=OUTPUT_DIR,
-#                       show_progress_bar=True,
-#                       early_stop_callback=None)
-#     HYPERPARAMETERS["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
-#     logger = init_logger(f"testing", HYPERPARAMETERS["output_path"])
-#     predict_genderace_models_unit("POMS", treatment, "F", factual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     predict_genderace_models_unit("POMS", treatment, "CF", counterfactual_poms_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     predict_genderace_models_unit(f"CONTROL_Gender", treatment, "F", factual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     predict_genderace_models_unit(f"CONTROL_Gender", treatment, "CF", counterfactual_gender_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     predict_genderace_models_unit(f"CONTROL_Race", treatment, "F", factual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     predict_genderace_models_unit(f"CONTROL_Race", treatment, "CF", counterfactual_race_model_ckpt, HYPERPARAMETERS, trainer, logger)
-#     handler = GoogleDriveHandler()
-#     push_message = handler.push_files(HYPERPARAMETERS["output_path"])
-#     logger.info(push_message)
-#     send_email(push_message, treatment)
 
 
 @timer
