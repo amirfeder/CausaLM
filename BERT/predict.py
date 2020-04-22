@@ -164,6 +164,8 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
     logger.info(f"Label Size: {label_size}")
     if not model_ckpt:
         model_name = f"{label_column.split('_')[0]}_{trained_group}"
+        if hparams["bert_params"]["bert_state_dict"]:
+            model_name = f"{model_name}_{hparams['treatment'].split('_')[0]}_treated"
         models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{model_name}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
         logger.info(f"Loading model for {treatment} {task}_{group} from: {model_ckpt}")

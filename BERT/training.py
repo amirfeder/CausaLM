@@ -102,6 +102,8 @@ def train_genderace_models_unit(hparams: Dict, task, group):
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
+    if hparams["bert_params"]["bert_state_dict"]:
+        hparams["bert_params"]["name"] = f"{task}_{group}_{hparams['treatment'].split('_')[0]}_treated"
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
     model = bert_train_eval(hparams, OUTPUT_DIR)
     return model
