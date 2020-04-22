@@ -332,11 +332,12 @@ def main():
                         type=int,
                         default=RANDOM_SEED,
                         help="random seed for initialization")
-    parser.add_argument("--enriched", action="store_true")
+    parser.add_argument("--corpus_type", type=str, required=False, default="",
+                        help="Corpus type can be: '', enriched or enriched_full")
     args = parser.parse_args()
-    if args.enriched:
-        MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / "model_enriched"
-        args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR) / "enriched"
+    if args.corpus_type:
+        MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / f"model_{args.corpus_type}"
+        args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR) / args.corpus_type
     else:
         MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / "model"
         args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR)

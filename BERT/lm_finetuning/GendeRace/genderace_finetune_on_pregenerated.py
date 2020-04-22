@@ -355,7 +355,8 @@ def main():
                         help="random seed for initialization")
     parser.add_argument("--treatment", type=str, required=True, default="gender",
                         help="Treatment can be: gender or race")
-    parser.add_argument("--enriched", action="store_true")
+    parser.add_argument("--corpus_type", type=str, required=False, default="",
+                        help="Corpus type can be: '', enriched or enriched_full")
     args = parser.parse_args()
 
     if args.treatment == "gender":
@@ -364,9 +365,9 @@ def main():
     else:
         MODEL_OUTPUT_DIR = Path(POMS_RACE_DATA_DIR)
         args.pregenerated_data = Path(POMS_RACE_PRETRAIN_DATA_DIR)
-    if args.enriched:
-        MODEL_OUTPUT_DIR = MODEL_OUTPUT_DIR / "model_enriched"
-        args.pregenerated_data = args.pregenerated_data / "enriched"
+    if args.corpus_type:
+        MODEL_OUTPUT_DIR = MODEL_OUTPUT_DIR / f"model_{args.corpus_type}"
+        args.pregenerated_data = args.pregenerated_data / args.corpus_type
     else:
         MODEL_OUTPUT_DIR = MODEL_OUTPUT_DIR / "model"
 

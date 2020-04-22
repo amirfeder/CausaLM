@@ -43,11 +43,14 @@ HYPERPARAMETERS = {
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=True, default="gender_enriched", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
+    parser.add_argument("--treatment", type=str, required=True, default="gender",
+                        help="Specify treatment for experiments: adj, gender, race")
+    parser.add_argument("--corpus_type", type=str, required=False, default="",
+                        help="Corpus type can be: '', enriched or enriched_full")
     parser.add_argument("--group", type=str, required=True, default="F", help="Specify data group for experiments: F (factual) or CF (counterfactual)")
     args = parser.parse_args()
-    if "gender" in args.treatment or "race" in args.treatment:
-        train_all_genderace_models(args.treatment, args.group)
+    if args.treatment in ("gender", "race"):
+        train_all_genderace_models(args.treatment, args.corpus_type, args.group)
     elif "adj" in args.treatment:
         train_adj_models(args.treatment)
 
@@ -110,9 +113,11 @@ def train_genderace_models(hparams: Dict, treatment: str, group: str):
 
 
 @timer
-def train_all_genderace_models(treatment: str, group: str):
+def train_all_genderace_models(treatment: str, corpus_type: str, group: str):
+    if corpus_type:
+        treatment = f"{treatment}_{corpus_type}"
     HYPERPARAMETERS = {
-        "data_path": POMS_GENDER_DATASETS_DIR if "gender" in treatment else POMS_RACE_DATASETS_DIR,
+        "data_path": POMS_GENDER_DATASETS_DIR if treatment == "gender" else POMS_RACE_DATASETS_DIR,
         "treatment": treatment,
         "text_column": f"Sentence_{group}",
         "label_column": "POMS_label",

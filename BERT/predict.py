@@ -45,13 +45,17 @@ def print_final_metrics(name: str, metrics: Dict, logger=None):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=True, default="gender", help="Specify treatment for experiments: adj, gender, gender_enriched, race, race_enriched")
-    parser.add_argument("--trained_group", type=str, required=True, default="F", help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
+    parser.add_argument("--treatment", type=str, required=True, default="gender",
+                        help="Specify treatment for experiments: adj, gender, gender, race")
+    parser.add_argument("--corpus_type", type=str, required=False, default="",
+                        help="Corpus type can be: '', enriched or enriched_full")
+    parser.add_argument("--trained_group", type=str, required=True, default="F",
+                        help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=None,
                         help="Specify epoch for pretrained models: 0-4")
     args = parser.parse_args()
-    if "gender" in args.treatment or "race" in args.treatment:
-        predict_all_genderace_models(args.treatment, args.trained_group, args.pretrained_epoch)
+    if args.treatment in ("gender", "race"):
+        predict_all_genderace_models(args.treatment, args.corpus_type, args.trained_group, args.pretrained_epoch)
 
 
 @timer
@@ -201,7 +205,9 @@ def predict_genderace_models(treatment="gender", trained_group="F", pretrained_e
 
 
 @timer
-def predict_all_genderace_models(treatment: str, trained_group: str, pretrained_epoch: int = None):
+def predict_all_genderace_models(treatment: str, corpus_type: str, trained_group: str, pretrained_epoch: int = None):
+    if corpus_type:
+        treatment = f"{treatment}_{corpus_type}"
     predict_genderace_models(treatment, trained_group, pretrained_epoch)
     predict_genderace_models(f"{treatment}_biased_joy_gentle", trained_group, pretrained_epoch)
     predict_genderace_models(f"{treatment}_biased_joy_aggressive", trained_group, pretrained_epoch)

@@ -12,7 +12,10 @@ BIASING_FACTOR = 0.1
 
 @timer
 def create_poms_dataset(treatment: str, treatment_vals: tuple, corpus_type: str = ''):
-    corpus_file = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus{corpus_type}.csv"
+    if corpus_type:
+        corpus_file = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_{corpus_type}.csv"
+    else:
+        corpus_file = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
     treatment_column = treatment.capitalize()
     if treatment == "gender":
         control_column = "Race"
