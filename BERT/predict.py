@@ -51,7 +51,7 @@ def main():
                         help="Corpus type can be: '', enriched or enriched_full")
     parser.add_argument("--trained_group", type=str, required=True, default="F",
                         help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
-    parser.add_argument("--pretrained_epoch", type=int, required=False, default=None,
+    parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
                         help="Specify epoch for pretrained models: 0-4")
     args = parser.parse_args()
     if args.treatment in ("gender", "race"):

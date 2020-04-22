@@ -1,4 +1,5 @@
-from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, POMS_RACE_DATASETS_DIR, MAX_POMS_SEQ_LENGTH
+from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, \
+    POMS_RACE_DATASETS_DIR, MAX_POMS_SEQ_LENGTH, POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR
 from pytorch_lightning import Trainer
 from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
 from BERT.predict import predict_adj_models, print_final_metrics, predict_genderace_models
@@ -47,10 +48,13 @@ def main():
                         help="Specify treatment for experiments: adj, gender, race")
     parser.add_argument("--corpus_type", type=str, required=False, default="",
                         help="Corpus type can be: '', enriched or enriched_full")
-    parser.add_argument("--group", type=str, required=True, default="F", help="Specify data group for experiments: F (factual) or CF (counterfactual)")
+    parser.add_argument("--group", type=str, required=True, default="F",
+                        help="Specify data group for experiments: F (factual) or CF (counterfactual)")
+    parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
+                        help="Specify epoch for pretrained models: 0-4")
     args = parser.parse_args()
     if args.treatment in ("gender", "race"):
-        train_all_genderace_models(args.treatment, args.corpus_type, args.group)
+        train_all_genderace_models(args.treatment, args.corpus_type, args.group, args.pretrained_epoch)
     elif "adj" in args.treatment:
         train_adj_models(args.treatment)
 
@@ -104,19 +108,29 @@ def train_genderace_models_unit(hparams: Dict, task, group):
 
 
 @timer
-def train_genderace_models(hparams: Dict, treatment: str, group: str):
-    print(f"Training {treatment} models")
+def train_genderace_models(hparams: Dict, group: str, pretrained_epoch: int):
+    print(f"Training {hparams['treatment']} models")
     poms_model = train_genderace_models_unit(hparams, "POMS", group)
     gender_model = train_genderace_models_unit(hparams, "Gender", group)
     race_model = train_genderace_models_unit(hparams, "Race", group)
-    predict_genderace_models(treatment, group, 0, poms_model, gender_model, race_model)
+    predict_genderace_models(hparams['treatment'], group, pretrained_epoch, poms_model, gender_model, race_model)
 
 
 @timer
-def train_all_genderace_models(treatment: str, corpus_type: str, group: str):
+def train_all_genderace_models(treatment: str, corpus_type: str, group: str, pretrained_epoch: int):
     if corpus_type:
         treatment = f"{treatment}_{corpus_type}"
-    HYPERPARAMETERS = {
+        state_dict_dir = f"model_{corpus_type}"
+    else:
+        state_dict_dir = "model"
+    if pretrained_epoch is not None:
+        state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
+    if treatment.startswith("gender"):
+        pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
+    else:
+        pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
+
+    hparams = {
         "data_path": POMS_GENDER_DATASETS_DIR if treatment == "gender" else POMS_RACE_DATASETS_DIR,
         "treatment": treatment,
         "text_column": f"Sentence_{group}",
@@ -127,16 +141,24 @@ def train_all_genderace_models(treatment: str, corpus_type: str, group: str):
         "bert_params": {
             "batch_size": BATCH_SIZE,
             "dropout": DROPOUT,
-            "bert_state_dict": BERT_STATE_DICT,
+            "bert_state_dict": None,
             "label_size": 5,
             "name": f"POMS_{group}"
         }
     }
-    train_genderace_models(HYPERPARAMETERS, treatment, group)
-    HYPERPARAMETERS["treatment"] = f"{treatment}_biased_joy_gentle"
-    train_genderace_models(HYPERPARAMETERS, f"{treatment}_biased_joy_gentle", group)
-    HYPERPARAMETERS["treatment"] = f"{treatment}_biased_joy_aggressive"
-    train_genderace_models(HYPERPARAMETERS, f"{treatment}_biased_joy_aggressive", group)
+    train_genderace_models(hparams, group, pretrained_epoch)
+    hparams["treatment"] = f"{treatment}_biased_joy_gentle"
+    train_genderace_models(hparams, group, pretrained_epoch)
+    hparams["treatment"] = f"{treatment}_biased_joy_aggressive"
+    train_genderace_models(hparams, group, pretrained_epoch)
+
+    hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
+    hparams["treatment"] = treatment
+    train_genderace_models(hparams, group, pretrained_epoch)
+    hparams["treatment"] = f"{treatment}_biased_joy_gentle"
+    train_genderace_models(hparams, group, pretrained_epoch)
+    hparams["treatment"] = f"{treatment}_biased_joy_aggressive"
+    train_genderace_models(hparams, group, pretrained_epoch)
 
 
 if __name__ == "__main__":
