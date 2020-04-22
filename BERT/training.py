@@ -126,12 +126,14 @@ def train_all_genderace_models(treatment: str, corpus_type: str, group: str, pre
     if pretrained_epoch is not None:
         state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
     if treatment.startswith("gender"):
+        data_path = POMS_GENDER_DATASETS_DIR
         pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
     else:
+        data_path = POMS_RACE_DATASETS_DIR
         pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
 
     hparams = {
-        "data_path": POMS_GENDER_DATASETS_DIR if treatment == "gender" else POMS_RACE_DATASETS_DIR,
+        "data_path": data_path,
         "treatment": treatment,
         "text_column": f"Sentence_{group}",
         "label_column": "POMS_label",
