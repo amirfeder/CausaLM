@@ -102,8 +102,6 @@ def train_genderace_models_unit(hparams: Dict, task, group):
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
     hparams["bert_params"]["name"] = f"{task}_{group}"
-    if hparams["bert_params"]["bert_state_dict"]:
-        hparams["bert_params"]["name"] = f"{task}_{group}_{hparams['treatment'].split('_')[0]}_treated"
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['bert_params']['name']}"
     model = bert_train_eval(hparams, OUTPUT_DIR)
     return model
@@ -112,6 +110,8 @@ def train_genderace_models_unit(hparams: Dict, task, group):
 @timer
 def train_genderace_models(hparams: Dict, group: str, pretrained_epoch: int):
     print(f"Training {hparams['treatment']} models")
+    if hparams["bert_params"]["bert_state_dict"]:
+        group = f"{group}_{hparams['treatment'].split('_')[0]}_treated"
     poms_model = train_genderace_models_unit(hparams, "POMS", group)
     gender_model = train_genderace_models_unit(hparams, "Gender", group)
     race_model = train_genderace_models_unit(hparams, "Race", group)

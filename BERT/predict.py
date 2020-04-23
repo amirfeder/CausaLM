@@ -137,10 +137,10 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
     if pretrained_epoch is not None:
         state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
     if treatment.startswith("gender"):
-        TREATMENT = "Gender"
+        TREATMENT = "gender"
         pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
     else:
-        TREATMENT = "Race"
+        TREATMENT = "race"
         pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
     label_size = 2
     if task == "POMS":
@@ -155,7 +155,7 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
     hparams["label_column"] = label_column
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
-    hparams["bert_params"]["name"] = f"{task}_{group}"
+    hparams["bert_params"]["name"] = f"{task}_{group}_trained_{trained_group}"
     hparams["bert_params"]["bert_state_dict"] = None
     logger.info(f"Treatment: {treatment}")
     logger.info(f"Task: {hparams['bert_params']['name']}")
@@ -171,12 +171,12 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
         logger.info(f"Loading model for {treatment} {task}_{group} from: {model_ckpt}")
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
     # Group Task BERT Model test with MLM LM
-    hparams["bert_params"]["name"] = f"{task}_MLM_{group}"
+    hparams["bert_params"]["name"] = f"{task}_MLM_{group}_trained_{trained_group}"
     hparams["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
     logger.info(f"MLM Pretrained Model: {POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin")
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
     # Group Task BERT Model test with Gender/Race treated LM
-    hparams["bert_params"]["name"] = f"{task}_{TREATMENT}_treated_{group}"
+    hparams["bert_params"]["name"] = f"{task}_{TREATMENT}_treated_{group}_trained_{trained_group}"
     hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     logger.info(f"Treated Pretrained Model: {pretrained_treated_model_dir}/pytorch_model.bin")
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
