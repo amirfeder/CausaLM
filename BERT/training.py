@@ -47,7 +47,7 @@ def main():
     parser.add_argument("--treatment", type=str, required=True, default="gender",
                         help="Specify treatment for experiments: adj, gender, race")
     parser.add_argument("--corpus_type", type=str, required=False, default="",
-                        help="Corpus type can be: '', enriched or enriched_full")
+                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
     parser.add_argument("--group", type=str, required=True, default="F",
                         help="Specify data group for experiments: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,

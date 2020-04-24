@@ -3,11 +3,49 @@ from sklearn.model_selection import train_test_split
 from constants import POMS_GENDER_DATASETS_DIR, POMS_RAW_DATA_DIR, POMS_RACE_DATASETS_DIR, RANDOM_SEED
 from datasets_utils import split_data, print_text_stats, bias_gentle, bias_aggressive
 from Timer import timer
+from glob import glob
+from random import choice
+from tqdm import tqdm
 import pandas as pd
 
 LABELS = {'None': 0, 'anger': 1, 'fear': 2, 'joy': 3, 'sadness': 4}
 BIASED_LABEL = "joy"
 BIASING_FACTOR = 0.1
+
+test_emotion_words_dict = {
+    "joy": [
+        "blissful", "joyous", "delighted", "overjoyed", "gleeful", "thankful", "festive", "ecstatic", "satisfied",
+        "cheerful", "sunny", "elated", "jubilant", "jovial", "lighthearted", "glorious", "innocent", "gratified",
+        "euphoric", "world", "playful", "courageous", "energetic", "liberated", "optimistic", "frisky", "animated",
+        "spirited", "thrilled", "intelligent", "exhilarated", "spunky", "youthful", "vigorous", "tickled", "creative",
+        "constructive", "helpful", "resourceful", "comfortable", "pleased", "encouraged", "surprised", "content",
+        "serene", "bright", "blessed", "vibrant", "bountiful", "glowing"
+    ],
+    "anger": [
+        "Ordeal", "Outrageousness", "Provoke", "Repulsive", "Scandal", "Severe", "Shameful", "Shocking", "Terrible", "Tragic",
+        "Unreliable", "Unstable", "Wicked", "Aggravate", "Agony", "Appalled", "Atrocious", "Corrupting", "Damaging",
+        "Deplorable", "Disadvantages", "Disastrous", "Disgusted", "Dreadful", "Eliminate", "Harmful", "Harsh", "Inconsiderate",
+        "enraged", "offensive", "aggressive", "frustrated", "controlling", "resentful", "malicious", "infuriated", "critical",
+        "violent", "vindictive", "sadistic", "spiteful", "furious", "agitated", "antagonistic", "repulsed", "quarrelsome",
+        "venomous", "rebellious", "exasperated", "impatient", "contrary", "condemning", "seething", "scornful", "sarcastic",
+        "poisonous", "jealous", "revengeful", "retaliating", "reprimanding", "powerless", "despicable", "desperate", "alienated",
+        "pessimistic", "dejected", "vilified", "unjustified", "violated"
+    ],
+    "sadness": [
+        "bitter", "dismal", "heartbroken", "melancholy", "mournful", "pessimistic", "somber", "sorrowful", "sorry", "wistful",
+        "bereaved", "blue", "cheerless", "dejected", "despairing", "despondent", "disconsolate", "distressed", "doleful",
+        "down", "downcast", "forlorn", "glum", "grieved", "heartsick", "heavyhearted", "hurting", "languishing",
+        "low", "lugubrious", "morbid", "morose", "pensive", "troubled", "weeping", "woebegone",
+    ],
+    "fear": [
+        "angst", "anxiety", "concern", "despair", "dismay", "doubt", "dread", "horror", "jitters", "panic", "scare",
+        "suspicion", "terror", "unease", "uneasiness", "worry", "abhorrence", "agitation", "aversion", "awe", "consternation",
+        "cowardice", "creeps", "discomposure", "disquietude", "distress", "faintheartedness", "foreboding", "fright", "funk",
+        "misgiving", "nightmare", "phobia", "presentiment", "qualm", "reverence", "revulsion", "timidity", "trembling",
+        "tremor", "trepidation", "chickenheartedness", "recreancy"
+    ],
+    "nan": ["nan"]
+}
 
 
 @timer
@@ -63,6 +101,23 @@ def create_biased_datasets(df_a, df_b, label_column, biased_label, biasing_facto
 
 
 @timer
+def replace_test_set_emotion_words(output_dir: str):
+    test_sets = glob(f"{output_dir}/*noisy*_test.csv")
+    for dataset in tqdm(test_sets):
+        df = pd.read_csv(dataset, header=0, encoding="utf-8").set_index(keys=["ID_F", "ID_CF"])
+        df["new_Emotion_word"] = df["Emotion"].apply(lambda emotion:
+                                                     str(choice(test_emotion_words_dict[str(emotion)])).lower())
+        df["Sentence_F"] = df.apply(lambda row:
+                                    str(row["Sentence_F"]).replace(str(row["Emotion_word"]),
+                                                                   str(row["new_Emotion_word"])), axis=1)
+        df["Sentence_CF"] = df.apply(lambda row:
+                                     str(row["Sentence_CF"]).replace(str(row["Emotion_word"]),
+                                                                     str(row["new_Emotion_word"])), axis=1)
+        # Maybe we shouldn't replace the emotion word for CF to create a F vs CF bigger effect ?
+        df.sort_index().to_csv(dataset)
+
+
+@timer
 def create_all_datasets(corpus_type: str):
     label_column = "POMS_label"
     for treatment, treatment_vals, output_dir in zip(("gender", "race"),
@@ -84,12 +139,15 @@ def create_all_datasets(corpus_type: str):
             create_biased_datasets(df_one, df_zero, label_column, LABELS[BIASED_LABEL], BIASING_FACTOR, bias_method,
                                    f"{treatment}{f'_{corpus_type}' if corpus_type else ''}", output_dir)
 
+        if corpus_type == "enriched_noisy":
+            replace_test_set_emotion_words(output_dir)
+
 
 @timer
 def main():
     parser = ArgumentParser()
     parser.add_argument("--corpus_type", type=str, default='',
-                        help="Corpus type can be: '', 'enriched' or 'enriched_full'")
+                        help="Corpus type can be: '', 'enriched', 'enriched_noisy', 'enriched_full'")
     args = parser.parse_args()
     create_all_datasets(args.corpus_type)
 

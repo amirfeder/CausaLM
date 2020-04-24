@@ -308,7 +308,7 @@ def main():
     parser.add_argument("--treatment", type=str, required=True, default="gender",
                         help="Treatment can be: gender or race")
     parser.add_argument("--corpus_type", type=str, required=False, default="",
-                        help="Corpus type can be: '', enriched or enriched_full")
+                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:

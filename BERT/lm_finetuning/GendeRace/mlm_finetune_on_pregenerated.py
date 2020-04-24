@@ -333,7 +333,7 @@ def main():
                         default=RANDOM_SEED,
                         help="random seed for initialization")
     parser.add_argument("--corpus_type", type=str, required=False, default="",
-                        help="Corpus type can be: '', enriched or enriched_full")
+                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
     args = parser.parse_args()
     if args.corpus_type:
         MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / f"model_{args.corpus_type}"
