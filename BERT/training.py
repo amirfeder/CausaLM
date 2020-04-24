@@ -151,17 +151,17 @@ def train_all_genderace_models(treatment: str, corpus_type: str, group: str, pre
         }
     }
     train_genderace_models(hparams, group, pretrained_epoch)
-    hparams["treatment"] = f"{treatment}_biased_joy_gentle"
+    hparams["treatment"] = f"{treatment}_bias_gentle_3"
     train_genderace_models(hparams, group, pretrained_epoch)
-    hparams["treatment"] = f"{treatment}_biased_joy_aggressive"
+    hparams["treatment"] = f"{treatment}_bias_aggressive_3"
     train_genderace_models(hparams, group, pretrained_epoch)
 
     hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     hparams["treatment"] = treatment
     train_genderace_models(hparams, group, pretrained_epoch)
-    hparams["treatment"] = f"{treatment}_biased_joy_gentle"
+    hparams["treatment"] = f"{treatment}_bias_gentle_3"
     train_genderace_models(hparams, group, pretrained_epoch)
-    hparams["treatment"] = f"{treatment}_biased_joy_aggressive"
+    hparams["treatment"] = f"{treatment}_bias_aggressive_3"
     train_genderace_models(hparams, group, pretrained_epoch)
 
 

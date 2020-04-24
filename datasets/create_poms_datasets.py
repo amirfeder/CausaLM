@@ -97,7 +97,7 @@ def create_biased_datasets(df_a, df_b, label_column, biased_label, biasing_facto
     df_biased = df_biased.set_index(keys=["ID_F", "ID_CF"]).sort_index()
     print(df_biased)
     print_text_stats(df_biased, "Sentence_F")
-    split_data(df_biased, output_dir, f"{dataset_type}_biased_{biased_label}_{biasing_method.__name__}", label_column)
+    split_data(df_biased, output_dir, f"{dataset_type}_{biasing_method.__name__}_{biased_label}", label_column)
 
 
 @timer

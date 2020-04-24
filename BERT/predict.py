@@ -211,8 +211,8 @@ def predict_all_genderace_models(treatment: str, corpus_type: str, trained_group
     if corpus_type:
         treatment = f"{treatment}_{corpus_type}"
     predict_genderace_models(treatment, trained_group, pretrained_epoch)
-    predict_genderace_models(f"{treatment}_biased_joy_gentle", trained_group, pretrained_epoch)
-    predict_genderace_models(f"{treatment}_biased_joy_aggressive", trained_group, pretrained_epoch)
+    predict_genderace_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch)
+    predict_genderace_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch)
 
 
 if __name__ == "__main__":
