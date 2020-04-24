@@ -44,7 +44,7 @@ test_emotion_words_dict = {
         "misgiving", "nightmare", "phobia", "presentiment", "qualm", "reverence", "revulsion", "timidity", "trembling",
         "tremor", "trepidation", "chickenheartedness", "recreancy"
     ],
-    "nan": ["nan"]
+    "nan": [""]
 }
 
 
