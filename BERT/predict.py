@@ -130,7 +130,9 @@ def predict_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 @timer
 def predict_genderace_models_unit(task, treatment, trained_group, group, model_ckpt, hparams, trainer, logger, pretrained_epoch):
-    if "enriched" in treatment:
+    if "noisy" in treatment:
+        state_dict_dir = "model_enriched_noisy"
+    elif "enriched" in treatment:
         state_dict_dir = "model_enriched"
     else:
         state_dict_dir = "model"
