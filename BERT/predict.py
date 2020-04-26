@@ -69,6 +69,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     else:
         model_ckpt_file = model_ckpt
         model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt_file)
+
     # Update model hyperparameters
     model.hparams.max_seq_len = hparams["max_seq_len"]
     model.hparams.output_path = hparams["output_path"]
@@ -79,6 +80,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     model.bert_classifier.bert_state_dict = hparams["bert_params"]["bert_state_dict"]
     model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
                                                                            model.bert_classifier.bert_state_dict)
+
     model.freeze()
     trainer.test(model)
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
@@ -129,7 +131,8 @@ def predict_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
 
 
 @timer
-def predict_genderace_models_unit(task, treatment, trained_group, group, model_ckpt, hparams, trainer, logger, pretrained_epoch):
+def predict_genderace_models_unit(task, treatment, trained_group, group, model_ckpt,
+                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict):
     if "noisy" in treatment:
         state_dict_dir = "model_enriched_noisy"
     elif "enriched" in treatment:
@@ -157,10 +160,7 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
     hparams["label_column"] = label_column
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
-    hparams["bert_params"]["name"] = f"{task}_{group}_trained_{trained_group}"
-    hparams["bert_params"]["bert_state_dict"] = None
     logger.info(f"Treatment: {treatment}")
-    logger.info(f"Task: {hparams['bert_params']['name']}")
     logger.info(f"Text Column: {hparams['text_column']}")
     logger.info(f"Label Column: {label_column}")
     logger.info(f"Label Size: {label_size}")
@@ -171,6 +171,9 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
         models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{model_name}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
         logger.info(f"Loading model for {treatment} {task}_{group} from: {model_ckpt}")
+    hparams["bert_params"]["name"] = f"{task}_{group}_trained_{trained_group}"
+    hparams["bert_params"]["bert_state_dict"] = bert_state_dict
+    logger.info(f"Model: {hparams['bert_params']['name']}")
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
     # Group Task BERT Model test with MLM LM
     hparams["bert_params"]["name"] = f"{task}_MLM_{group}_trained_{trained_group}"
@@ -186,9 +189,15 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
 
 @timer
 def predict_genderace_models(treatment="gender", trained_group="F", pretrained_epoch=None,
-                             poms_model_ckpt=None, gender_model_ckpt=None, race_model_ckpt=None):
+                             poms_model_ckpt=None, gender_model_ckpt=None, race_model_ckpt=None,
+                             bert_state_dict=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    hparams = {"bert_params": {}}
+    hparams = {
+        "treatment": treatment,
+        "bert_params": {
+            "bert_state_dict": bert_state_dict
+        }
+    }
     OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{treatment}/COMPARE"
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=OUTPUT_DIR,
@@ -196,12 +205,18 @@ def predict_genderace_models(treatment="gender", trained_group="F", pretrained_e
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     logger = init_logger(f"testing", hparams["output_path"])
-    predict_genderace_models_unit("POMS", treatment, trained_group, "F", poms_model_ckpt, hparams, trainer, logger, pretrained_epoch)
-    predict_genderace_models_unit("POMS", treatment, trained_group, "CF", poms_model_ckpt, hparams, trainer, logger, pretrained_epoch)
-    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "F", gender_model_ckpt, hparams, trainer, logger, pretrained_epoch)
-    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "CF", gender_model_ckpt, hparams, trainer, logger, pretrained_epoch)
-    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "F", race_model_ckpt, hparams, trainer, logger, pretrained_epoch)
-    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "CF", race_model_ckpt, hparams, trainer, logger, pretrained_epoch)
+    predict_genderace_models_unit("POMS", treatment, trained_group, "F", poms_model_ckpt,
+                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
+    predict_genderace_models_unit("POMS", treatment, trained_group, "CF", poms_model_ckpt,
+                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
+    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "F", gender_model_ckpt,
+                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
+    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "CF", gender_model_ckpt,
+                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
+    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "F", race_model_ckpt,
+                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
+    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "CF", race_model_ckpt,
+                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
     handler = GoogleDriveHandler()
     push_message = handler.push_files(hparams["output_path"])
     logger.info(push_message)
@@ -212,9 +227,25 @@ def predict_genderace_models(treatment="gender", trained_group="F", pretrained_e
 def predict_all_genderace_models(treatment: str, corpus_type: str, trained_group: str, pretrained_epoch: int = None):
     if corpus_type:
         treatment = f"{treatment}_{corpus_type}"
+        state_dict_dir = f"model_{corpus_type}"
+    else:
+        state_dict_dir = "model"
+    if pretrained_epoch is not None:
+        state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
+    if treatment.startswith("gender"):
+        pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
+    else:
+        pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
+
     predict_genderace_models(treatment, trained_group, pretrained_epoch)
     predict_genderace_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch)
     predict_genderace_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch)
+
+    bert_state_dict = f"{pretrained_treated_model_dir}/pytorch_model.bin"
+    trained_group = f"{trained_group}_{treatment.split('_')[0]}_treated"
+    predict_genderace_models(treatment, trained_group, pretrained_epoch, bert_state_dict)
+    predict_genderace_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch, bert_state_dict)
+    predict_genderace_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch, bert_state_dict)
 
 
 if __name__ == "__main__":
