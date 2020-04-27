@@ -1,6 +1,7 @@
 from constants import RANDOM_SEED
 from sklearn.model_selection import train_test_split
 from pandas import DataFrame
+from spacy.lang.tag_map import TAG_MAP
 import spacy
 import re
 import numpy as np
@@ -9,6 +10,8 @@ import pandas as pd
 TOKEN_SEPARATOR = " "
 WORD_POS_SEPARATOR = "_"
 ADJ_POS_TAGS = ("ADJ", "ADV")
+POS_TAGS_TUPLE = tuple(sorted(TAG_MAP.keys()))
+POS_TAG_IDX_MAP = {str(tag): int(idx) for idx, tag in enumerate(POS_TAGS_TUPLE)}
 
 tagger = spacy.load("en_core_web_lg")
 
