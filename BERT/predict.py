@@ -27,6 +27,8 @@ def find_latest_model_checkpoint(models_dir: str):
             latest_model = model_versions.pop()
             model_ckpt_dir = f"{latest_model}/checkpoints"
             model_ckpt = get_checkpoint_file(model_ckpt_dir)
+        else:
+            raise FileNotFoundError(f"Couldn't find a model checkpoint in {models_dir}")
     return model_ckpt
 
 
@@ -60,26 +62,28 @@ def main():
 
 @timer
 def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
-    if logger:
-        logger.info(f"Testing model with {hparams['bert_params']['name']} LM")
-    else:
-        print(f"Testing model with {hparams['bert_params']['name']} LM")
     if isinstance(model_ckpt, LightningModule):
         model = model_ckpt
     else:
-        model_ckpt_file = model_ckpt
-        model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt_file)
+        logger.info(f"Loading model for {hparams['treatment']} {hparams['bert_params']['name']} from: {model_ckpt}")
+        model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt)
+
+    if hparams["bert_params"]["bert_state_dict"]:
+        model.hparams.bert_params["bert_state_dict"] = hparams["bert_params"]["bert_state_dict"]
+        model.bert_classifier.bert_state_dict = hparams["bert_params"]["bert_state_dict"]
+        logger.info(f"Loading pretrained BERT model for {hparams['bert_params']['name']} from: {model.bert_classifier.bert_state_dict}")
+        model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
+                                                                               model.bert_classifier.bert_state_dict)
 
     # Update model hyperparameters
     model.hparams.max_seq_len = hparams["max_seq_len"]
     model.hparams.output_path = hparams["output_path"]
     model.hparams.label_column = hparams["label_column"]
     model.hparams.text_column = hparams["text_column"]
+    model.hparams.bert_params["name"] = hparams['bert_params']['name']
+    model.hparams.bert_params["label_size"] = hparams["bert_params"]["label_size"]
     model.bert_classifier.name = hparams['bert_params']['name']
     model.bert_classifier.label_size = hparams["bert_params"]["label_size"]
-    model.bert_classifier.bert_state_dict = hparams["bert_params"]["bert_state_dict"]
-    model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
-                                                                           model.bert_classifier.bert_state_dict)
 
     model.freeze()
     trainer.test(model)
@@ -155,36 +159,41 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
         label_column = f"{task.split('_')[-1]}_{group}_label"
     else:
         label_column = f"{task.split('_')[-1]}_label"
-    # Group Task BERT Model training
+
     hparams["max_seq_len"] = MAX_POMS_SEQ_LENGTH
     hparams["label_column"] = label_column
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = f"Sentence_{group}"
+    hparams["treatment"] = treatment
+    hparams["trained_group"] = trained_group
     logger.info(f"Treatment: {treatment}")
     logger.info(f"Text Column: {hparams['text_column']}")
     logger.info(f"Label Column: {label_column}")
     logger.info(f"Label Size: {label_size}")
-    if not model_ckpt:
-        model_name = f"{label_column.split('_')[0]}_{trained_group}"
-        if hparams["bert_params"]["bert_state_dict"]:
-            model_name = f"{model_name}_{hparams['treatment'].split('_')[0]}_treated"
-        models_dir = f"{POMS_EXPERIMENTS_DIR}/{treatment}/{model_name}/lightning_logs/*"
-        model_ckpt = find_latest_model_checkpoint(models_dir)
-        logger.info(f"Loading model for {treatment} {task}_{group} from: {model_ckpt}")
     hparams["bert_params"]["name"] = f"{task}_{group}_trained_{trained_group}"
     hparams["bert_params"]["bert_state_dict"] = bert_state_dict
+
+    if not model_ckpt:
+        model_name = f"{hparams['label_column'].split('_')[0]}_{hparams['trained_group']}"
+        models_dir = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{model_name}/lightning_logs/*"
+        model_ckpt = find_latest_model_checkpoint(models_dir)
+
+    # Group Task BERT Model training
     logger.info(f"Model: {hparams['bert_params']['name']}")
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
+
     # Group Task BERT Model test with MLM LM
     hparams["bert_params"]["name"] = f"{task}_MLM_{group}_trained_{trained_group}"
     hparams["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
     logger.info(f"MLM Pretrained Model: {POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin")
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
-    # Group Task BERT Model test with Gender/Race treated LM
-    hparams["bert_params"]["name"] = f"{task}_{TREATMENT}_treated_{group}_trained_{trained_group}"
-    hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
-    logger.info(f"Treated Pretrained Model: {pretrained_treated_model_dir}/pytorch_model.bin")
-    bert_treatment_test(model_ckpt, hparams, trainer, logger)
+
+    if not bert_state_dict:
+        # Group Task BERT Model test with Gender/Race treated LM
+        hparams["bert_params"]["name"] = f"{task}_{TREATMENT}_treated_{group}_trained_{trained_group}"
+        hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
+        logger.info(f"Treated Pretrained Model: {pretrained_treated_model_dir}/pytorch_model.bin")
+        bert_treatment_test(model_ckpt, hparams, trainer, logger)
 
 
 @timer
@@ -243,9 +252,9 @@ def predict_all_genderace_models(treatment: str, corpus_type: str, trained_group
 
     bert_state_dict = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     trained_group = f"{trained_group}_{treatment.split('_')[0]}_treated"
-    predict_genderace_models(treatment, trained_group, pretrained_epoch, bert_state_dict)
-    predict_genderace_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch, bert_state_dict)
-    predict_genderace_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch, bert_state_dict)
+    predict_genderace_models(treatment, trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
+    predict_genderace_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
+    predict_genderace_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
 
 
 if __name__ == "__main__":

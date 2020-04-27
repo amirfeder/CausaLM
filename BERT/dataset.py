@@ -16,7 +16,7 @@ class BertTextClassificationDataset(Dataset):
     def __init__(self, data_path: str, treatment: str, subset: str, text_column: str, label_column: str,
                  bert_pretrained_model: str = BERT_PRETRAINED_MODEL, max_seq_length: int = MAX_SENTIMENT_SEQ_LENGTH):
         super().__init__()
-        if subset not in ("train", "dev", "test"):
+        if subset not in ("train", "dev", "test", "train_debug", "dev_debug", "test_debug"):
             raise ValueError("subset argument must be {train, dev,test}")
         self.dataset_file = f"{data_path}/{treatment}_{subset}.csv"
         self.subset = subset
