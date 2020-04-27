@@ -1,6 +1,5 @@
 from typing import Callable, List
-from transformers import BertModel, BertConfig
-from transformers.modeling_bert import BertAttention
+from transformers import BertModel
 from torch.utils.data.dataloader import DataLoader
 from constants import NUM_CPU
 from BERT.dataset import BertTextClassificationDataset, BERT_PRETRAINED_MODEL
