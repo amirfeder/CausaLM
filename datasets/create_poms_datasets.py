@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
 from constants import POMS_GENDER_DATASETS_DIR, POMS_RAW_DATA_DIR, POMS_RACE_DATASETS_DIR, RANDOM_SEED
-from datasets_utils import split_data, print_text_stats, bias_gentle, bias_aggressive
+from datasets_utils import split_data, print_text_stats, bias_gentle, bias_aggressive, bias_random_sampling
 from Timer import timer
 import pandas as pd
 
@@ -54,8 +54,10 @@ def create_poms_dataset(treatment: str, treatment_vals: tuple, corpus_type: str 
 
 
 @timer
-def create_biased_datasets(df_a, df_b, label_column, biased_label, biasing_factor, biasing_method, dataset_type="gender", output_dir=POMS_GENDER_DATASETS_DIR):
-    df_biased = biasing_method(df_a, df_b, label_column, biased_label, biasing_factor)
+def create_biased_datasets(df_a, df_b, label_column, bias_column, biased_label, biasing_factor, biasing_method,
+                           dataset_type="gender", output_dir=POMS_GENDER_DATASETS_DIR):
+    df_biased = biasing_method(df_a, df_b, label_column, bias_column,
+                               biased_label, biasing_factor, bias_random_sampling)
     df_biased = df_biased.set_index(keys=["ID_F", "ID_CF"]).sort_index()
     print(df_biased)
     print_text_stats(df_biased, "Sentence_F")
@@ -81,7 +83,8 @@ def create_all_datasets(corpus_type: str):
 
         print(f"Biasing {treatment.capitalize()}{f' {corpus_type}' if corpus_type else ''} dataset")
         for bias_method in (bias_aggressive, bias_gentle):
-            create_biased_datasets(df_one, df_zero, label_column, LABELS[BIASED_LABEL], BIASING_FACTOR, bias_method,
+            create_biased_datasets(df_one, df_zero, label_column, treatment.capitalize(),
+                                   LABELS[BIASED_LABEL], BIASING_FACTOR, bias_method,
                                    f"{treatment}{f'_{corpus_type}' if corpus_type else ''}", output_dir)
 
 

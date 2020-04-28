@@ -52,9 +52,21 @@ def print_text_stats(df: DataFrame, text_column: str):
     print(f"Mean sequence length in dataset: {np.mean(sequence_lengths)}")
 
 
-def bias_aggressive(df_a, df_b, label_column, biased_label, biasing_factor):
+def bias_random_sampling(df: DataFrame, bias_column: str, biasing_factor: float, seed: int = RANDOM_SEED):
+    return df.sample(frac=biasing_factor, random_state=seed)
+
+
+def bias_ranked_sampling(df: DataFrame, bias_column: str, biasing_factor: float):
+    return df.sort_values(by=bias_column, ascending=False).head(int(len(df)*biasing_factor))
+
+
+def bias_aggressive(df_a, df_b, label_column, bias_column,
+                    biased_label, biasing_factor, sampling_method=bias_random_sampling):
     """
     Biases selected class by biasing factor, and uses same factor to inversely bias all other classes.
+    :param bias_column:
+    :param label_column:
+    :param sampling_method:
     :param df_a:
     :param df_b:
     :param biased_label:
@@ -67,18 +79,22 @@ def bias_aggressive(df_a, df_b, label_column, biased_label, biasing_factor):
         df_label_b = df_b[df_b[label_column] == label]
         if label == biased_label:
             df_biased = df_biased.append(df_label_a, ignore_index=True)
-            df_sampled_b = df_label_b.sample(frac=biasing_factor, random_state=RANDOM_SEED)
+            df_sampled_b = sampling_method(df_label_b, bias_column, biasing_factor)
             df_biased = df_biased.append(df_sampled_b, ignore_index=True)
         else:
             df_biased = df_biased.append(df_label_b, ignore_index=True)
-            df_sampled_a = df_label_a.sample(frac=biasing_factor, random_state=RANDOM_SEED)
+            df_sampled_a = sampling_method(df_label_a, bias_column, biasing_factor)
             df_biased = df_biased.append(df_sampled_a, ignore_index=True)
     return df_biased
 
 
-def bias_gentle(df_a, df_b, label_column, biased_label, biasing_factor):
+def bias_gentle(df_a, df_b, label_column, bias_column,
+                biased_label, biasing_factor, sampling_method=bias_random_sampling):
     """
     Biases selected class by biasing factor, and leaves other classes untouched.
+    :param bias_column:
+    :param label_column:
+    :param sampling_method:
     :param df_a:
     :param df_b:
     :param biased_label:
@@ -91,7 +107,7 @@ def bias_gentle(df_a, df_b, label_column, biased_label, biasing_factor):
         df_label_b = df_b[df_b[label_column] == label]
         if label == biased_label:
             df_biased = df_biased.append(df_label_a, ignore_index=True)
-            df_sampled_b = df_label_b.sample(frac=biasing_factor, random_state=RANDOM_SEED)
+            df_sampled_b = sampling_method(df_label_b, bias_column, biasing_factor)
             df_biased = df_biased.append(df_sampled_b, ignore_index=True)
         else:
             df_biased = df_biased.append(df_label_a, ignore_index=True)

@@ -1,6 +1,6 @@
-"""Create train/dev/test data with and without adjectives"""
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED
-from datasets.datasets_utils import output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, bias_gentle, ADJ_POS_TAGS, POS_TAG_IDX_MAP
+from datasets.datasets_utils import output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, \
+    bias_gentle, ADJ_POS_TAGS, POS_TAG_IDX_MAP, bias_aggressive, bias_ranked_sampling
 from Timer import timer
 from tqdm import tqdm
 import pandas as pd
@@ -38,7 +38,6 @@ def validate_dataset(df):
     print("Median ratio adjectives:", df["ratio_adj"].median(), "\n")
 
 
-
 @timer
 def create_all_biased_sentiment_datasets():
     label_column = "sentiment_label"
@@ -52,9 +51,12 @@ def create_all_biased_sentiment_datasets():
         df[f"{bias_column}_label"] = (df[bias_column] >= median).astype(int)
         df_zero = df[df[f"{bias_column}_label"] < median]
         df_one = df[df[f"{bias_column}_label"] >= median]
-        df_biased = bias_gentle(df_zero.copy(), df_one.copy(), label_column, biased_label, biasing_factor).set_index(keys="id", drop=True)
-        validate_dataset(df_biased)
-        split_data(df_biased, f"{SENTIMENT_RAW_DATA_DIR}/{domain}", f"adj_{bias_column}_biased_{biased_label}", label_column)
+        for bias_method in (bias_gentle, bias_aggressive):
+            df_biased = bias_method(df_zero.copy(), df_one.copy(), label_column, bias_column,
+                                    biased_label, biasing_factor, bias_ranked_sampling).set_index(keys="id", drop=True)
+            validate_dataset(df_biased)
+            split_data(df_biased, f"{SENTIMENT_RAW_DATA_DIR}/{domain}",
+                       f"adj_{bias_method.__name__}_{bias_column}_{biased_label}", label_column)
 
 
 @timer
