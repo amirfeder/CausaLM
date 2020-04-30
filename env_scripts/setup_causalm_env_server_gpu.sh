@@ -6,8 +6,9 @@ then
   echo "Conda Environments Setup"
   mkdir -p ~/bin
   cd ~/bin
-  wget https://repo.anaconda.com/archive/Anaconda3-2019.10-Linux-x86_64.sh
-  bash Anaconda3-2019.10-Linux-x86_64.sh
+  wget https://repo.anaconda.com/archive/Anaconda3-2020.02-Linux-x86_64.sh
+  bash Anaconda3-2020.02-Linux-x86_64.sh
+  source ~/anaconda3/etc/profile.d/conda.sh
   echo "alias 'conda_env'='source \$HOME/anaconda3/etc/profile.d/conda.sh'" >> ~/.bash_profile
 fi
 echo "Clone CausaLM git repository"
@@ -15,14 +16,15 @@ mkdir -p ~/dev
 cd ~/dev/
 git clone https://github.com/amirfeder/CausaLM.git
 echo "export CAUSALM_REPO=\$HOME/dev/CausaLM/" >> ~/.bash_profile
+echo "export LD_LIBRARY_PATH=/usr/local/cuda/lib64/" >> ~/.bash_profile
 # conda env create --file ~/dev/CausaLM/causalm_gpu_env.yml
-source ~/anaconda3/etc/profile.d/conda.sh
+source ~/.bash_profile
 conda create --name causalm -y python=3.7.5
 conda activate causalm
 conda install -y pip
 pip install git+https://github.com/nadavo/Timer.git
 pip install pytorch-lightning
-pip install --upgrade numpy scipy matplotlib pandas seaborn scikit-learn gensim nltk pyLDAvis jupyter mkl pytest torch torchvision torchtext pytorch-ignite tensorflow-gpu spacy[cuda] tensorboard tensorboardx streamlit tabulate tqdm statsmodels transformers jupyter_contrib_nbextensions jupyterlab captum cython ray
+pip install --upgrade numpy scipy matplotlib pandas seaborn scikit-learn gensim nltk pyLDAvis jupyter mkl pytest torch torchvision torchtext pytorch-ignite tensorflow-gpu spacy[cuda] tensorboard tensorboardx streamlit tabulate tqdm statsmodels transformers jupyter_contrib_nbextensions jupyterlab captum cython ray comet-ml
 pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-2.2.5/en_core_web_lg-2.2.5.tar.gz
 cd ~/dev/
 git clone https://github.com/NVIDIA/apex
@@ -34,8 +36,8 @@ if [ ! -d "$HOME/bin/go" ]
 then
   echo "Google Drive Setup"
   cd ~/bin
-  wget https://dl.google.com/go/go1.13.5.linux-amd64.tar.gz
-  tar -xzvf go1.13.5.linux-amd64.tar.gz
+  wget https://dl.google.com/go/go1.14.2.linux-amd64.tar.gz
+  tar -xzvf go1.14.2.linux-amd64.tar.gz
   mkdir -p $HOME/bin/go/packages
   echo "export GOROOT=\$HOME/bin/go" >> ~/.bash_profile
   echo "export GOPATH=\$GOROOT/packages" >> ~/.bash_profile
