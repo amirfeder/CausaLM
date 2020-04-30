@@ -1,8 +1,11 @@
 from typing import Callable, List
+from tqdm import tqdm
 from transformers import BertModel
 from torch.utils.data.dataloader import DataLoader
-from constants import NUM_CPU
-from BERT.dataset import BertTextClassificationDataset, BERT_PRETRAINED_MODEL
+from GendeRace.pregenerate_training_data import CLS_TOKEN, SEP_TOKEN
+from constants import NUM_CPU, MAX_SENTIMENT_SEQ_LENGTH
+from BERT.bert_text_dataset import BERT_PRETRAINED_MODEL, BertTextDataset, InputExample, InputLabel, InputFeatures, \
+    truncate_seq_first
 from pytorch_lightning import LightningModule, data_loader
 from utils import save_predictions
 import torch.nn.functional as F
@@ -287,3 +290,47 @@ class LightningBertPretrainedClassifier(LightningModule):
                 "log": {"test_loss": avg_loss, "test_accuracy": accuracy}}
 
 
+class BertTextClassificationDataset(BertTextDataset):
+
+    IGNORE_LABEL_IDX = -1
+
+    def __init__(self, data_path: str, treatment: str, subset: str, text_column: str, label_column: str,
+                 bert_pretrained_model: str = BERT_PRETRAINED_MODEL, max_seq_length: int = MAX_SENTIMENT_SEQ_LENGTH):
+        super().__init__(data_path, treatment, subset, text_column, label_column, bert_pretrained_model, max_seq_length)
+
+    def read_examples_func(self, row):
+        return InputExample(unique_id=int(row.iloc[0]), text=str(row[self.text_column]), label=int(row[self.label_column]))
+
+    def convert_examples_to_features(self, examples):
+        """Loads a data file into a list of `InputFeature`s."""
+        features_list = list()
+        labels_list = list()
+        for i, example in tqdm(enumerate(examples), total=len(examples), desc=f"{self.subset}-convert_examples_to_features"):
+            features, example_len = self.tokenize_and_pad_sequence(example)
+            features_list.append(features)
+            labels_list.append(InputLabel(unique_id=example.unique_id, label=example.label))
+        return features_list, labels_list
+
+    def tokenize_and_pad_sequence(self, example):
+        tokens = self.tokenizer.tokenize(example.text)
+
+        tokens = tuple([CLS_TOKEN] + truncate_seq_first(tokens, self.max_seq_length) + [SEP_TOKEN])
+
+        example_len = len(tokens) - 2
+
+        input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
+
+        # The mask has 1 for real tokens and 0 for padding tokens. Only real
+        # tokens are attended to.
+        input_mask = [1] * len(input_ids)
+
+        # Zero-pad up to the sequence length.
+        while len(input_ids) < self.max_seq_length:
+            input_ids.append(self.PAD_TOKEN_IDX)
+            input_mask.append(self.PAD_TOKEN_IDX)
+
+        assert len(input_ids) == self.max_seq_length
+        assert len(input_mask) == self.max_seq_length
+
+        return InputFeatures(unique_id=example.unique_id, tokens=tokens,
+                             input_ids=input_ids, input_mask=input_mask), example_len

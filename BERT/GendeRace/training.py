@@ -1,8 +1,8 @@
-from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_EXPERIMENTS_DIR, POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, \
+from constants import POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, \
     POMS_RACE_DATASETS_DIR, MAX_POMS_SEQ_LENGTH, POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR
 from pytorch_lightning import Trainer
-from BERT.networks import LightningBertPretrainedClassifier, LightningHyperparameters
-from BERT.predict import predict_adj_models, print_final_metrics, predict_genderace_models
+from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
+from GendeRace.predict import print_final_metrics, predict_genderace_models
 from Timer import timer
 from argparse import ArgumentParser
 from typing import Dict
@@ -11,41 +11,20 @@ import torch
 # LOGGER = init_logger("OOB_training")
 from utils import init_logger
 
-DOMAIN = "movies"
-MODE = "OOB_F"
-BERT_STATE_DICT = None
-TREATMENT = "adj"
-TEXT_COLUMN = "review"
-LABEL_COLUMN = "label"
-DATASET_DIR = f"{SENTIMENT_RAW_DATA_DIR}/{DOMAIN}"
 # DEVICE = get_free_gpu()
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ### Constants
-PAD_ID = 0
 BATCH_SIZE = 200
 ACCUMULATE = 4
 DROPOUT = 0.1
 EPOCHS = 50
 FP16 = False
 
-HYPERPARAMETERS = {
-    "data_path": DATASET_DIR,
-    "treatment": TREATMENT,
-    "text_column": TEXT_COLUMN,
-    "label_column": LABEL_COLUMN,
-    "bert_params": {
-        "batch_size": BATCH_SIZE,
-        "dropout": DROPOUT,
-        "bert_state_dict": BERT_STATE_DICT,
-        "name": MODE
-    }
-}
-
 
 def main():
     parser = ArgumentParser()
     parser.add_argument("--treatment", type=str, required=True, default="gender",
-                        help="Specify treatment for experiments: adj, gender, race")
+                        help="Specify treatment for experiments: gender, race")
     parser.add_argument("--corpus_type", type=str, required=False, default="",
                         help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
     parser.add_argument("--group", type=str, required=True, default="F",
@@ -55,8 +34,6 @@ def main():
     args = parser.parse_args()
     if args.treatment in ("gender", "race"):
         train_all_genderace_models(args.treatment, args.corpus_type, args.group, args.pretrained_epoch)
-    elif "adj" in args.treatment:
-        train_adj_models(args.treatment)
 
 
 @timer
@@ -75,19 +52,6 @@ def bert_train_eval(hparams, output_dir):
     trainer.test()
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
     return model
-
-
-@timer
-def train_adj_models():
-    # Factual OOB BERT Model training
-    OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_F"
-    factual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
-    # CounterFactual OOB BERT Model training
-    OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF"
-    HYPERPARAMETERS["text_column"] = "no_adj_review"
-    HYPERPARAMETERS["bert_params"]["name"] = "OOB_CF"
-    counterfactual_oob_model = bert_train_eval(HYPERPARAMETERS, OUTPUT_DIR)
-    predict_adj_models(factual_oob_model, counterfactual_oob_model)
 
 
 @timer

@@ -1,9 +1,8 @@
 from argparse import ArgumentParser
 from typing import Dict
-from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_IMA_DATA_DIR, SENTIMENT_MLM_DATA_DIR, POMS_MLM_DATA_DIR, \
-    POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR, POMS_EXPERIMENTS_DIR, MAX_POMS_SEQ_LENGTH
+from constants import POMS_MLM_DATA_DIR, POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR, POMS_EXPERIMENTS_DIR, MAX_POMS_SEQ_LENGTH
 from pytorch_lightning import Trainer, LightningModule
-from BERT.networks import LightningBertPretrainedClassifier, BertPretrainedClassifier
+from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir, path
 from glob import glob
 from Timer import timer
@@ -88,50 +87,6 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     model.freeze()
     trainer.test(model)
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
-
-
-@timer
-def predict_adj_models(factual_model_ckpt=None, counterfactual_model_ckpt=None):
-    DOMAIN = "movies"
-    TREATMENT = "adj"
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    hparams = {"bert_params": {}}
-    # Factual OOB BERT Model training
-    OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/COMPARE"
-    trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
-                      default_save_path=OUTPUT_DIR,
-                      show_progress_bar=True,
-                      early_stop_callback=None)
-    hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
-    if not factual_model_ckpt:
-        factual_model_ckpt = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_F/best_model/checkpoints"
-    hparams["text_column"] = "review"
-    hparams["bert_params"]["name"] = "OOB_F"
-    hparams["bert_params"]["bert_state_dict"] = None
-    bert_treatment_test(factual_model_ckpt, hparams, trainer)
-    # Factual OOB BERT Model test with MLM LM
-    hparams["bert_params"]["name"] = "MLM"
-    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, hparams, trainer)
-    # Factual OOB BERT Model test with IMA LM
-    hparams["bert_params"]["name"] = "IMA"
-    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_IMA_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, hparams, trainer)
-    # Factual OOB BERT Model test with MLM LM (double_samples)
-    hparams["bert_params"]["name"] = "MLM_double_samples"
-    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/double/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, hparams, trainer)
-    # Factual OOB BERT Model test with IMA LM (double_adj)
-    hparams["bert_params"]["name"] = "IMA_double_adj"
-    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_IMA_DATA_DIR}/double/{DOMAIN}/model/pytorch_model.bin"
-    bert_treatment_test(factual_model_ckpt, hparams, trainer)
-    # CounterFactual OOB BERT Model training
-    hparams["text_column"] = "no_adj_review"
-    hparams["bert_params"]["name"] = "OOB_CF"
-    hparams["bert_params"]["bert_state_dict"] = None
-    if not counterfactual_model_ckpt:
-        counterfactual_model_ckpt = f"{SENTIMENT_EXPERIMENTS_DIR}/{TREATMENT}/{DOMAIN}/OOB_CF/best_model/checkpoints"
-    bert_treatment_test(counterfactual_model_ckpt, hparams, trainer)
 
 
 @timer

@@ -1,6 +1,5 @@
 from transformers.modeling_bert import BertLMPredictionHead, BertPreTrainedModel, BertModel
 from BERT.lm_finetuning.grad_reverse_layer import GradReverseLayerFunction
-from BERT.networks import HAN_Attention_Pooler_Layer
 from torch.nn import CrossEntropyLoss
 import torch.nn as nn
 import torch

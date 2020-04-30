@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import shelve
 from multiprocessing import Pool
 from typing import List, Collection
-from random import random, randrange, randint, shuffle, choice
+from random import random, randrange, randint, choice
 from transformers.tokenization_bert import BertTokenizer
 import pandas as pd
 import numpy as np
@@ -14,11 +14,7 @@ import collections
 from constants import BERT_PRETRAINED_MODEL, POMS_GENDER_PRETRAIN_DATA_DIR, POMS_RACE_PRETRAIN_DATA_DIR, MAX_POMS_SEQ_LENGTH, POMS_RAW_DATA_DIR
 from Timer import timer
 
-WORDPIECE_PREFIX = "##"
-CLS_TOKEN = "[CLS]"
-SEP_TOKEN = "[SEP]"
-MASK_TOKEN = "[MASK]"
-
+from datasets_utils import WORDPIECE_PREFIX, MASK_TOKEN, CLS_TOKEN, SEP_TOKEN
 
 EPOCHS = 5
 MLM_PROB = 0.15

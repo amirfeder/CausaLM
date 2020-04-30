@@ -1,29 +1,27 @@
 from argparse import ArgumentParser
 from pathlib import Path
-import os
 import torch
 import logging
 import json
 import random
 import numpy as np
-from collections import namedtuple
+import pandas as pd
+from collections import namedtuple, defaultdict
 from tempfile import TemporaryDirectory
 
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
-from transformers import WEIGHTS_NAME, CONFIG_NAME
-from transformers.modeling_bert import BertForPreTraining
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from BERT.lm_finetuning.MLM.bert_mlm_pretrain import BertForMLMPreTraining
-from BERT.lm_finetuning.Gender.pregenerate_training_data import EPOCHS
-from utils import init_logger, INIT_TIME
+from GendeRace.pregenerate_training_data import EPOCHS
+from utils import init_logger
 from Timer import timer
-from constants import RANDOM_SEED, POMS_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, POMS_PRETRAIN_DATA_DIR
+from constants import RANDOM_SEED, POMS_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, POMS_GENDER_PRETRAIN_DATA_DIR
 
-BATCH_SIZE = 8
+BATCH_SIZE = 32
 FP16 = False
 
 InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids")
@@ -224,6 +222,7 @@ def pretrain_on_domain(args):
     logging.info("  Batch size = %d", args.train_batch_size)
     logging.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
+    loss_dict = defaultdict(list)
     for epoch in range(args.epochs):
         epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
                                             num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
@@ -259,12 +258,24 @@ def pretrain_on_domain(args):
                     scheduler.step()  # Update learning rate schedule
                     optimizer.zero_grad()
                     global_step += 1
+                loss_dict["epoch"].append(epoch)
+                loss_dict["batch_id"].append(step)
+                loss_dict["mlm_loss"].append(loss.item())
+        # Save a trained model
+        if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
+            logging.info("** ** * Saving fine-tuned model ** ** * ")
+            epoch_output_dir = args.output_dir / f"epoch_{epoch}"
+            epoch_output_dir.mkdir(parents=True, exist_ok=True)
+            model.save_pretrained(epoch_output_dir)
+            tokenizer.save_pretrained(epoch_output_dir)
 
     # Save a trained model
-    if  n_gpu > 1 and torch.distributed.get_rank() == 0  or n_gpu <=1 :
+    if n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <=1:
         logging.info("** ** * Saving fine-tuned model ** ** * ")
         model.save_pretrained(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
+        df = pd.DataFrame.from_dict(loss_dict)
+        df.to_csv(args.output_dir/"losses.csv")
 
 
 @timer(logger=logger)
@@ -319,10 +330,15 @@ def main():
                         type=int,
                         default=RANDOM_SEED,
                         help="random seed for initialization")
+    parser.add_argument("--corpus_type", type=str, required=False, default="",
+                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
     args = parser.parse_args()
-
-    MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / "model"
-    args.pregenerated_data = Path(POMS_PRETRAIN_DATA_DIR)
+    if args.corpus_type:
+        MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / f"model_{args.corpus_type}"
+        args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR) / args.corpus_type
+    else:
+        MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / "model"
+        args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR)
     args.output_dir = MODEL_OUTPUT_DIR
     args.fp16 = FP16
     pretrain_on_domain(args)
