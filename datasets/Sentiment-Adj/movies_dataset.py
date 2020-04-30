@@ -1,5 +1,5 @@
 from constants import MOVIES_DATA_DIR
-from datasets.datasets_utils import clean_review, tag_review, output_datasets
+from datasets.datasets_utils import clean_review, sentiment_output_datasets, PretrainedPOSTagger
 from Timer import timer
 import pandas as pd
 
@@ -18,10 +18,10 @@ def main():
     write_dataset(clean_dataset["review"], "moviesUN_clean.txt")
 
     tagged_dataset = df.copy()
-    tagged_dataset["review"] = df['review'].apply(tag_review)
+    tagged_dataset["review"] = df['review'].apply(PretrainedPOSTagger.tag_review)
     write_dataset(tagged_dataset["review"], "moviesUN_tagged.txt")
 
-    for key, val in output_datasets.items():
+    for key, val in sentiment_output_datasets.items():
         cur_clean_df = clean_dataset[clean_dataset['sentiment'] == key].reset_index()
         write_dataset(cur_clean_df["review"], f"{val}_clean.parsed")
 

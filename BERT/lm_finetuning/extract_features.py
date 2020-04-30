@@ -30,7 +30,7 @@ from torch.utils.data.distributed import DistributedSampler
 
 from transformers.tokenization_bert import BertTokenizer
 from transformers.modeling_bert import BertModel
-from lm_finetuning.IMA.pregenerate_training_data import truncate_seq, CLS_TOKEN, SEP_TOKEN, TOKEN_SEPARATOR
+from IMA.pregenerate_training_data import truncate_seq, CLS_TOKEN, SEP_TOKEN, TOKEN_SEPARATOR
 from constants import BERT_PRETRAINED_MODEL, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_MODE_DATA_DIR,\
     OOB_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, DOMAIN, FINAL_PRETRAINED_MODEL
 from utils import init_logger

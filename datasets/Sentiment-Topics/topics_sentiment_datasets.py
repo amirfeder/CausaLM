@@ -1,6 +1,6 @@
 """Create train/dev/test data with and without adjectives"""
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED, NUM_CPU
-from datasets.datasets_utils import output_datasets, split_data
+from datasets.datasets_utils import sentiment_output_datasets, split_data
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import LatentDirichletAllocation
@@ -40,7 +40,7 @@ def main():
         domain_reviews = []
         domain_labels = []
 
-        for key, val in output_datasets.items():
+        for key, val in sentiment_output_datasets.items():
             with open(f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{val}_clean.parsed") as datafile:
                 cur_reviews = datafile.readlines()
                 domain_reviews += cur_reviews

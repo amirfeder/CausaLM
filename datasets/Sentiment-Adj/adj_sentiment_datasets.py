@@ -1,6 +1,5 @@
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED
-from datasets.datasets_utils import output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, \
-    bias_gentle, ADJ_POS_TAGS, POS_TAG_IDX_MAP, bias_aggressive, bias_ranked_sampling
+from datasets.datasets_utils import sentiment_output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, bias_gentle, ADJ_POS_TAGS, POS_TAG_IDX_MAP, bias_aggressive, bias_ranked_sampling
 from Timer import timer
 from tqdm import tqdm
 import pandas as pd
@@ -73,7 +72,7 @@ def create_all_sentiment_datasets():
         examples, no_adj_examples = [], []
         num_adj_examples, review_len_examples, ratio_adj_examples = [], [], []
         ima_labels, pos_tagging_labels = [], []
-        for key, val in output_datasets.items():
+        for key, val in sentiment_output_datasets.items():
             tagged_dataset_file = SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + val + '_tagged.parsed'
             with open(tagged_dataset_file, "r") as file:
                 tagged_data = file.readlines()

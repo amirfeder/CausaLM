@@ -3,7 +3,7 @@ import json
 import spacy
 import pandas as pd
 from pandas.io.json import json_normalize
-from datasets.datasets_utils import tag_review, output_datasets, split_data
+from datasets.datasets_utils import sentiment_output_datasets, split_data, PretrainedPOSTagger
 from constants import AMAZON_DATA_DIR
 
 tagger = spacy.load("en_core_web_lg")
@@ -32,15 +32,16 @@ def main():
 
         split_data(df, domain_path)
 
-        for key in output_datasets.keys():
+        for key in sentiment_output_datasets.keys():
             cur_df = df[df['sentiment'] == key].reset_index()
-            tagged_dataset = cur_df['reviewText'].apply(tag_review)
+            tagged_dataset = cur_df['reviewText'].apply(PretrainedPOSTagger.tag_review)
 
-            tagged_dataset_file = domain_path + '/' + domain + '_' + output_datasets[key] + '.txt'
+            tagged_dataset_file = domain_path + '/' + domain + '_' + sentiment_output_datasets[key] + '.txt'
             with open(tagged_dataset_file, "w") as tagged_file:
                 tagged_file.write("\n".join(tagged_dataset))
 
         print('DONE with: ' + domain)
+
 
 if __name__ == "__main__":
     main()

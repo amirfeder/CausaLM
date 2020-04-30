@@ -7,15 +7,21 @@ import re
 import numpy as np
 import pandas as pd
 
+### BERT constants
+WORDPIECE_PREFIX = "##"
+CLS_TOKEN = "[CLS]"
+SEP_TOKEN = "[SEP]"
+MASK_TOKEN = "[MASK]"
+
+### POS Tags constants
 TOKEN_SEPARATOR = " "
 WORD_POS_SEPARATOR = "_"
 ADJ_POS_TAGS = ("ADJ", "ADV")
 POS_TAGS_TUPLE = tuple(sorted(TAG_MAP.keys()))
 POS_TAG_IDX_MAP = {str(tag): int(idx) for idx, tag in enumerate(POS_TAGS_TUPLE)}
+NUM_POS_TAGS_LABELS = len(POS_TAGS_TUPLE)
 
-tagger = spacy.load("en_core_web_lg")
-
-output_datasets = {0: 'negative', 1: 'positive'}
+sentiment_output_datasets = {0: 'negative', 1: 'positive'}
 
 
 def clean_review(text: str) -> str:
@@ -28,10 +34,16 @@ def clean_review(text: str) -> str:
     return review_text.strip()
 
 
-def tag_review(review: str) -> str:
-    review_text = clean_review(review)
-    tagged_review = [f"{token.text}{WORD_POS_SEPARATOR}{token.pos_}" for token in tagger(review_text)]
-    return TOKEN_SEPARATOR.join(tagged_review)
+class PretrainedPOSTagger:
+
+    tagger = spacy.load("en_core_web_lg")
+
+    @staticmethod
+    def tag_review(review: str) -> str:
+        review_text = clean_review(review)
+        tagged_review = [f"{token.text}{WORD_POS_SEPARATOR}{token.pos_}"
+                         for token in PretrainedPOSTagger.tagger(review_text)]
+        return TOKEN_SEPARATOR.join(tagged_review)
 
 
 def split_data(df: DataFrame, path: str, prefix: str, label_column: str = "label"):
