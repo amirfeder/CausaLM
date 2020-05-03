@@ -16,7 +16,7 @@ from tqdm import tqdm
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from BERT.lm_finetuning.MLM.bert_mlm_pretrain import BertForMLMPreTraining
-from GendeRace.pregenerate_training_data import EPOCHS
+from BERT.GendeRace.pregenerate_training_data import EPOCHS
 from utils import init_logger
 from Timer import timer
 from constants import RANDOM_SEED, POMS_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, POMS_GENDER_PRETRAIN_DATA_DIR
