@@ -2,8 +2,10 @@ from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED
 from datasets.datasets_utils import sentiment_output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, bias_gentle, ADJ_POS_TAGS, POS_TAG_IDX_MAP, bias_aggressive, bias_ranked_sampling
 from Timer import timer
 from tqdm import tqdm
+from utils import init_logger
 import pandas as pd
 
+LOGGER = init_logger("create_adj_sentiment_datasets", SENTIMENT_RAW_DATA_DIR)
 
 COLUMNS = ['id', 'domain_label', 'review', 'tagged_review', 'no_adj_review', 'num_adj', 'review_len', 'ratio_adj', 'sentiment_label', 'ima_labels', 'pos_tagging_labels']
 
@@ -24,27 +26,29 @@ def write_dataset(domain, columns, columns_vals_list):
 
 
 def validate_dataset(df):
-    print("Num reviews:", len(df))
-    print(df.columns)
+    LOGGER.info(f"Num reviews: {len(df)}")
+    LOGGER.info(f"{df.columns}")
     for col in df.columns:
         if col.endswith("_label"):
-            print(df[col].value_counts(dropna=False), "\n")
-    print("Mean review length:", df["review_len"].mean())
-    print("Median review length:", df["review_len"].median(), "\n")
-    print("Mean num adjectives:", df["num_adj"].mean())
-    print("Median num adjectives:", df["num_adj"].median(), "\n")
-    print("Mean ratio adjectives:", df["ratio_adj"].mean())
-    print("Median ratio adjectives:", df["ratio_adj"].median(), "\n")
+            LOGGER.info(f"{df[col].value_counts(dropna=False)}\n")
+    for col in ("review_len", "num_adj", "ratio_adj"):
+        col_vals = df["review_len"]
+        LOGGER.info(f"{col} statistics:")
+        LOGGER.info(f"Min: {col_vals.min()}")
+        LOGGER.info(f"Max: {col_vals.max()}")
+        LOGGER.info(f"Std: {col_vals.std()}")
+        LOGGER.info(f"Mean: {col_vals.mean()}")
+        LOGGER.info(f"Median: {col_vals.median()}\n")
 
 
-@timer
+@timer(logger=LOGGER)
 def create_all_biased_sentiment_datasets():
     label_column = "sentiment_label"
     biased_label = 1
     biasing_factor = 0.1
     bias_column = "ratio_adj"
     for domain in list(SENTIMENT_DOMAINS) + ["unified"]:
-        print(f'Biasing dataset for {domain} domain')
+        LOGGER.info(f'Biasing dataset for {domain} domain')
         df = pd.read_csv(f"{SENTIMENT_RAW_DATA_DIR}/{domain}/adj_all.csv", header=0)
         median = df[bias_column].median()
         df[f"{bias_column}_label"] = (df[bias_column] >= median).astype(int)
@@ -58,7 +62,7 @@ def create_all_biased_sentiment_datasets():
                        f"adj_{bias_method.__name__}_{bias_column}_{biased_label}", label_column)
 
 
-@timer
+@timer(logger=LOGGER)
 def create_all_sentiment_datasets():
     all_tagged_examples = []
     all_sentiment_labels, all_domain_labels = [], []
@@ -66,7 +70,7 @@ def create_all_sentiment_datasets():
     all_num_adj, all_review_len, all_ratio_adj = [], [], []
     all_ima_labels, all_pos_tagging_labels = [], []
     for domain_label, domain in enumerate(SENTIMENT_DOMAINS):
-        print(f'Creating dataset for {domain} domain')
+        LOGGER.info(f'Creating dataset for {domain} domain')
         tagged_examples = []
         sentiment_labels, domain_labels = [], []
         examples, no_adj_examples = [], []
@@ -125,7 +129,7 @@ def create_all_sentiment_datasets():
                                              ratio_adj_examples, sentiment_labels, ima_labels, pos_tagging_labels])
 
     domain = "unified"
-    print(f'Creating dataset for {domain} domain')
+    LOGGER.info(f'Creating dataset for {domain} domain')
     df = write_dataset("unified", COLUMNS, [list(range(1, len(all_domain_labels) + 1, 1)), all_domain_labels, all_examples,
                                             all_tagged_examples, all_no_adj_examples, all_num_adj, all_review_len,
                                             all_ratio_adj, all_sentiment_labels, all_ima_labels, all_pos_tagging_labels])
