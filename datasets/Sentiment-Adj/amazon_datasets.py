@@ -3,7 +3,7 @@ import json
 import spacy
 import pandas as pd
 from pandas.io.json import json_normalize
-from datasets.datasets_utils import sentiment_output_datasets, split_data, PretrainedPOSTagger
+from datasets.utils import sentiment_output_datasets, split_data, PretrainedPOSTagger
 from constants import AMAZON_DATA_DIR
 
 tagger = spacy.load("en_core_web_lg")

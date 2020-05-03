@@ -1,6 +1,6 @@
 """Create train/dev/test data with and without adjectives"""
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED, NUM_CPU
-from datasets.datasets_utils import sentiment_output_datasets, split_data
+from datasets.utils import sentiment_output_datasets, split_data
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import LatentDirichletAllocation

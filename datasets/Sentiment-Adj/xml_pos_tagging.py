@@ -3,7 +3,7 @@ from constants import SENTIMENT_RAW_DATA_DIR
 from os.path import splitext
 from utils import init_logger
 from tqdm import tqdm
-from datasets_utils import TOKEN_SEPARATOR, WORD_POS_SEPARATOR, clean_review
+from datasets.utils import TOKEN_SEPARATOR, WORD_POS_SEPARATOR, clean_review
 from Timer import timer
 import spacy
 import numpy as np

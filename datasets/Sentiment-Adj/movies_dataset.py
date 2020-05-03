@@ -1,5 +1,5 @@
 from constants import MOVIES_DATA_DIR
-from datasets.datasets_utils import clean_review, sentiment_output_datasets, PretrainedPOSTagger
+from datasets.utils import clean_review, sentiment_output_datasets, PretrainedPOSTagger
 from Timer import timer
 import pandas as pd
 

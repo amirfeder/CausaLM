@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
 from constants import POMS_GENDER_DATASETS_DIR, POMS_RAW_DATA_DIR, POMS_RACE_DATASETS_DIR, RANDOM_SEED
-from datasets_utils import split_data, print_text_stats, bias_gentle, bias_aggressive, bias_random_sampling
+from datasets.utils import split_data, print_text_stats, bias_gentle, bias_aggressive, bias_random_sampling
 from Timer import timer
 import pandas as pd
 
