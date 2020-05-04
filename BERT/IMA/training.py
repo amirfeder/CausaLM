@@ -8,12 +8,11 @@ from argparse import ArgumentParser
 from typing import Dict
 import torch
 
-# LOGGER = init_logger("OOB_training")
 from datasets.utils import NUM_POS_TAGS_LABELS
 from utils import init_logger
 
-# DEVICE = get_free_gpu()
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 ### Constants
 BATCH_SIZE = 4
 ACCUMULATE = 4
