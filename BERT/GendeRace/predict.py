@@ -5,6 +5,7 @@ from pytorch_lightning import Trainer, LightningModule
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir, path
 from glob import glob
+from copy import deepcopy
 from Timer import timer
 from utils import GoogleDriveHandler, send_email, init_logger
 import torch
@@ -62,7 +63,7 @@ def main():
 @timer
 def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     if isinstance(model_ckpt, LightningModule):
-        model = model_ckpt
+        model = deepcopy(model_ckpt)
     else:
         logger.info(f"Loading model for {hparams['treatment']} {hparams['bert_params']['name']} from: {model_ckpt}")
         model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt)
