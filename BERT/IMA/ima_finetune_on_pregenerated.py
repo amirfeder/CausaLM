@@ -399,7 +399,10 @@ def main():
 
     logger.info(f"\nPretraining on domain: {args.domain}")
     args.pregenerated_data = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.masking_method / args.domain
-    args.output_dir = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.masking_method / args.domain / "model"
+    if args.control_task:
+        args.output_dir = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.masking_method / args.domain / "model_control"
+    else:
+        args.output_dir = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.masking_method / args.domain / "model"
     args.fp16 = FP16
     pretrain_on_domain(args)
 
