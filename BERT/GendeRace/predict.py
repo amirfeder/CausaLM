@@ -63,7 +63,8 @@ def main():
 @timer
 def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     if isinstance(model_ckpt, LightningModule):
-        model = deepcopy(model_ckpt)
+        model = LightningBertPretrainedClassifier(deepcopy(model_ckpt.hparams))
+        model.bert_classifier = deepcopy(model_ckpt.bert_classifier)
     else:
         logger.info(f"Loading model for {hparams['treatment']} {hparams['bert_params']['name']} from: {model_ckpt}")
         model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt)
