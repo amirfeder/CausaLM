@@ -90,7 +90,7 @@ def train_models_unit(hparams: Dict, task, group, pretrained_control):
 
 
 @timer
-def train_models(hparams: Dict, group: str, pretrained_epoch: int, pretrained_control: bool):
+def train_models(hparams: Dict, group: str, pretrained_masking_method, pretrained_epoch: int, pretrained_control: bool):
     print(f"Training {hparams['treatment']} models")
     sentiment_model = train_models_unit(hparams, "Sentiment", group, pretrained_control)
     ima_model = train_models_unit(hparams, "IMA", group, pretrained_control)
@@ -101,7 +101,7 @@ def train_models(hparams: Dict, group: str, pretrained_epoch: int, pretrained_co
         else:
             group = f"{group}_ima_treated"
     predict_models(hparams['treatment'], hparams['domain'], group,
-                   pretrained_epoch, pretrained_control,
+                   pretrained_masking_method, pretrained_epoch, pretrained_control,
                    sentiment_model, ima_model, pos_tagging_model,
                    hparams["bert_params"]["bert_state_dict"])
 
@@ -143,19 +143,19 @@ def train_all_models(treatment: str, domain: str, group: str, masking_method: st
             "name": f"Sentiment_{group}"
         }
     }
-    train_models(hparams, group, pretrained_epoch, pretrained_control)
+    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
     hparams["treatment"] = f"{treatment}_bias_gentle_ratio_adj_1"
-    train_models(hparams, group, pretrained_epoch, pretrained_control)
+    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
     hparams["treatment"] = f"{treatment}_bias_aggressive_ratio_adj_1"
-    train_models(hparams, group, pretrained_epoch, pretrained_control)
+    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
 
     hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     hparams["treatment"] = treatment
-    train_models(hparams, group, pretrained_epoch, pretrained_control)
+    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
     hparams["treatment"] = f"{treatment}_bias_gentle_ratio_adj_1"
-    train_models(hparams, group, pretrained_epoch, pretrained_control)
+    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
     hparams["treatment"] = f"{treatment}_bias_aggressive_ratio_adj_1"
-    train_models(hparams, group, pretrained_epoch, pretrained_control)
+    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
 
 
 if __name__ == "__main__":
