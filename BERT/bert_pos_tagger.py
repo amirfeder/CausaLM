@@ -70,7 +70,7 @@ class BertPOSTagger(LightningModule):
         dataset = BertTokenClassificationDataset(self.hparams.data_path, self.hparams.treatment, "train",
                                                 self.hparams.text_column, self.hparams.label_column,
                                                 max_seq_length=self.hparams.max_seq_len)
-        dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
+        dataloader = DataLoader(dataset, batch_size=self.hparams.batch_size, shuffle=True, num_workers=NUM_CPU)
         return dataloader
 
     def training_step(self, batch, batch_idx):
@@ -90,7 +90,7 @@ class BertPOSTagger(LightningModule):
         dataset = BertTokenClassificationDataset(self.hparams.data_path, self.hparams.treatment, "dev",
                                                 self.hparams.text_column, self.hparams.label_column,
                                                 max_seq_length=self.hparams.max_seq_len)
-        dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
+        dataloader = DataLoader(dataset, batch_size=self.hparams.batch_size, shuffle=True, num_workers=NUM_CPU)
         return dataloader
 
     def validation_step(self, batch, batch_idx):
@@ -118,7 +118,7 @@ class BertPOSTagger(LightningModule):
         dataset = BertTokenClassificationDataset(self.hparams.data_path, self.hparams.treatment, "test",
                                                 self.hparams.text_column, self.hparams.label_column,
                                                 max_seq_length=self.hparams.max_seq_len)
-        dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)
+        dataloader = DataLoader(dataset, batch_size=self.hparams.batch_size, shuffle=True, num_workers=NUM_CPU)
         return dataloader
 
     def test_step(self, batch, batch_idx):

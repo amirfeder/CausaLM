@@ -132,11 +132,11 @@ def train_all_models(treatment: str, domain: str, group: str, masking_method: st
         "pretrain_conrol": pretrained_control,
         "text_column": text_column,
         "label_column": "sentiment_label",
+        "batch_size": BATCH_SIZE,
         "epochs": EPOCHS,
         "accumulate": ACCUMULATE,
         "max_seq_len": MAX_SENTIMENT_SEQ_LENGTH,
         "bert_params": {
-            "batch_size": BATCH_SIZE,
             "dropout": DROPOUT,
             "bert_state_dict": None,
             "label_size": 2,
