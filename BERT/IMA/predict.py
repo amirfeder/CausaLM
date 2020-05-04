@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
 from copy import deepcopy
 from typing import Dict
+
+from BERT.bert_pos_tagger import LightningBertPOSTagger
 from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_MLM_DATA_DIR, \
     SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_RAW_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH
 from pytorch_lightning import Trainer, LightningModule
@@ -49,15 +51,15 @@ def print_final_metrics(name: str, metrics: Dict, logger=None):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=True, default="adj", choices=("adj",),
+    parser.add_argument("--treatment", type=str, default="adj", choices=("adj",),
                         help="Specify treatment for experiments: adj")
     parser.add_argument("--domain", type=str, default="books", choices=("unified", "movies", "books", "dvd", "kitchen", "electronics"),
                         help="Dataset Domain: unified, movies, books, dvd, kitchen, electronics")
-    parser.add_argument("--group", type=str, required=True, default="F", choices=("F", "CF"),
+    parser.add_argument("--group", type=str, default="F", choices=("F", "CF"),
                         help="Specify data group for experiments: F (factual) or CF (counterfactual)")
     parser.add_argument("--masking_method", type=str, default="double_num_adj", choices=("double_num_adj", "mlm_prob"),
                         help="Method of determining num masked tokens in sentence: mlm_prob or double_num_adj")
-    parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
+    parser.add_argument("--pretrained_epoch", type=int, default=0,
                         help="Specify epoch for pretrained models: 0-4")
     parser.add_argument("--pretrained_control", action="store_true",
                         help="Use pretraining model with control task")
@@ -67,30 +69,51 @@ def main():
 
 
 @timer
-def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
-    if isinstance(model_ckpt, LightningModule):
-        model = LightningBertPretrainedClassifier(deepcopy(model_ckpt.hparams))
-        model.bert_classifier = deepcopy(model_ckpt.bert_classifier)
+def bert_treatment_test(model_ckpt, hparams, trainer, logger=None, task="Sentiment"):
+    if task == "Sentiment":
+        if isinstance(model_ckpt, LightningModule):
+                model = LightningBertPretrainedClassifier(deepcopy(model_ckpt.hparams))
+                model.bert_classifier = deepcopy(model_ckpt.bert_classifier)
+        else:
+            logger.info(f"Loading model for {hparams['treatment']} {hparams['bert_params']['name']} from: {model_ckpt}")
+            model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt)
+
+        if hparams["bert_params"]["bert_state_dict"]:
+            model.hparams.bert_params["bert_state_dict"] = hparams["bert_params"]["bert_state_dict"]
+            model.bert_classifier.bert_state_dict = hparams["bert_params"]["bert_state_dict"]
+            logger.info(f"Loading pretrained BERT model for {hparams['bert_params']['name']} from: {model.bert_classifier.bert_state_dict}")
+            model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
+                                                                                   model.bert_classifier.bert_state_dict)
+
+        # Update model hyperparameters
+        model.bert_classifier.name = hparams['bert_params']['name']
+        model.bert_classifier.label_size = hparams["bert_params"]["label_size"]
+
     else:
-        logger.info(f"Loading model for {hparams['treatment']} {hparams['bert_params']['name']} from: {model_ckpt}")
-        model = LightningBertPretrainedClassifier.load_from_checkpoint(model_ckpt)
+        if isinstance(model_ckpt, LightningModule):
+            model = LightningBertPOSTagger(deepcopy(model_ckpt.hparams))
+            model.bert_token_classifier = deepcopy(model_ckpt.bert_token_classifier)
+        else:
+            logger.info(f"Loading model for {hparams['treatment']} {hparams['bert_params']['name']} from: {model_ckpt}")
+            model = LightningBertPOSTagger.load_from_checkpoint(model_ckpt)
 
-    if hparams["bert_params"]["bert_state_dict"]:
-        model.hparams.bert_params["bert_state_dict"] = hparams["bert_params"]["bert_state_dict"]
-        model.bert_classifier.bert_state_dict = hparams["bert_params"]["bert_state_dict"]
-        logger.info(f"Loading pretrained BERT model for {hparams['bert_params']['name']} from: {model.bert_classifier.bert_state_dict}")
-        model.bert_classifier.bert = BertPretrainedClassifier.load_frozen_bert(model.bert_classifier.bert_pretrained_model,
-                                                                               model.bert_classifier.bert_state_dict)
+        if hparams["bert_params"]["bert_state_dict"]:
+            model.hparams.bert_params["bert_state_dict"] = hparams["bert_params"]["bert_state_dict"]
+            model.bert_token_classifier.bert_state_dict = hparams["bert_params"]["bert_state_dict"]
+            logger.info(f"Loading pretrained BERT model for {hparams['bert_params']['name']} from: {model.bert_token_classifier.bert_state_dict}")
+            model.bert_token_classifier.bert = LightningBertPOSTagger.load_frozen_bert(model.bert_token_classifier.bert_pretrained_model,
+                                                                                       model.bert_token_classifier.bert_state_dict)
 
-    # Update model hyperparameters
+        # Update model hyperparameters
+        model.bert_token_classifier.name = hparams['bert_params']['name']
+        model.bert_token_classifier.label_size = hparams["bert_params"]["label_size"]
+
     model.hparams.max_seq_len = hparams["max_seq_len"]
     model.hparams.output_path = hparams["output_path"]
     model.hparams.label_column = hparams["label_column"]
     model.hparams.text_column = hparams["text_column"]
     model.hparams.bert_params["name"] = hparams['bert_params']['name']
     model.hparams.bert_params["label_size"] = hparams["bert_params"]["label_size"]
-    model.bert_classifier.name = hparams['bert_params']['name']
-    model.bert_classifier.label_size = hparams["bert_params"]["label_size"]
 
     model.freeze()
     trainer.test(model)
@@ -146,20 +169,20 @@ def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer
 
     # Group Task BERT Model training
     logger.info(f"Model: {hparams['bert_params']['name']}")
-    bert_treatment_test(model_ckpt, hparams, trainer, logger)
+    bert_treatment_test(model_ckpt, hparams, trainer, logger, task)
 
     # Group Task BERT Model test with MLM LM
     hparams["bert_params"]["name"] = f"{task}_MLM_{group}_trained_{trained_group}"
     hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
     logger.info(f"MLM Pretrained Model: {SENTIMENT_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin")
-    bert_treatment_test(model_ckpt, hparams, trainer, logger)
+    bert_treatment_test(model_ckpt, hparams, trainer, logger, task)
 
     if not bert_state_dict:
         # Group Task BERT Model test with Gender/Race treated LM
         hparams["bert_params"]["name"] = f"{task}_{treatment_method}_treated_{group}_trained_{trained_group}"
         hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
         logger.info(f"Treated Pretrained Model: {pretrained_treated_model_dir}/pytorch_model.bin")
-        bert_treatment_test(model_ckpt, hparams, trainer, logger)
+        bert_treatment_test(model_ckpt, hparams, trainer, logger, task)
 
 
 @timer

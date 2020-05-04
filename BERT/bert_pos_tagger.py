@@ -16,7 +16,7 @@ from constants import NUM_CPU, MAX_SENTIMENT_SEQ_LENGTH
 from utils import save_predictions
 
 
-class BertPOSTagger(LightningModule):
+class LightningBertPOSTagger(LightningModule):
     #TODO: Verify all lightning train,val,test methods work properly for sequence tagging tasks
     def __init__(self, hparams: LightningHyperparameters):
         super().__init__()
@@ -24,8 +24,8 @@ class BertPOSTagger(LightningModule):
         self.bert_pretrained_model = hparams.bert_model if hasattr(hparams, "bert_model") else BERT_PRETRAINED_MODEL
         self.bert_state_dict = hparams.bert_state_dict if hasattr(hparams, "bert_state_dict") else None
         self.num_labels = hparams.num_labels if hasattr(hparams, "num_labels") else len(POS_TAGS_TUPLE)
-        self.bert_token_classifier = BertPOSTagger.load_frozen_bert(self.bert_model, self.bert_state_dict,
-                                                                    BertConfig.from_pretrained(self.bert_model,
+        self.bert_token_classifier = LightningBertPOSTagger.load_frozen_bert(self.bert_model, self.bert_state_dict,
+                                                                             BertConfig.from_pretrained(self.bert_model,
                                                                                                num_labels=self.num_labels))
 
     @staticmethod

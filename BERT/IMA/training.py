@@ -1,7 +1,7 @@
 from constants import SENTIMENT_EXPERIMENTS_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_RAW_DATA_DIR
 from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
-from bert_pos_tagger import BertPOSTagger
+from bert_pos_tagger import LightningBertPOSTagger
 from IMA.predict import print_final_metrics, predict_models
 from Timer import timer
 from argparse import ArgumentParser
@@ -15,7 +15,7 @@ from utils import init_logger
 # DEVICE = get_free_gpu()
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ### Constants
-BATCH_SIZE = 128
+BATCH_SIZE = 4
 ACCUMULATE = 4
 DROPOUT = 0.1
 EPOCHS = 50
@@ -24,15 +24,15 @@ FP16 = False
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=True, default="adj", choices=("adj",),
+    parser.add_argument("--treatment", type=str, default="adj", choices=("adj",),
                         help="Specify treatment for experiments: adj")
     parser.add_argument("--domain", type=str, default="books", choices=("unified", "movies", "books", "dvd", "kitchen", "electronics"),
                         help="Dataset Domain: unified, movies, books, dvd, kitchen, electronics")
-    parser.add_argument("--group", type=str, required=True, default="F", choices=("F", "CF"),
+    parser.add_argument("--group", type=str, default="F", choices=("F", "CF"),
                         help="Specify data group for experiments: F (factual) or CF (counterfactual)")
     parser.add_argument("--masking_method", type=str, default="double_num_adj", choices=("double_num_adj", "mlm_prob"),
                         help="Method of determining num masked tokens in sentence: mlm_prob or double_num_adj")
-    parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
+    parser.add_argument("--pretrained_epoch", type=int, default=0,
                         help="Specify epoch for pretrained models: 0-4")
     parser.add_argument("--pretrained_control", action="store_true",
                         help="Use pretraining model with control task")
@@ -53,9 +53,10 @@ def bert_train_eval(hparams, task, output_dir):
     logger = init_logger("training", hparams["output_path"])
     logger.info(f"Training for {hparams['epochs']} epochs")
     if task == "Sentiment":
+        hparams["bert_params"]["batch_size"] = hparams["batch_size"]
         model = LightningBertPretrainedClassifier(LightningHyperparameters(hparams))
     else:
-        model = BertPOSTagger(LightningHyperparameters(hparams))
+        model = LightningBertPOSTagger(LightningHyperparameters(hparams))
     trainer.fit(model)
     trainer.test()
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
