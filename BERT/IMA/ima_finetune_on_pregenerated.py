@@ -12,21 +12,26 @@ from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 from Timer import timer
-from utils import init_logger, INIT_TIME
+from transformers import BertConfig
+
+from utils import init_logger
 
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 
-from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_DATA_DIR, SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_DOMAINS, NUM_CPU
-from BERT.lm_finetuning.IMA.pregenerate_training_data import EPOCHS
-from BERT.lm_finetuning.IMA.bert_ima_pretrain import BertForIMAPreTraining
+from BERT.bert_text_dataset import BertTextDataset
+from BERT.bert_pos_tagger import BertTokenClassificationDataset
+from constants import BERT_PRETRAINED_MODEL, RANDOM_SEED, SENTIMENT_IMA_PRETRAIN_DATA_DIR, NUM_CPU
+from datasets.utils import NUM_POS_TAGS_LABELS
+from BERT.IMA.pregenerate_training_data import EPOCHS
+from BERT.IMA.bert_ima_pretrain import BertForIMAPreTraining, BertForIMAwControlPreTraining
 
 
 BATCH_SIZE = 8
 FP16 = False
 
 # InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
-AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids adj_labels unique_id")
+AdjInputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids adj_labels pos_tag_labels unique_id")
 
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
@@ -57,15 +62,16 @@ class PregeneratedPOSTaggedDataset(Dataset):
                                     shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
             lm_label_ids = np.memmap(filename=self.working_dir/'lm_label_ids.memmap',
                                      shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
-            lm_label_ids[:] = -1
+            lm_label_ids[:] = BertTextDataset.MLM_IGNORE_LABEL_IDX
             adj_labels = np.memmap(filename=self.working_dir/'adj_labels.memmap',
                                    shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
-            adj_labels[:] = -1
+            adj_labels[:] = BertTextDataset.MLM_IGNORE_LABEL_IDX
         else:
             input_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.int32)
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
-            lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
-            adj_labels = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
+            lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
+            adj_labels = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
+            pos_tag_labels = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX)
             unique_ids = np.zeros(shape=(num_samples,), dtype=np.int32)
         logger.info(f"Loading training examples for epoch {epoch}")
         with data_file.open() as f:
@@ -77,6 +83,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
                 input_masks[i] = features.input_mask
                 lm_label_ids[i] = features.lm_label_ids
                 adj_labels[i] = features.adj_labels
+                pos_tag_labels[i] = features.pos_tag_labels
                 unique_ids[i] = features.unique_id
         assert i == num_samples - 1  # Assert that the sample count metric was true
         logger.info("Loading complete!")
@@ -86,6 +93,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
         self.input_masks = input_masks
         self.lm_label_ids = lm_label_ids
         self.adj_labels = adj_labels
+        self.pos_tag_labels = pos_tag_labels
         self.unique_ids = unique_ids
 
     def __len__(self):
@@ -96,6 +104,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
                 torch.tensor(self.input_masks[item].astype(np.int64)),
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
                 torch.tensor(self.adj_labels[item].astype(np.int64)),
+                torch.tensor(self.pos_tag_labels[item].astype(np.int64)),
                 torch.tensor(self.unique_ids[item].astype(np.int64)))
 
     @staticmethod
@@ -104,6 +113,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
         masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
         masked_lm_labels = example["masked_lm_labels"]
         masked_adj_labels = [int(i) for i in example["masked_adj_labels"]]
+        pos_tag_labels = [int(i) for i in example["pos_tag_labels"]]
         unique_id = int(example["unique_id"])
 
         assert len(tokens) <= max_seq_length  # The preprocessed data should be already truncated
@@ -116,16 +126,20 @@ class PregeneratedPOSTaggedDataset(Dataset):
         mask_array = np.zeros(max_seq_length, dtype=np.bool)
         mask_array[:len(input_ids)] = 1
 
-        lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+        lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
         lm_label_array[masked_lm_positions] = masked_label_ids
 
-        adj_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+        adj_label_array = np.full(max_seq_length, dtype=np.int, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
         adj_label_array[masked_lm_positions] = masked_adj_labels
+
+        pos_tag_labels_array = np.full(max_seq_length, dtype=np.int, fill_value=BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX)
+        pos_tag_labels_array[:len(input_ids)] = pos_tag_labels
 
         features = AdjInputFeatures(input_ids=input_array,
                                     input_mask=mask_array,
                                     lm_label_ids=lm_label_array,
                                     adj_labels=adj_label_array,
+                                    pos_tag_labels=pos_tag_labels_array,
                                     unique_id=unique_id)
         return features
 
@@ -193,7 +207,11 @@ def pretrain_on_domain(args):
         num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
     # Prepare model
-    model = BertForIMAPreTraining.from_pretrained(args.bert_model)
+    if args.control_task:
+        config = BertConfig.from_pretrained(args.bert_model, num_labels=NUM_POS_TAGS_LABELS)
+        model = BertForIMAwControlPreTraining.from_pretrained(pretrained_model_name_or_path=args.bert_model, config=config)
+    else:
+        model = BertForIMAPreTraining.from_pretrained(args.bert_model)
     if args.fp16:
         model.half()
     model.to(device)
@@ -258,12 +276,19 @@ def pretrain_on_domain(args):
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, lm_label_ids, adj_labels, unique_id = batch
-                outputs = model(input_ids=input_ids, attention_mask=input_mask,
-                                masked_lm_labels=lm_label_ids, masked_adj_labels=adj_labels)
+                input_ids, input_mask, lm_label_ids, adj_labels, pos_tag_labels, unique_id = batch
+                if args.control_task:
+                    outputs = model(input_ids=input_ids, attention_mask=input_mask,
+                                    masked_lm_labels=lm_label_ids, masked_adj_labels=adj_labels,
+                                    pos_tagging_labels=pos_tag_labels)
+                else:
+                    outputs = model(input_ids=input_ids, attention_mask=input_mask,
+                                    masked_lm_labels=lm_label_ids, masked_adj_labels=adj_labels)
                 loss = outputs[0]
                 mlm_loss = outputs[1]
                 adversarial_loss = outputs[2]
+                if args.control_task:
+                    control_loss = outputs[3]
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
                     mlm_loss = mlm_loss.mean()
@@ -290,7 +315,11 @@ def pretrain_on_domain(args):
                     loss_dict["unique_id"].append(unique_id[i].item())
                     loss_dict["mlm_loss"].append(mlm_loss[i].item())
                     loss_dict["adversarial_loss"].append(adversarial_loss[i].item())
-                    loss_dict["total_loss"].append(mlm_loss[i].item() + adversarial_loss[i].item())
+                    if args.control_task:
+                        loss_dict["control_loss"].append(control_loss[i].item())
+                        loss_dict["total_loss"].append(mlm_loss[i].item() + adversarial_loss[i].item() + control_loss[i].item())
+                    else:
+                        loss_dict["total_loss"].append(mlm_loss[i].item() + adversarial_loss[i].item())
         # Save a trained model
         if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
             logger.info("** ** * Saving fine-tuned model ** ** * ")
@@ -360,10 +389,12 @@ def main():
                         type=int,
                         default=RANDOM_SEED,
                         help="random seed for initialization")
-    parser.add_argument("--masking_method", type=str, default="double_num_adj",
+    parser.add_argument("--masking_method", type=str, default="double_num_adj", choices=("mlm_prob", "double_num_adj"),
                         help="Method of determining num masked tokens in sentence: mlm_prob or double_num_adj")
-    parser.add_argument("--domain", type=str, default="movies",
+    parser.add_argument("--domain", type=str, default="movies", choices=("movies", "books", "dvd", "kitchen", "electronics", "unified"),
                         help="Dataset Domain: unified, movies, books, dvd, kitchen, electronics")
+    parser.add_argument("--control_task", action="store_true",
+                        help="Use pretraining model with control task")
     args = parser.parse_args()
 
     logger.info(f"\nPretraining on domain: {args.domain}")

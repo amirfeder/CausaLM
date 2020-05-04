@@ -1,6 +1,5 @@
 from argparse import ArgumentParser
 from pathlib import Path
-import os
 import torch
 import logging
 import json
@@ -14,15 +13,14 @@ from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
-from transformers import WEIGHTS_NAME, CONFIG_NAME
-from transformers.modeling_bert import BertForPreTraining
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from BERT.lm_finetuning.MLM.bert_mlm_pretrain import BertForMLMPreTraining
 from BERT.lm_finetuning.MLM.pregenerate_training_data import EPOCHS
-from utils import init_logger, INIT_TIME
+from BERT.bert_text_dataset import BertTextDataset
+from utils import init_logger
 from Timer import timer
-from constants import RANDOM_SEED, SENTIMENT_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, SENTIMENT_DOMAINS, NUM_CPU, \
+from constants import RANDOM_SEED, BERT_PRETRAINED_MODEL, NUM_CPU, \
     SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_MLM_PRETRAIN_DATA_DIR
 
 BATCH_SIZE = 8
@@ -50,7 +48,7 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
     mask_array = np.zeros(max_seq_length, dtype=np.bool)
     mask_array[:len(input_ids)] = 1
 
-    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
     lm_label_array[masked_lm_positions] = masked_label_ids
 
     features = InputFeatures(input_ids=input_array,
@@ -82,11 +80,11 @@ class PregeneratedDataset(Dataset):
                                     shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
             lm_label_ids = np.memmap(filename=self.working_dir/'lm_label_ids.memmap',
                                      shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
-            lm_label_ids[:] = -1
+            lm_label_ids[:] = BertTextDataset.MLM_IGNORE_LABEL_IDX
         else:
             input_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.int32)
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
-            lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
+            lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
         logging.info(f"Loading training examples for epoch {epoch}")
         with data_file.open() as f:
             for i, line in enumerate(tqdm(f, total=num_samples, desc="Training examples")):
