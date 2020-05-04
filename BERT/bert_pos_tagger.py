@@ -161,7 +161,7 @@ class BertPOSTagger(LightningModule):
 
 class BertTokenClassificationDataset(BertTextDataset):
 
-    IGNORE_LABEL_IDX = -100
+    POS_IGNORE_LABEL_IDX = -100
 
     def __init__(self, data_path: str, treatment: str, subset: str, text_column: str, label_column: str,
                  bert_pretrained_model: str = BERT_PRETRAINED_MODEL,
@@ -194,8 +194,8 @@ class BertTokenClassificationDataset(BertTextDataset):
         labels = self.align_labels_to_bert_tokenization(self.tokenizer, tokens, example.text, list(example.label))
 
         tokens = tuple([CLS_TOKEN] + truncate_seq_first(tokens, self.max_seq_length) + [SEP_TOKEN])
-        labels = [self.IGNORE_LABEL_IDX] + truncate_seq_first(labels, self.max_seq_length) + [
-            self.IGNORE_LABEL_IDX]
+        labels = [self.POS_IGNORE_LABEL_IDX] + truncate_seq_first(labels, self.max_seq_length) + [
+            self.POS_IGNORE_LABEL_IDX]
 
         example_len = len(tokens) - 2
 
@@ -209,7 +209,7 @@ class BertTokenClassificationDataset(BertTextDataset):
         while len(input_ids) < self.max_seq_length:
             input_ids.append(self.PAD_TOKEN_IDX)
             input_mask.append(self.PAD_TOKEN_IDX)
-            labels.append(self.IGNORE_LABEL_IDX)
+            labels.append(self.POS_IGNORE_LABEL_IDX)
 
         assert len(input_ids) == self.max_seq_length
         assert len(input_mask) == self.max_seq_length

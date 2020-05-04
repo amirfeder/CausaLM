@@ -236,7 +236,7 @@ def create_instances_from_document(
     assert len(tokens_a) >= 1
 
     tokens = tuple([CLS_TOKEN] + tokens_a + [SEP_TOKEN])
-    tokens_pos_labels = tuple([BertTokenClassificationDataset.IGNORE_LABEL_IDX] + tokens_pos_labels + [BertTokenClassificationDataset.IGNORE_LABEL_IDX])
+    tokens_pos_labels = tuple([BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX] + tokens_pos_labels + [BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX])
     # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
     # They are 1 for the B tokens and the final [SEP]
     # segment_ids = [0 for _ in range(len(tokens_a) + 2)]
