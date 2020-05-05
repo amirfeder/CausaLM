@@ -2,11 +2,11 @@ from argparse import ArgumentParser
 from copy import deepcopy
 from typing import Dict
 
+from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from BERT.bert_pos_tagger import LightningBertPOSTagger
 from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_MLM_DATA_DIR, \
     SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_RAW_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH
 from pytorch_lightning import Trainer, LightningModule
-from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir, path
 from glob import glob
 from Timer import timer

@@ -1,8 +1,8 @@
 from constants import SENTIMENT_EXPERIMENTS_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_RAW_DATA_DIR
 from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
-from bert_pos_tagger import LightningBertPOSTagger
-from IMA.predict import print_final_metrics, predict_models
+from BERT.bert_pos_tagger import LightningBertPOSTagger
+from BERT.IMA.predict import print_final_metrics, predict_models
 from Timer import timer
 from argparse import ArgumentParser
 from typing import Dict
@@ -14,7 +14,7 @@ from utils import init_logger
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ### Constants
-BATCH_SIZE = 4
+BATCH_SIZE = 200
 ACCUMULATE = 4
 DROPOUT = 0.1
 EPOCHS = 50
