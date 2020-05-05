@@ -221,7 +221,7 @@ class BertForIMAwControlPreTraining(BertPreTrainedModel):
             # Only keep active parts of the loss
             if attention_mask is not None:
                 active_loss = attention_mask.view(-1) == 1
-                active_logits = pos_tagging_scores.view(-1, self.num_labels)
+                active_logits = pos_tagging_scores.view(-1, self.config.num_labels)
                 active_labels = torch.where(
                     active_loss, pos_tagging_labels.view(-1), torch.tensor(loss_f.ignore_index).type_as(pos_tagging_labels)
                 )
@@ -231,7 +231,7 @@ class BertForIMAwControlPreTraining(BertPreTrainedModel):
                                                                                          active_labels,
                                                                                          self.config.num_labels)
             else:
-                pos_tagging_loss = loss_f(pos_tagging_scores.view(-1, self.num_labels), pos_tagging_labels.view(-1))
+                pos_tagging_loss = loss_f(pos_tagging_scores.view(-1, self.config.num_labels), pos_tagging_labels.view(-1))
                 pos_tagging_loss_per_sample = BertForIMAPreTraining.calc_loss_per_sample(loss_f_per_sample,
                                                                                          pos_tagging_scores,
                                                                                          pos_tagging_labels,
