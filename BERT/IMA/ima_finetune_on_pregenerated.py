@@ -391,7 +391,7 @@ def main():
                         help="random seed for initialization")
     parser.add_argument("--masking_method", type=str, default="double_num_adj", choices=("mlm_prob", "double_num_adj"),
                         help="Method of determining num masked tokens in sentence: mlm_prob or double_num_adj")
-    parser.add_argument("--domain", type=str, default="movies", choices=("movies", "books", "dvd", "kitchen", "electronics", "unified"),
+    parser.add_argument("--domain", type=str, default="books", choices=("movies", "books", "dvd", "kitchen", "electronics", "unified"),
                         help="Dataset Domain: unified, movies, books, dvd, kitchen, electronics")
     parser.add_argument("--control_task", action="store_true",
                         help="Use pretraining model with control task")

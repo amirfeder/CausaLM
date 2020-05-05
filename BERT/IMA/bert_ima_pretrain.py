@@ -1,5 +1,7 @@
 from transformers.modeling_bert import BertLMPredictionHead, BertPreTrainedModel, BertModel
 from BERT.lm_finetuning.grad_reverse_layer import GradReverseLayerFunction
+from BERT.bert_text_dataset import BertTextDataset
+from BERT.bert_pos_tagger import BertTokenClassificationDataset
 from torch.nn import CrossEntropyLoss
 import torch.nn as nn
 import torch
@@ -101,19 +103,23 @@ class BertForIMAPreTraining(BertPreTrainedModel):
         outputs = (lm_prediction_scores, adj_prediction_scores,) + outputs[2:]  # add hidden states and attention if they are here
 
         if masked_lm_labels is not None and masked_adj_labels is not None:
-            loss_fct = CrossEntropyLoss(ignore_index=-1)
-            masked_lm_loss = loss_fct(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
-            masked_adj_loss = loss_fct(adj_prediction_scores.view(-1, 2), masked_adj_labels.view(-1))
+            loss_f = CrossEntropyLoss(ignore_index=BertTextDataset.MLM_IGNORE_LABEL_IDX)
+            masked_lm_loss = loss_f(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
+            masked_adj_loss = loss_f(adj_prediction_scores.view(-1, 2), masked_adj_labels.view(-1))
             total_loss = masked_lm_loss + masked_adj_loss
-            loss_fct_per_sample = CrossEntropyLoss(ignore_index=-1, reduction='none')
-            mlm_loss_per_sample = torch.stack([loss_fct_per_sample(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
-                                              .view_as(masked_lm_labels)[i, :].masked_select(masked_lm_labels[i, :] > -1).mean()
-                                              for i in range(masked_lm_labels.size(0))])
-            ima_loss_per_sample = loss_fct_per_sample(adj_prediction_scores, masked_adj_labels)
+            loss_f_per_sample = CrossEntropyLoss(ignore_index=BertTextDataset.MLM_IGNORE_LABEL_IDX, reduction='none')
+            mlm_loss_per_sample = self.calc_loss_per_sample(loss_f_per_sample, lm_prediction_scores, masked_lm_labels, self.config.vocab_size)
+            ima_loss_per_sample = self.calc_loss_per_sample(loss_f_per_sample, adj_prediction_scores, masked_adj_labels, 2)
             outputs = (mlm_loss_per_sample, ima_loss_per_sample,) + outputs
 
         outputs = (total_loss,) + outputs
         return outputs  # (loss), prediction_scores, seq_relationship_score, (hidden_states), (attentions)
+
+    @staticmethod
+    def calc_loss_per_sample(loss_f, scores, masked_labels, label_size):
+        return torch.stack([loss_f(scores.view(-1, label_size), masked_labels.view(-1))
+                           .view_as(masked_labels)[i, :].masked_select(masked_labels[i, :] > -1).mean()
+                            for i in range(masked_labels.size(0))])
 
 
 class BertTokenClassificationHead(nn.Module):
@@ -210,33 +216,43 @@ class BertForIMAwControlPreTraining(BertPreTrainedModel):
         total_loss = 0.0
 
         if pos_tagging_labels is not None:
-            loss_fct = CrossEntropyLoss(ignore_index=-1)
-            loss_fct_per_sample = CrossEntropyLoss(ignore_index=-1, reduction='none')
+            loss_f = CrossEntropyLoss(ignore_index=BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX)
+            loss_f_per_sample = CrossEntropyLoss(ignore_index=BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX, reduction='none')
             # Only keep active parts of the loss
             if attention_mask is not None:
                 active_loss = attention_mask.view(-1) == 1
                 active_logits = pos_tagging_scores.view(-1, self.num_labels)
                 active_labels = torch.where(
-                    active_loss, pos_tagging_labels.view(-1), torch.tensor(loss_fct.ignore_index).type_as(pos_tagging_labels)
+                    active_loss, pos_tagging_labels.view(-1), torch.tensor(loss_f.ignore_index).type_as(pos_tagging_labels)
                 )
-                pos_tagging_loss = loss_fct(active_logits, active_labels)
-                pos_tagging_loss_per_sample = loss_fct_per_sample(active_logits, active_labels)
+                pos_tagging_loss = loss_f(active_logits, active_labels)
+                pos_tagging_loss_per_sample = BertForIMAPreTraining.calc_loss_per_sample(loss_f_per_sample,
+                                                                                         active_logits,
+                                                                                         active_labels,
+                                                                                         self.config.num_labels)
             else:
-                pos_tagging_loss = loss_fct(pos_tagging_scores.view(-1, self.num_labels), pos_tagging_labels.view(-1))
-                pos_tagging_loss_per_sample = loss_fct_per_sample(pos_tagging_scores, pos_tagging_labels)
+                pos_tagging_loss = loss_f(pos_tagging_scores.view(-1, self.num_labels), pos_tagging_labels.view(-1))
+                pos_tagging_loss_per_sample = BertForIMAPreTraining.calc_loss_per_sample(loss_f_per_sample,
+                                                                                         pos_tagging_scores,
+                                                                                         pos_tagging_labels,
+                                                                                         self.config.num_labels)
             total_loss += pos_tagging_loss
             outputs = (pos_tagging_loss_per_sample,) + outputs
 
         if masked_lm_labels is not None and masked_adj_labels is not None:
-            loss_fct = CrossEntropyLoss(ignore_index=-1)
-            masked_lm_loss = loss_fct(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
-            masked_adj_loss = loss_fct(adj_prediction_scores.view(-1, 2), masked_adj_labels.view(-1))
+            loss_f = CrossEntropyLoss(ignore_index=BertTextDataset.MLM_IGNORE_LABEL_IDX)
+            masked_lm_loss = loss_f(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
+            masked_adj_loss = loss_f(adj_prediction_scores.view(-1, 2), masked_adj_labels.view(-1))
             total_loss += masked_lm_loss + masked_adj_loss
-            loss_fct_per_sample = CrossEntropyLoss(ignore_index=-1, reduction='none')
-            mlm_loss_per_sample = torch.stack([loss_fct_per_sample(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
-                                              .view_as(masked_lm_labels)[i, :].masked_select(masked_lm_labels[i, :] > -1).mean()
-                                              for i in range(masked_lm_labels.size(0))])
-            ima_loss_per_sample = loss_fct_per_sample(adj_prediction_scores, masked_adj_labels)
+            loss_f_per_sample = CrossEntropyLoss(ignore_index=BertTextDataset.MLM_IGNORE_LABEL_IDX, reduction='none')
+            mlm_loss_per_sample = BertForIMAPreTraining.calc_loss_per_sample(loss_f_per_sample,
+                                                                             lm_prediction_scores,
+                                                                             masked_lm_labels,
+                                                                             self.config.vocab_size)
+            ima_loss_per_sample = BertForIMAPreTraining.calc_loss_per_sample(loss_f_per_sample,
+                                                                             adj_prediction_scores,
+                                                                             masked_adj_labels,
+                                                                             2)
             outputs = (mlm_loss_per_sample, ima_loss_per_sample,) + outputs
 
         outputs = (total_loss,) + outputs
