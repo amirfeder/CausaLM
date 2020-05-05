@@ -65,7 +65,7 @@ def bert_train_eval(hparams, task, output_dir):
 @timer
 def train_models_unit(hparams: Dict, task, group, pretrained_control):
     label_size = 2
-    if task == "POS-Tagging":
+    if task == "POS_Tagging":
         label_size = NUM_POS_TAGS_LABELS
         label_column = f"{task.lower()}_labels"
     elif task == "IMA":
@@ -94,7 +94,7 @@ def train_models(hparams: Dict, group: str, pretrained_masking_method, pretraine
     print(f"Training {hparams['treatment']} {hparams['domain']} models")
     sentiment_model = train_models_unit(hparams, "Sentiment", group, pretrained_control)
     ima_model = train_models_unit(hparams, "IMA", group, pretrained_control)
-    pos_tagging_model = train_models_unit(hparams, "POS-Tagging", group, pretrained_control)
+    pos_tagging_model = train_models_unit(hparams, "POS_Tagging", group, pretrained_control)
     if hparams["bert_params"]["bert_state_dict"]:
         if pretrained_control:
             group = f"{group}_ima_control_treated"

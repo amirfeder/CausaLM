@@ -139,7 +139,7 @@ def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer
         text_column = "no_adj_review"
 
     label_size = 2
-    if task == "POS-Tagging":
+    if task == "POS_Tagging":
         label_size = NUM_POS_TAGS_LABELS
         label_column = f"{task.lower()}_labels"
     elif task == "IMA":
@@ -214,9 +214,9 @@ def predict_models(treatment="adj", domain="books", trained_group="F",
                         hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
     predict_models_unit(f"CONTROL_IMA", trained_group, "CF", ima_model_ckpt,
                         hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
-    predict_models_unit(f"CONTROL_POS-Tagging", trained_group, "F", pos_tagging_model_ckpt,
+    predict_models_unit(f"CONTROL_POS_Tagging", trained_group, "F", pos_tagging_model_ckpt,
                         hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
-    predict_models_unit(f"CONTROL_POS-Tagging", trained_group, "CF", pos_tagging_model_ckpt,
+    predict_models_unit(f"CONTROL_POS_Tagging", trained_group, "CF", pos_tagging_model_ckpt,
                         hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
     handler = GoogleDriveHandler()
     push_message = handler.push_files(hparams["output_path"])
