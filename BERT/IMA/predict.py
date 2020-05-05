@@ -104,13 +104,11 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None, task="Sentime
             model.bert_token_classifier.bert = LightningBertPOSTagger.load_frozen_bert(model.bert_token_classifier.bert_pretrained_model,
                                                                                        model.bert_token_classifier.bert_state_dict)
 
-        # Update model hyperparameters
-        model.bert_token_classifier.name = hparams['bert_params']['name']
-        model.bert_token_classifier.label_size = hparams["bert_params"]["label_size"]
-
+    # Update model hyperparameters
     model.hparams.max_seq_len = hparams["max_seq_len"]
     model.hparams.output_path = hparams["output_path"]
     model.hparams.label_column = hparams["label_column"]
+    model.hparams.num_labels = hparams["num_labels"]
     model.hparams.text_column = hparams["text_column"]
     model.hparams.bert_params["name"] = hparams['bert_params']['name']
     model.hparams.bert_params["label_size"] = hparams["bert_params"]["label_size"]
@@ -151,6 +149,7 @@ def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer
 
     hparams["max_seq_len"] = MAX_SENTIMENT_SEQ_LENGTH
     hparams["label_column"] = label_column
+    hparams["num_labels"] = label_size
     hparams["bert_params"]["label_size"] = label_size
     hparams["text_column"] = text_column
     hparams["trained_group"] = trained_group

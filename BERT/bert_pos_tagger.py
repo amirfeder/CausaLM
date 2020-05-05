@@ -20,13 +20,14 @@ class LightningBertPOSTagger(LightningModule):
     #TODO: Verify all lightning train,val,test methods work properly for sequence tagging tasks
     def __init__(self, hparams: LightningHyperparameters):
         super().__init__()
-        self.haparams = hparams
+        self.hparams = hparams
         self.bert_pretrained_model = hparams.bert_model if hasattr(hparams, "bert_model") else BERT_PRETRAINED_MODEL
         self.bert_state_dict = hparams.bert_state_dict if hasattr(hparams, "bert_state_dict") else None
         self.num_labels = hparams.num_labels if hasattr(hparams, "num_labels") else len(POS_TAGS_TUPLE)
-        self.bert_token_classifier = LightningBertPOSTagger.load_frozen_bert(self.bert_model, self.bert_state_dict,
-                                                                             BertConfig.from_pretrained(self.bert_model,
-                                                                                               num_labels=self.num_labels))
+        self.bert_token_classifier = LightningBertPOSTagger.load_frozen_bert(self.bert_pretrained_model,
+                                                                             self.bert_state_dict,
+                                                                             BertConfig.from_pretrained(self.bert_pretrained_model,
+                                                                                                        num_labels=self.num_labels))
 
     @staticmethod
     def load_frozen_bert(bert_pretrained_model: str, bert_state_dict: str = None, bert_config: BertConfig = None) -> BertForTokenClassification:
@@ -57,7 +58,7 @@ class LightningBertPOSTagger(LightningModule):
         return self.bert_token_classifier.parameters(recurse)
 
     def configure_optimizers(self):
-        parameters_list = self.bert_token_classifier.get_trainable_params()[0]
+        parameters_list = self.get_trainable_params()[0]
         if parameters_list:
             return torch.optim.Adam(parameters_list)
         else:
@@ -97,7 +98,7 @@ class LightningBertPOSTagger(LightningModule):
         input_ids, input_mask, labels, unique_ids = batch
         net_out = self.forward(input_ids, input_mask, labels)
         loss, logits = net_out[:2]
-        prediction_probs = F.softmax(logits.view(-1, self.bert_classifier.label_size), dim=-1)
+        prediction_probs = F.softmax(logits.view(-1, self.num_labels), dim=-1)
         predictions = torch.argmax(prediction_probs, dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
         return {"loss": loss, "progress_bar": {"val_loss": loss, "val_accuracy": correct.mean()},
@@ -125,7 +126,7 @@ class LightningBertPOSTagger(LightningModule):
         input_ids, input_mask, labels, unique_ids = batch
         net_out = self.forward(input_ids, input_mask, labels)
         loss, logits = net_out[:2]
-        prediction_probs = F.softmax(logits.view(-1, self.bert_classifier.label_size), dim=-1)
+        prediction_probs = F.softmax(logits.view(-1, self.num_labels), dim=-1)
         predictions = torch.argmax(prediction_probs, dim=-1)
         correct = predictions.eq(labels.view_as(predictions)).double()
         return {"loss": loss, "progress_bar": {"test_loss": loss, "test_accuracy": correct.mean()},
@@ -152,8 +153,8 @@ class LightningBertPOSTagger(LightningModule):
                          predictions.data.cpu().numpy(),
                          labels.data.cpu().numpy(),
                          correct.cpu().numpy(),
-                         [prediction_probs[:, i].data.cpu().numpy() for i in range(self.bert_classifier.label_size)],
-                         f"{self.bert_classifier.name}-test")
+                         [prediction_probs[:, i].data.cpu().numpy() for i in range(self.num_labels)],
+                         f"{self.bert_token_classifier.name}-test")
         return {"loss": avg_loss,
                 "progress_bar": {"test_loss": avg_loss, "test_accuracy": accuracy},
                 "log": {"test_loss": avg_loss, "test_accuracy": accuracy}}

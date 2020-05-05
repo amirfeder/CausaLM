@@ -91,7 +91,7 @@ def train_models_unit(hparams: Dict, task, group, pretrained_control):
 
 @timer
 def train_models(hparams: Dict, group: str, pretrained_masking_method, pretrained_epoch: int, pretrained_control: bool):
-    print(f"Training {hparams['treatment']} models")
+    print(f"Training {hparams['treatment']} {hparams['domain']} models")
     sentiment_model = train_models_unit(hparams, "Sentiment", group, pretrained_control)
     ima_model = train_models_unit(hparams, "IMA", group, pretrained_control)
     pos_tagging_model = train_models_unit(hparams, "POS-Tagging", group, pretrained_control)
@@ -136,6 +136,7 @@ def train_all_models(treatment: str, domain: str, group: str, masking_method: st
         "epochs": EPOCHS,
         "accumulate": ACCUMULATE,
         "max_seq_len": MAX_SENTIMENT_SEQ_LENGTH,
+        "num_labels": 2,
         "bert_params": {
             "dropout": DROPOUT,
             "bert_state_dict": None,
