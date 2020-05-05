@@ -33,6 +33,7 @@ class InputLabel:
 class BertTextDataset(Dataset):
 
     PAD_TOKEN_IDX = 0
+    MLM_IGNORE_LABEL_IDX = -1
 
     def __init__(self, data_path: str, treatment: str, subset: str, text_column: str, label_column: str,
                  bert_pretrained_model: str = BERT_PRETRAINED_MODEL, max_seq_length: int = MAX_SENTIMENT_SEQ_LENGTH):

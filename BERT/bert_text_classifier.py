@@ -292,8 +292,6 @@ class LightningBertPretrainedClassifier(LightningModule):
 
 class BertTextClassificationDataset(BertTextDataset):
 
-    IGNORE_LABEL_IDX = -1
-
     def __init__(self, data_path: str, treatment: str, subset: str, text_column: str, label_column: str,
                  bert_pretrained_model: str = BERT_PRETRAINED_MODEL, max_seq_length: int = MAX_SENTIMENT_SEQ_LENGTH):
         super().__init__(data_path, treatment, subset, text_column, label_column, bert_pretrained_model, max_seq_length)
