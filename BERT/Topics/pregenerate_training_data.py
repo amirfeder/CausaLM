@@ -5,20 +5,16 @@ from tempfile import TemporaryDirectory
 import shelve
 from multiprocessing import Pool
 from typing import List, Collection
-from random import random, randrange, randint, shuffle, choice
+from random import random, randrange, randint, choice
 from transformers.tokenization_bert import BertTokenizer
 import pandas as pd
 import numpy as np
 import json
 import collections
-from constants import BERT_PRETRAINED_MODEL, POMS_PRETRAIN_DATA_DIR, MAX_POMS_SEQ_LENGTH, POMS_RAW_DATA_DIR
+from constants import BERT_PRETRAINED_MODEL, POMS_GENDER_PRETRAIN_DATA_DIR, POMS_RACE_PRETRAIN_DATA_DIR, MAX_POMS_SEQ_LENGTH, POMS_RAW_DATA_DIR
 from Timer import timer
 
-WORDPIECE_PREFIX = "##"
-CLS_TOKEN = "[CLS]"
-SEP_TOKEN = "[SEP]"
-MASK_TOKEN = "[MASK]"
-
+from datasets.utils import WORDPIECE_PREFIX, MASK_TOKEN, CLS_TOKEN, SEP_TOKEN
 
 EPOCHS = 5
 MLM_PROB = 0.15
@@ -36,6 +32,7 @@ class DocumentDatabase:
             self.documents = None
         else:
             self.documents = []
+            self.document_ids = []
             self.documents_labels = []
             self.document_shelf = None
             self.document_shelf_filepath = None
@@ -45,7 +42,7 @@ class DocumentDatabase:
         self.cumsum_max = None
         self.reduce_memory = reduce_memory
 
-    def add_document(self, document, label):
+    def add_document(self, document, label, unique_id):
         if not document:
             return
         if self.reduce_memory:
@@ -53,6 +50,7 @@ class DocumentDatabase:
             self.document_shelf[str(current_idx)] = document
         else:
             self.documents.append(document)
+            self.document_ids.append(unique_id)
             self.documents_labels.append(label)
         self.doc_lengths.append(len(document))
 
@@ -86,7 +84,7 @@ class DocumentDatabase:
         if self.reduce_memory:
             return self.document_shelf[str(item)]
         else:
-            return self.documents[item], self.documents_labels[item]
+            return self.documents[item], self.documents_labels[item], self.document_ids[item]
 
     def __enter__(self):
         return self
@@ -202,7 +200,7 @@ def create_instances_from_document(
     However, we make some changes and improvements. Sampling is improved and no longer requires a loop in this function.
     Also, documents are sampled proportionally to the number of sentences they contain, which means each sentence
     (rather than each document) has an equal chance of being sampled as a false example for the NextSentence task."""
-    document, label = doc_database[doc_idx]
+    document, label, unique_id = doc_database[doc_idx]
     # Account for [CLS], [SEP], [SEP]
     max_num_tokens = max_seq_length - 2
 
@@ -242,10 +240,11 @@ def create_instances_from_document(
                                                                                               num_to_mask, vocab_list)
 
         instance = {
+            "unique_id": str(unique_id),
             "tokens": [str(i) for i in instance_tokens],
             "masked_lm_positions": [str(i) for i in masked_lm_positions],
             "masked_lm_labels": [str(i) for i in masked_lm_labels],
-            "gender_label": str(label)
+            "genderace_label": str(label)
         }
 
         instances.append(instance)
@@ -302,7 +301,10 @@ def main():
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=MAX_PRED_PER_SEQ,
                         help="Maximum number of tokens to mask in each sequence")
-
+    parser.add_argument("--treatment", type=str, required=True, default="gender",
+                        help="Treatment can be: gender or race")
+    parser.add_argument("--corpus_type", type=str, required=False, default="",
+                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
@@ -310,16 +312,34 @@ def main():
     args.epochs_to_generate = EPOCHS
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
-    DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
-    PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_PRETRAIN_DATA_DIR)
+
+    if args.treatment == "gender":
+        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_GENDER_PRETRAIN_DATA_DIR)
+        treatment_column = "Gender"
+        treatment_condition = "female"
+    else:
+        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_RACE_PRETRAIN_DATA_DIR)
+        treatment_column = "Race"
+        treatment_condition = "African-American"
+
+    if "enriched" in args.corpus_type:
+        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_{args.corpus_type}.csv"
+        PRETRAIN_DATA_OUTPUT_DIR = PRETRAIN_DATA_OUTPUT_DIR / args.corpus_type
+    else:
+        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
+
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-        df = pd.read_csv(DATASET_FILE, header=0, converters={"ID": lambda i: int(i.split("-")[-1])})
-        df = df.set_index(keys="ID", drop=False).sort_index()
-        documents = df["Sentence"].apply(tokenizer.tokenize).sort_index()
-        gender_labels = df["Gender"].apply(lambda gender: int(str(gender) == "female")).sort_index()
-        for doc, label in tqdm(zip(documents, gender_labels)):
+        if "enriched" in args.corpus_type:
+            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8').set_index(keys="ID", drop=False).sort_index()
+        else:
+            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8', converters={"ID": lambda i: int(i.split("-")[-1])}).set_index(keys="ID", drop=False).sort_index()
+        df = df[df[treatment_column].notnull()]
+        unique_ids = df["ID"]
+        documents = df["Sentence"].apply(tokenizer.tokenize)
+        genderace_labels = df[treatment_column].apply(lambda t: int(str(t) == treatment_condition))
+        for doc, label, unique_id in tqdm(zip(documents, genderace_labels, unique_ids)):
             if doc:
-                docs.add_document(doc, label)  # If the last doc didn't end on a newline, make sure it still gets added
+                docs.add_document(doc, label, unique_id)  # If the last doc didn't end on a newline, make sure it still gets added
         if len(docs) <= 1:
             exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
                  "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
