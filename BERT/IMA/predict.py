@@ -173,8 +173,8 @@ def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer
 
     # Group Task BERT Model test with MLM LM
     hparams["bert_params"]["name"] = f"{task}_MLM_{group}_trained_{trained_group}"
-    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
-    logger.info(f"MLM Pretrained Model: {SENTIMENT_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin")
+    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/{pretrained_masking_method}/{hparams['domain']}/model/pytorch_model.bin"
+    logger.info(f"MLM Pretrained Model: {SENTIMENT_MLM_DATA_DIR}/{pretrained_masking_method}/{hparams['domain']}/model/pytorch_model.bin")
     bert_treatment_test(model_ckpt, hparams, trainer, logger, task)
 
     if not bert_state_dict:

@@ -27,7 +27,7 @@ from BERT.IMA.pregenerate_training_data import EPOCHS
 from BERT.IMA.bert_ima_pretrain import BertForIMAPreTraining, BertForIMAwControlPreTraining
 
 
-BATCH_SIZE = 8
+BATCH_SIZE = 6
 FP16 = False
 
 # InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
