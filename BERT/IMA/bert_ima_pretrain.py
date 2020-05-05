@@ -116,9 +116,9 @@ class BertForIMAPreTraining(BertPreTrainedModel):
         return outputs  # (loss), prediction_scores, seq_relationship_score, (hidden_states), (attentions)
 
     @staticmethod
-    def calc_loss_per_sample(loss_f, scores, masked_labels, label_size):
+    def calc_loss_per_sample(loss_f, scores, masked_labels, label_size, ignore_index=BertTextDataset.MLM_IGNORE_LABEL_IDX):
         return torch.stack([loss_f(scores.view(-1, label_size), masked_labels.view(-1))
-                           .view_as(masked_labels)[i, :].masked_select(masked_labels[i, :] > -1).mean()
+                           .view_as(masked_labels)[i, :].masked_select(masked_labels[i, :] > ignore_index).mean()
                             for i in range(masked_labels.size(0))])
 
 
@@ -226,16 +226,18 @@ class BertForIMAwControlPreTraining(BertPreTrainedModel):
                     active_loss, pos_tagging_labels.view(-1), torch.tensor(loss_f.ignore_index).type_as(pos_tagging_labels)
                 )
                 pos_tagging_loss = loss_f(active_logits, active_labels)
-                pos_tagging_loss_per_sample = BertForIMAPreTraining.calc_loss_per_sample(loss_f_per_sample,
-                                                                                         active_logits,
-                                                                                         active_labels,
-                                                                                         self.config.num_labels)
+                # pos_tagging_loss_per_sample = BertForIMAPreTraining.calc_loss_per_sample(loss_f_per_sample,
+                #                                                                          active_logits,
+                #                                                                          active_labels,
+                #                                                                          self.config.num_labels)
             else:
                 pos_tagging_loss = loss_f(pos_tagging_scores.view(-1, self.config.num_labels), pos_tagging_labels.view(-1))
-                pos_tagging_loss_per_sample = BertForIMAPreTraining.calc_loss_per_sample(loss_f_per_sample,
-                                                                                         pos_tagging_scores,
-                                                                                         pos_tagging_labels,
-                                                                                         self.config.num_labels)
+
+            pos_tagging_loss_per_sample = BertForIMAPreTraining.calc_loss_per_sample(loss_f_per_sample,
+                                                                                     pos_tagging_scores,
+                                                                                     pos_tagging_labels,
+                                                                                     self.config.num_labels,
+                                                                                     BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX)
             total_loss += pos_tagging_loss
             outputs = (pos_tagging_loss_per_sample,) + outputs
 
