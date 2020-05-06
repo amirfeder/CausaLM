@@ -72,9 +72,9 @@ def train_models_unit(hparams: Dict, task, group, pretrained_control):
     label_size = 2
     if task == "POS_Tagging":
         label_size = NUM_POS_TAGS_LABELS
-        label_column = f"{task.lower()}_{group}_labels"
+        label_column = f"{task.lower()}_{group.lower()}_labels"
     elif task == "IMA":
-        label_column = f"{task.lower()}_{group}_labels"
+        label_column = f"{task.lower()}_{group.lower()}_labels"
     else:
         label_column = f"{task.lower()}_label"
 
