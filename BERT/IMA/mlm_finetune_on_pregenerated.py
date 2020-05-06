@@ -331,13 +331,15 @@ def main():
                         type=int,
                         default=RANDOM_SEED,
                         help="random seed for initialization")
+    parser.add_argument("--masking_method", type=str, default="double_num_adj",
+                        help="Method of determining num masked tokens in sentence: mlm_prob or double_num_adj")
     parser.add_argument("--domain", type=str, default="movies",
                         help="Dataset Domain: unified, movies, books, dvd, kitchen, electronics")
     args = parser.parse_args()
 
     logger.info(f"\nPretraining on domain: {args.domain}")
-    args.pregenerated_data = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.domain
-    args.output_dir = Path(SENTIMENT_MLM_PRETRAIN_DATA_DIR) / args.domain / "model"
+    args.pregenerated_data = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.masking_method / args.domain
+    args.output_dir = Path(SENTIMENT_MLM_PRETRAIN_DATA_DIR) / args.masking_method / args.domain / "model"
     args.fp16 = FP16
     pretrain_on_domain(args)
 
