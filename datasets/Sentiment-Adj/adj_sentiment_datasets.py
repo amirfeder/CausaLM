@@ -7,7 +7,8 @@ import pandas as pd
 
 LOGGER = init_logger("create_adj_sentiment_datasets", SENTIMENT_RAW_DATA_DIR)
 
-COLUMNS = ['id', 'domain_label', 'review', 'tagged_review', 'no_adj_review', 'num_adj', 'review_len', 'ratio_adj', 'sentiment_label', 'ima_labels', 'pos_tagging_labels']
+COLUMNS = ['id', 'domain_label', 'review', 'tagged_review', 'no_adj_review', 'num_adj', 'review_len', 'ratio_adj',
+           'sentiment_label', 'ima_f_labels', 'pos_tagging_f_labels', 'ima_cf_labels', 'pos_tagging_cf_labels']
 
 
 def write_dataset(domain, columns, columns_vals_list):
@@ -68,14 +69,16 @@ def create_all_sentiment_datasets():
     all_sentiment_labels, all_domain_labels = [], []
     all_examples, all_no_adj_examples = [], []
     all_num_adj, all_review_len, all_ratio_adj = [], [], []
-    all_ima_labels, all_pos_tagging_labels = [], []
+    all_ima_f_labels, all_pos_tagging_f_labels = [], []
+    all_ima_cf_labels, all_pos_tagging_cf_labels = [], []
     for domain_label, domain in enumerate(SENTIMENT_DOMAINS):
         LOGGER.info(f'Creating dataset for {domain} domain')
         tagged_examples = []
         sentiment_labels, domain_labels = [], []
         examples, no_adj_examples = [], []
         num_adj_examples, review_len_examples, ratio_adj_examples = [], [], []
-        ima_labels, pos_tagging_labels = [], []
+        ima_f_labels, pos_tagging_f_labels = [], []
+        ima_cf_labels, pos_tagging_cf_labels = [], []
         for key, val in sentiment_output_datasets.items():
             tagged_dataset_file = SENTIMENT_RAW_DATA_DIR + '/' + domain + '/' + val + '_tagged.parsed'
             with open(tagged_dataset_file, "r") as file:
@@ -90,19 +93,23 @@ def create_all_sentiment_datasets():
             review_len = len(example_as_list)
             example_as_list_no_pos = list()
             no_adj_example_as_list = list()
-            example_ima_labels = list()
-            example_pos_tagging_labels = list()
+            example_ima_f_labels = list()
+            example_pos_tagging_f_labels = list()
+            example_ima_cf_labels = list()
+            example_pos_tagging_cf_labels = list()
             for word_tag in example_as_list:
                 word, tag = word_tag.split(WORD_POS_SEPARATOR)
                 example_as_list_no_pos.append(word)
-                example_pos_tagging_labels.append(POS_TAG_IDX_MAP[tag])
+                example_pos_tagging_f_labels.append(POS_TAG_IDX_MAP[tag])
                 if tag in ADJ_POS_TAGS:
                     num_adj += 1
                     ima = 1
                 else:
                     ima = 0
                     no_adj_example_as_list.append(word)
-                example_ima_labels.append(ima)
+                    example_ima_cf_labels.append(ima)
+                    example_pos_tagging_cf_labels.append(POS_TAG_IDX_MAP[tag])
+                example_ima_f_labels.append(ima)
             example = TOKEN_SEPARATOR.join(example_as_list_no_pos)
             examples.append(example)
             no_adj_example = TOKEN_SEPARATOR.join(no_adj_example_as_list)
@@ -110,8 +117,10 @@ def create_all_sentiment_datasets():
             num_adj_examples.append(num_adj)
             review_len_examples.append(review_len)
             ratio_adj_examples.append(float(num_adj)/review_len)
-            ima_labels.append(example_ima_labels)
-            pos_tagging_labels.append(example_pos_tagging_labels)
+            ima_f_labels.append(example_ima_f_labels)
+            pos_tagging_f_labels.append(example_pos_tagging_f_labels)
+            ima_cf_labels.append(example_ima_cf_labels)
+            pos_tagging_cf_labels.append(example_pos_tagging_cf_labels)
 
         all_domain_labels += domain_labels
         all_examples += examples
@@ -121,18 +130,22 @@ def create_all_sentiment_datasets():
         all_num_adj += num_adj_examples
         all_review_len += review_len_examples
         all_ratio_adj += ratio_adj_examples
-        all_ima_labels += ima_labels
-        all_pos_tagging_labels += pos_tagging_labels
+        all_ima_f_labels += ima_f_labels
+        all_pos_tagging_f_labels += pos_tagging_f_labels
+        all_ima_cf_labels += ima_cf_labels
+        all_pos_tagging_cf_labels += pos_tagging_cf_labels
 
         df = write_dataset(domain, COLUMNS, [list(range(1, len(domain_labels) + 1, 1)), domain_labels, examples,
                                              tagged_examples, no_adj_examples, num_adj_examples, review_len_examples,
-                                             ratio_adj_examples, sentiment_labels, ima_labels, pos_tagging_labels])
+                                             ratio_adj_examples, sentiment_labels, ima_f_labels, pos_tagging_f_labels,
+                                             ima_cf_labels, pos_tagging_cf_labels])
 
     domain = "unified"
     LOGGER.info(f'Creating dataset for {domain} domain')
     df = write_dataset("unified", COLUMNS, [list(range(1, len(all_domain_labels) + 1, 1)), all_domain_labels, all_examples,
                                             all_tagged_examples, all_no_adj_examples, all_num_adj, all_review_len,
-                                            all_ratio_adj, all_sentiment_labels, all_ima_labels, all_pos_tagging_labels])
+                                            all_ratio_adj, all_sentiment_labels, all_ima_f_labels, all_pos_tagging_f_labels,
+                                            all_ima_cf_labels, all_pos_tagging_cf_labels])
     tagged_corpus_file = f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
     with open(tagged_corpus_file, "w") as f:
         f.write("\n".join(df["tagged_review"]))
