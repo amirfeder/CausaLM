@@ -11,6 +11,7 @@ SENTIMENT_RAW_DATA_DIR = f"{SENTIMENT_DATA_DIR}/Raw"
 AMAZON_DATA_DIR = f"{DATA_DIR}/Amazon"
 MOVIES_DATA_DIR = f"{SENTIMENT_RAW_DATA_DIR}/movies/"
 SENTIMENT_DOMAINS = ("movies", "books", "electronics", "kitchen", "dvd")
+ALL_SENTIMENT_DOMAINS = ("movies", "books", "electronics", "kitchen", "dvd", "unified")
 SENTIMENT_MODES = ["IMA", "MLM", "OOB"]
 DOMAIN = "movies"
 MODE = "OOB"

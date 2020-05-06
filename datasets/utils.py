@@ -19,6 +19,7 @@ WORD_POS_SEPARATOR = "_"
 ADJ_POS_TAGS = ("ADJ", "ADV")
 POS_TAGS_TUPLE = tuple(sorted(TAG_MAP.keys()))
 POS_TAG_IDX_MAP = {str(tag): int(idx) for idx, tag in enumerate(POS_TAGS_TUPLE)}
+ADJ_POS_TAGS_IDX = {"ADJ": 0, "ADV": 2}
 NUM_POS_TAGS_LABELS = len(POS_TAGS_TUPLE)
 
 sentiment_output_datasets = {0: 'negative', 1: 'positive'}
