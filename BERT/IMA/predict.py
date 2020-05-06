@@ -5,7 +5,7 @@ from typing import Dict
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from BERT.bert_pos_tagger import LightningBertPOSTagger
 from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_MLM_DATA_DIR, \
-    SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_RAW_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH
+    SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_RAW_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH, ALL_SENTIMENT_DOMAINS
 from pytorch_lightning import Trainer, LightningModule
 from os import listdir, path
 from glob import glob
@@ -53,7 +53,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--treatment", type=str, default="adj", choices=("adj",),
                         help="Specify treatment for experiments: adj")
-    parser.add_argument("--domain", type=str, default="books", choices=("unified", "movies", "books", "dvd", "kitchen", "electronics"),
+    parser.add_argument("--domain", type=str, default="books", choices=("unified", "movies", "books", "dvd", "kitchen", "electronics", "all"),
                         help="Dataset Domain: unified, movies, books, dvd, kitchen, electronics")
     parser.add_argument("--group", type=str, default="F", choices=("F", "CF"),
                         help="Specify data group for experiments: F (factual) or CF (counterfactual)")
@@ -65,7 +65,11 @@ def main():
                         help="Use pretraining model with control task")
     args = parser.parse_args()
 
-    predict_all_models(args.treatment, args.domain, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+    if args.domain == "all":
+        for domain in ALL_SENTIMENT_DOMAINS:
+            predict_all_models(args.treatment, domain, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+    else:
+        predict_all_models(args.treatment, args.domain, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
 
 
 @timer
@@ -98,17 +102,19 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None, task="Sentime
             model = LightningBertPOSTagger.load_from_checkpoint(model_ckpt)
 
         if hparams["bert_params"]["bert_state_dict"]:
+            model.hparams.num_labels = hparams["num_labels"]
+            model.num_labels = hparams["num_labels"]
             model.hparams.bert_params["bert_state_dict"] = hparams["bert_params"]["bert_state_dict"]
-            model.bert_token_classifier.bert_state_dict = hparams["bert_params"]["bert_state_dict"]
-            logger.info(f"Loading pretrained BERT model for {hparams['bert_params']['name']} from: {model.bert_token_classifier.bert_state_dict}")
-            model.bert_token_classifier.bert = LightningBertPOSTagger.load_frozen_bert(model.bert_token_classifier.bert_pretrained_model,
-                                                                                       model.bert_token_classifier.bert_state_dict)
+            model.bert_state_dict = hparams["bert_params"]["bert_state_dict"]
+            logger.info(f"Loading pretrained BERT model for {hparams['bert_params']['name']} from: {model.bert_state_dict}")
+            model.bert_token_classifier.bert = LightningBertPOSTagger.load_pretrained_state_dict(model.bert_pretrained_model,
+                                                                                                 model.bert_state_dict)
 
     # Update model hyperparameters
     model.hparams.max_seq_len = hparams["max_seq_len"]
     model.hparams.output_path = hparams["output_path"]
     model.hparams.label_column = hparams["label_column"]
-    model.hparams.num_labels = hparams["num_labels"]
+    model.hparams.name = hparams['bert_params']['name']
     model.hparams.text_column = hparams["text_column"]
     model.hparams.bert_params["name"] = hparams['bert_params']['name']
     model.hparams.bert_params["label_size"] = hparams["bert_params"]["label_size"]
@@ -121,17 +127,6 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None, task="Sentime
 @timer
 def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer, logger,
                         pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict):
-    if pretrained_control:
-        treatment_method = "ima_control"
-        state_dict_dir = f"{pretrained_masking_method}/{hparams['domain']}/model_control"
-    else:
-        treatment_method = "ima"
-        state_dict_dir = f"{pretrained_masking_method}/{hparams['domain']}/model"
-
-    if pretrained_epoch is not None:
-        state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
-
-    pretrained_treated_model_dir = f"{SENTIMENT_IMA_PRETRAIN_DATA_DIR}/{state_dict_dir}"
 
     if group == "F":
         text_column = "review"
@@ -139,13 +134,16 @@ def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer
         text_column = "no_adj_review"
 
     label_size = 2
-    if task == "POS_Tagging":
+    if "POS_Tagging" in task:
         label_size = NUM_POS_TAGS_LABELS
-        label_column = f"{task.lower()}_labels"
-    elif task == "IMA":
-        label_column = f"{task.lower()}_labels"
+        label_column = f"pos_tagging_{group.lower()}_labels"
+        trained_task = "POS_Tagging"
+    elif "IMA" in task:
+        label_column = f"ima_{group.lower()}_labels"
+        trained_task = "IMA"
     else:
-        label_column = f"{task.lower()}_label"
+        label_column = f"sentiment_label"
+        trained_task = "Sentiment"
 
     hparams["max_seq_len"] = MAX_SENTIMENT_SEQ_LENGTH
     hparams["label_column"] = label_column
@@ -162,7 +160,7 @@ def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer
     hparams["bert_params"]["bert_state_dict"] = bert_state_dict
 
     if not model_ckpt:
-        model_name = f"{hparams['label_column'].split('_')[0]}_{hparams['trained_group']}"
+        model_name = f"{trained_task}_{trained_group}"
         models_dir = f"{SENTIMENT_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['domain']}/{model_name}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
 
@@ -172,15 +170,27 @@ def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer
 
     # Group Task BERT Model test with MLM LM
     hparams["bert_params"]["name"] = f"{task}_MLM_{group}_trained_{trained_group}"
-    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/{pretrained_masking_method}/{hparams['domain']}/model/pytorch_model.bin"
-    logger.info(f"MLM Pretrained Model: {SENTIMENT_MLM_DATA_DIR}/{pretrained_masking_method}/{hparams['domain']}/model/pytorch_model.bin")
+    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_MLM_DATA_DIR}/Pretrain/{hparams['domain']}/model/pytorch_model.bin"
+    logger.info(f"MLM Pretrained Model: {hparams['bert_params']['bert_state_dict']}")
     bert_treatment_test(model_ckpt, hparams, trainer, logger, task)
 
     if not bert_state_dict:
+
+        if pretrained_control:
+            treatment_method = "ima_control"
+            state_dict_dir = f"{pretrained_masking_method}/{hparams['domain']}/model_control"
+        else:
+            treatment_method = "ima"
+            state_dict_dir = f"{pretrained_masking_method}/{hparams['domain']}/model"
+
+        if pretrained_epoch is not None:
+            state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
+
+        pretrained_treated_model_dir = f"{SENTIMENT_IMA_PRETRAIN_DATA_DIR}/{state_dict_dir}"
         # Group Task BERT Model test with Gender/Race treated LM
         hparams["bert_params"]["name"] = f"{task}_{treatment_method}_treated_{group}_trained_{trained_group}"
         hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
-        logger.info(f"Treated Pretrained Model: {pretrained_treated_model_dir}/pytorch_model.bin")
+        logger.info(f"Treated Pretrained Model: {hparams['bert_params']['bert_state_dict']}")
         bert_treatment_test(model_ckpt, hparams, trainer, logger, task)
 
 
@@ -227,6 +237,10 @@ def predict_models(treatment="adj", domain="books", trained_group="F",
 @timer
 def predict_all_models(treatment: str, domain: str, trained_group: str, masking_method: str, pretrained_epoch: int, pretrained_control: bool):
 
+    predict_models(treatment, domain, trained_group, masking_method, pretrained_epoch, pretrained_control)
+    predict_models(f"{treatment}_bias_gentle_ratio_adj_1", domain, trained_group, masking_method, pretrained_epoch, pretrained_control)
+    predict_models(f"{treatment}_bias_aggressive_ratio_adj_1", domain, trained_group, masking_method, pretrained_epoch, pretrained_control)
+
     if pretrained_control:
         pretrained_treated_model_dir = f"{SENTIMENT_IMA_PRETRAIN_DATA_DIR}/{masking_method}/{domain}/model_control"
     else:
@@ -235,18 +249,14 @@ def predict_all_models(treatment: str, domain: str, trained_group: str, masking_
     if pretrained_epoch is not None:
         pretrained_treated_model_dir = f"{pretrained_treated_model_dir}/epoch_{pretrained_epoch}"
 
-    predict_models(treatment, domain, trained_group, pretrained_epoch, pretrained_control)
-    predict_models(f"{treatment}_bias_gentle_ratio_adj_1", domain, trained_group, pretrained_epoch, pretrained_control)
-    predict_models(f"{treatment}_bias_aggressive_ratio_adj_1", domain, trained_group, pretrained_epoch, pretrained_control)
-
     bert_state_dict = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     if pretrained_control:
         trained_group = f"{trained_group}_ima_control_treated"
     else:
         trained_group = f"{trained_group}_ima_treated"
-    predict_models(treatment, domain, trained_group, pretrained_epoch, pretrained_control, bert_state_dict=bert_state_dict)
-    predict_models(f"{treatment}_bias_gentle_ratio_adj_1", domain, trained_group, pretrained_epoch, pretrained_control, bert_state_dict=bert_state_dict)
-    predict_models(f"{treatment}_bias_aggressive_ratio_adj_1", domain, trained_group, pretrained_epoch, pretrained_control, bert_state_dict=bert_state_dict)
+    predict_models(treatment, domain, trained_group, masking_method, pretrained_epoch, pretrained_control, bert_state_dict=bert_state_dict)
+    predict_models(f"{treatment}_bias_gentle_ratio_adj_1", domain, trained_group, masking_method, pretrained_epoch, pretrained_control, bert_state_dict=bert_state_dict)
+    predict_models(f"{treatment}_bias_aggressive_ratio_adj_1", domain, trained_group, masking_method, pretrained_epoch, pretrained_control, bert_state_dict=bert_state_dict)
 
 
 if __name__ == "__main__":

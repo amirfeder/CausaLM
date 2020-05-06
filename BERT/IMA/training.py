@@ -1,4 +1,5 @@
-from constants import SENTIMENT_EXPERIMENTS_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_IMA_PRETRAIN_DATA_DIR, SENTIMENT_RAW_DATA_DIR
+from constants import SENTIMENT_EXPERIMENTS_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_IMA_PRETRAIN_DATA_DIR, \
+    SENTIMENT_RAW_DATA_DIR, ALL_SENTIMENT_DOMAINS
 from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
 from BERT.bert_pos_tagger import LightningBertPOSTagger
@@ -14,7 +15,7 @@ from utils import init_logger
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ### Constants
-BATCH_SIZE = 200
+BATCH_SIZE = 128
 ACCUMULATE = 4
 DROPOUT = 0.1
 EPOCHS = 50
@@ -25,7 +26,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--treatment", type=str, default="adj", choices=("adj",),
                         help="Specify treatment for experiments: adj")
-    parser.add_argument("--domain", type=str, default="books", choices=("unified", "movies", "books", "dvd", "kitchen", "electronics"),
+    parser.add_argument("--domain", type=str, default="books", choices=("unified", "movies", "books", "dvd", "kitchen", "electronics", "all"),
                         help="Dataset Domain: unified, movies, books, dvd, kitchen, electronics")
     parser.add_argument("--group", type=str, default="F", choices=("F", "CF"),
                         help="Specify data group for experiments: F (factual) or CF (counterfactual)")
@@ -37,7 +38,11 @@ def main():
                         help="Use pretraining model with control task")
     args = parser.parse_args()
 
-    train_all_models(args.treatment, args.domain, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+    if args.domain == "all":
+        for domain in ALL_SENTIMENT_DOMAINS:
+            train_all_models(args.treatment, domain, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+    else:
+        train_all_models(args.treatment, args.domain, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
 
 
 @timer
@@ -50,7 +55,7 @@ def bert_train_eval(hparams, task, output_dir):
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     logger = init_logger("training", hparams["output_path"])
-    logger.info(f"Training for {hparams['epochs']} epochs")
+    logger.info(f"Training {task} for {hparams['epochs']} epochs")
     if task == "Sentiment":
         hparams["bert_params"]["batch_size"] = hparams["batch_size"]
         model = LightningBertPretrainedClassifier(LightningHyperparameters(hparams))
@@ -67,13 +72,14 @@ def train_models_unit(hparams: Dict, task, group, pretrained_control):
     label_size = 2
     if task == "POS_Tagging":
         label_size = NUM_POS_TAGS_LABELS
-        label_column = f"{task.lower()}_labels"
+        label_column = f"{task.lower()}_{group}_labels"
     elif task == "IMA":
-        label_column = f"{task.lower()}_labels"
+        label_column = f"{task.lower()}_{group}_labels"
     else:
         label_column = f"{task.lower()}_label"
 
     hparams["label_column"] = label_column
+    hparams["num_labels"] = label_size
     hparams["bert_params"]["label_size"] = label_size
 
     if hparams["bert_params"]["bert_state_dict"]:
@@ -137,6 +143,7 @@ def train_all_models(treatment: str, domain: str, group: str, masking_method: st
         "accumulate": ACCUMULATE,
         "max_seq_len": MAX_SENTIMENT_SEQ_LENGTH,
         "num_labels": 2,
+        "name": f"Sentiment_{group}",
         "bert_params": {
             "dropout": DROPOUT,
             "bert_state_dict": None,

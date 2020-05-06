@@ -3,7 +3,7 @@ from typing import List
 from torch.utils.data.dataloader import DataLoader
 from pytorch_lightning import LightningModule, data_loader
 from tqdm import tqdm
-from transformers import BertConfig, BertForTokenClassification
+from transformers import BertConfig, BertForTokenClassification, BertModel
 from BERT.bert_text_dataset import BERT_PRETRAINED_MODEL, BertTextDataset, InputExample, InputFeatures, InputLabel, \
     truncate_seq_first
 from BERT.bert_text_classifier import LightningHyperparameters
@@ -11,19 +11,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
-from datasets.utils import POS_TAGS_TUPLE, CLS_TOKEN, SEP_TOKEN, TOKEN_SEPARATOR
+from datasets.utils import CLS_TOKEN, SEP_TOKEN, TOKEN_SEPARATOR, NUM_POS_TAGS_LABELS
 from constants import NUM_CPU, MAX_SENTIMENT_SEQ_LENGTH
 from utils import save_predictions
 
 
 class LightningBertPOSTagger(LightningModule):
-    #TODO: Verify all lightning train,val,test methods work properly for sequence tagging tasks
     def __init__(self, hparams: LightningHyperparameters):
         super().__init__()
         self.hparams = hparams
         self.bert_pretrained_model = hparams.bert_model if hasattr(hparams, "bert_model") else BERT_PRETRAINED_MODEL
         self.bert_state_dict = hparams.bert_state_dict if hasattr(hparams, "bert_state_dict") else None
-        self.num_labels = hparams.num_labels if hasattr(hparams, "num_labels") else len(POS_TAGS_TUPLE)
+        self.num_labels = hparams.num_labels if hasattr(hparams, "num_labels") else NUM_POS_TAGS_LABELS
         self.bert_token_classifier = LightningBertPOSTagger.load_frozen_bert(self.bert_pretrained_model,
                                                                              self.bert_state_dict,
                                                                              BertConfig.from_pretrained(self.bert_pretrained_model,
@@ -42,6 +41,18 @@ class LightningBertPOSTagger(LightningModule):
         for p in bert_token_classifier.bert.parameters():
             p.requires_grad = False
         return bert_token_classifier
+
+    @staticmethod
+    def load_pretrained_state_dict(bert_pretrained_model: str, bert_state_dict: str = None):
+        if bert_state_dict:
+            fine_tuned_state_dict = torch.load(bert_state_dict)
+            bert = BertModel.from_pretrained(pretrained_model_name_or_path=bert_pretrained_model,
+                                             state_dict=fine_tuned_state_dict)
+        else:
+            bert = BertModel.from_pretrained(pretrained_model_name_or_path=bert_pretrained_model)
+        for p in bert.parameters():
+            p.requires_grad = False
+        return bert
 
     def forward(self, input_ids=None, attention_mask=None, token_type_ids=None,
                 position_ids=None, head_mask=None, inputs_embeds=None, labels=None):
@@ -78,8 +89,10 @@ class LightningBertPOSTagger(LightningModule):
         input_ids, input_mask, labels, unique_ids = batch
         net_out = self.forward(input_ids=input_ids, attention_mask=input_mask, labels=labels)
         loss, logits = net_out[:2]
-        predictions = torch.argmax(F.softmax(logits, dim=-1), dim=-1)
-        correct = predictions.eq(labels.view_as(predictions)).double()
+        prediction_probs = F.softmax(logits, dim=-1)
+        predictions = torch.argmax(prediction_probs, dim=-1)
+        real_token_indices = (labels.flatten() != BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX).nonzero().flatten()
+        correct = predictions.flatten().index_select(0, real_token_indices).eq(labels.flatten().index_select(0, real_token_indices)).double()
         total = torch.tensor(predictions.size(0))
         return {"loss": loss, "log": {"batch_num": batch_idx, "train_loss": loss, "train_accuracy": correct.mean()},
                 "correct": correct.sum(), "total": total}
@@ -96,11 +109,12 @@ class LightningBertPOSTagger(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
-        net_out = self.forward(input_ids, input_mask, labels)
+        net_out = self.forward(input_ids=input_ids, attention_mask=input_mask, labels=labels)
         loss, logits = net_out[:2]
-        prediction_probs = F.softmax(logits.view(-1, self.num_labels), dim=-1)
+        prediction_probs = F.softmax(logits, dim=-1)
         predictions = torch.argmax(prediction_probs, dim=-1)
-        correct = predictions.eq(labels.view_as(predictions)).double()
+        real_token_indices = (labels.flatten() != BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX).nonzero().flatten()
+        correct = predictions.flatten().index_select(0, real_token_indices).eq(labels.flatten().index_select(0, real_token_indices)).double()
         return {"loss": loss, "progress_bar": {"val_loss": loss, "val_accuracy": correct.mean()},
                 "log": {"batch_num": batch_idx, "val_loss": loss, "val_accuracy": correct.mean()}, "correct": correct}
 
@@ -124,13 +138,14 @@ class LightningBertPOSTagger(LightningModule):
 
     def test_step(self, batch, batch_idx):
         input_ids, input_mask, labels, unique_ids = batch
-        net_out = self.forward(input_ids, input_mask, labels)
+        net_out = self.forward(input_ids=input_ids, attention_mask=input_mask, labels=labels)
         loss, logits = net_out[:2]
-        prediction_probs = F.softmax(logits.view(-1, self.num_labels), dim=-1)
+        prediction_probs = F.softmax(logits, dim=-1)
         predictions = torch.argmax(prediction_probs, dim=-1)
-        correct = predictions.eq(labels.view_as(predictions)).double()
-        return {"loss": loss, "progress_bar": {"test_loss": loss, "test_accuracy": correct.mean()},
-                "log": {"batch_num": batch_idx, "test_loss": loss, "test_accuracy": correct.mean()},
+        real_token_indices = (labels.flatten() != BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX).nonzero().flatten()
+        accuracy = predictions.flatten().index_select(0, real_token_indices).eq(labels.flatten().index_select(0, real_token_indices)).double().mean()
+        return {"loss": loss, "progress_bar": {"test_loss": loss, "test_accuracy": accuracy},
+                "log": {"batch_num": batch_idx, "test_loss": loss, "test_accuracy": accuracy},
                 "predictions": predictions, "labels": labels, "unique_ids": unique_ids, "prediction_probs": prediction_probs}
 
     def test_end(self, step_outputs):
@@ -147,14 +162,24 @@ class LightningBertPOSTagger(LightningModule):
         prediction_probs = torch.cat(total_prediction_probs, dim=0).double()
         labels = torch.cat(total_labels).long()
         correct = predictions.eq(labels.view_as(predictions)).long()
-        accuracy = correct.double().mean()
+        real_token_indices = (labels.flatten() != BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX).nonzero().flatten()
+        accuracy = predictions.flatten().index_select(0, real_token_indices).eq(labels.flatten().index_select(0, real_token_indices)).double().mean()
+        predictions_data, labels_data, correct_data = list(), list(), list()
+        prediction_probs_data = [[] for i in range(self.num_labels)]
+        for pred, l, c, prob in zip(predictions.cpu(), labels.cpu(), correct.cpu(), prediction_probs.cpu()):
+            real_token_indices = (l.flatten() != BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX).nonzero().flatten()
+            predictions_data.append(pred.flatten().index_select(0, real_token_indices).tolist())
+            labels_data.append(l.flatten().index_select(0, real_token_indices).tolist())
+            correct_data.append(c.flatten().index_select(0, real_token_indices).tolist())
+            for i in range(self.num_labels):
+                prediction_probs_data[i].append(prob[:, i].flatten().index_select(0, real_token_indices).tolist())
         save_predictions(self.hparams.output_path,
                          unique_ids.data.cpu().numpy(),
-                         predictions.data.cpu().numpy(),
-                         labels.data.cpu().numpy(),
-                         correct.cpu().numpy(),
-                         [prediction_probs[:, i].data.cpu().numpy() for i in range(self.num_labels)],
-                         f"{self.bert_token_classifier.name}-test")
+                         predictions_data,
+                         labels_data,
+                         correct_data,
+                         prediction_probs_data,
+                         f"{self.hparams.name}-test")
         return {"loss": avg_loss,
                 "progress_bar": {"test_loss": avg_loss, "test_accuracy": accuracy},
                 "log": {"test_loss": avg_loss, "test_accuracy": accuracy}}
@@ -205,6 +230,7 @@ class BertTokenClassificationDataset(BertTextDataset):
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
         # tokens are attended to.
         input_mask = [1] * len(input_ids)
+        # input_mask[0] = input_mask[-1] = 0
 
         # Zero-pad up to the sequence length.
         while len(input_ids) < self.max_seq_length:
