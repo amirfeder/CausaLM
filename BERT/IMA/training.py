@@ -36,13 +36,17 @@ def main():
                         help="Specify epoch for pretrained models: 0-4")
     parser.add_argument("--pretrained_control", action="store_true",
                         help="Use pretraining model with control task")
+    parser.add_argument("--batch_size", type=int, default=BATCH_SIZE,
+                        help="Batch size for training")
+    parser.add_argument("--epochs", type=int, default=EPOCHS,
+                        help="Number of epochs to train for")
     args = parser.parse_args()
 
     if args.domain == "all":
         for domain in ALL_SENTIMENT_DOMAINS:
-            train_all_models(args.treatment, domain, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+            train_all_models(args, domain)
     else:
-        train_all_models(args.treatment, args.domain, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+        train_all_models(args, args.domain)
 
 
 @timer
@@ -113,57 +117,57 @@ def train_models(hparams: Dict, group: str, pretrained_masking_method, pretraine
 
 
 @timer
-def train_all_models(treatment: str, domain: str, group: str, masking_method: str, pretrained_epoch: int, pretrained_control: bool):
+def train_all_models(args, domain: str):
 
-    if group == "F":
+    if args.group == "F":
         text_column = "review"
     else:
         text_column = "no_adj_review"
 
-    if pretrained_control:
-        pretrained_treated_model_dir = f"{SENTIMENT_IMA_PRETRAIN_DATA_DIR}/{masking_method}/{domain}/model_control"
+    if args.pretrained_control:
+        pretrained_treated_model_dir = f"{SENTIMENT_IMA_PRETRAIN_DATA_DIR}/{args.masking_method}/{domain}/model_control"
     else:
-        pretrained_treated_model_dir = f"{SENTIMENT_IMA_PRETRAIN_DATA_DIR}/{masking_method}/{domain}/model"
+        pretrained_treated_model_dir = f"{SENTIMENT_IMA_PRETRAIN_DATA_DIR}/{args.masking_method}/{domain}/model"
 
-    if pretrained_epoch is not None:
-        pretrained_treated_model_dir = f"{pretrained_treated_model_dir}/epoch_{pretrained_epoch}"
+    if args.pretrained_epoch is not None:
+        pretrained_treated_model_dir = f"{pretrained_treated_model_dir}/epoch_{args.pretrained_epoch}"
 
     data_path = f"{SENTIMENT_RAW_DATA_DIR}/{domain}"
 
     hparams = {
         "data_path": data_path,
-        "treatment": treatment,
+        "treatment": args.treatment,
         "domain": domain,
-        "masking_method": masking_method,
-        "pretrain_conrol": pretrained_control,
+        "masking_method": args.masking_method,
+        "pretrain_conrol": args.pretrained_control,
         "text_column": text_column,
         "label_column": "sentiment_label",
-        "batch_size": BATCH_SIZE,
-        "epochs": EPOCHS,
+        "batch_size": args.batch_size,
+        "epochs": args.epochs,
         "accumulate": ACCUMULATE,
         "max_seq_len": MAX_SENTIMENT_SEQ_LENGTH,
         "num_labels": 2,
-        "name": f"Sentiment_{group}",
+        "name": f"Sentiment_{args.group}",
         "bert_params": {
             "dropout": DROPOUT,
             "bert_state_dict": None,
             "label_size": 2,
-            "name": f"Sentiment_{group}"
+            "name": f"Sentiment_{args.group}"
         }
     }
-    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
-    hparams["treatment"] = f"{treatment}_bias_gentle_ratio_adj_1"
-    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
-    hparams["treatment"] = f"{treatment}_bias_aggressive_ratio_adj_1"
-    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
+    train_models(hparams, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+    hparams["treatment"] = f"{args.treatment}_bias_gentle_ratio_adj_1"
+    train_models(hparams, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+    hparams["treatment"] = f"{args.treatment}_bias_aggressive_ratio_adj_1"
+    train_models(hparams, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
 
     hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
-    hparams["treatment"] = treatment
-    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
-    hparams["treatment"] = f"{treatment}_bias_gentle_ratio_adj_1"
-    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
-    hparams["treatment"] = f"{treatment}_bias_aggressive_ratio_adj_1"
-    train_models(hparams, group, masking_method, pretrained_epoch, pretrained_control)
+    hparams["treatment"] = args.treatment
+    train_models(hparams, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+    hparams["treatment"] = f"{args.treatment}_bias_gentle_ratio_adj_1"
+    train_models(hparams, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
+    hparams["treatment"] = f"{args.treatment}_bias_aggressive_ratio_adj_1"
+    train_models(hparams, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
 
 
 if __name__ == "__main__":
