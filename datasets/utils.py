@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 
 ### BERT constants
+from utils import init_logger
+
 WORDPIECE_PREFIX = "##"
 CLS_TOKEN = "[CLS]"
 SEP_TOKEN = "[SEP]"
@@ -168,3 +170,22 @@ def bias_binary_rank_gentle(df, label_column, bias_column, biased_label=1, biasi
     df_biased = df_biased.append(df_sampled_not_label, ignore_index=True)
     df_biased = df_biased.append(df_label, ignore_index=True)
     return df_biased
+
+
+def validate_dataset(df, stats_columns, bias_column, label_column, logger=None):
+    if not logger:
+        logger = init_logger("validate_dataset")
+    logger.info(f"Num reviews: {len(df)}")
+    logger.info(f"{df.columns}")
+    for col in df.columns:
+        if col.endswith("_label"):
+            logger.info(f"{df[col].value_counts(dropna=False)}\n")
+    for col in stats_columns:
+        col_vals = df[col]
+        logger.info(f"{col} statistics:")
+        logger.info(f"Min: {col_vals.min()}")
+        logger.info(f"Max: {col_vals.max()}")
+        logger.info(f"Std: {col_vals.std()}")
+        logger.info(f"Mean: {col_vals.mean()}")
+        logger.info(f"Median: {col_vals.median()}")
+    logger.info(f"Correlation between {bias_column} and {label_column}: {df[bias_column].corr(df[label_column].astype(float))}\n")

@@ -1,6 +1,6 @@
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED
 from datasets.utils import sentiment_output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, \
-    bias_binary_rank_gentle, bias_binary_rank_aggressive, ADJ_POS_TAGS, POS_TAG_IDX_MAP
+    bias_binary_rank_gentle, bias_binary_rank_aggressive, ADJ_POS_TAGS, POS_TAG_IDX_MAP, validate_dataset
 from tqdm import tqdm
 from utils import init_logger
 from Timer import timer
@@ -23,25 +23,8 @@ def write_dataset(domain, columns, columns_vals_list):
         _, small_df_movies = train_test_split(df_movies, test_size=2000, stratify=df_movies["sentiment_label"], random_state=RANDOM_SEED)
         df = pd.concat((df_others, small_df_movies))
     split_data(df, f"{SENTIMENT_RAW_DATA_DIR}/{domain}", "adj", "sentiment_label")
-    validate_dataset(df)
+    validate_dataset(df, ("review_len", "num_adj", "ratio_adj"), "ratio_adj", "sentiment_label", LOGGER)
     return df
-
-
-def validate_dataset(df):
-    LOGGER.info(f"Num reviews: {len(df)}")
-    LOGGER.info(f"{df.columns}")
-    for col in df.columns:
-        if col.endswith("_label"):
-            LOGGER.info(f"{df[col].value_counts(dropna=False)}\n")
-    for col in ("review_len", "num_adj", "ratio_adj"):
-        col_vals = df[col]
-        LOGGER.info(f"{col} statistics:")
-        LOGGER.info(f"Min: {col_vals.min()}")
-        LOGGER.info(f"Max: {col_vals.max()}")
-        LOGGER.info(f"Std: {col_vals.std()}")
-        LOGGER.info(f"Mean: {col_vals.mean()}")
-        LOGGER.info(f"Median: {col_vals.median()}")
-    LOGGER.info(f"Correlation between ratio_adj and sentiment_label: {df['ratio_adj'].corr(df['sentiment_label'].astype(float))}\n")
 
 
 @timer(logger=LOGGER)
@@ -56,7 +39,7 @@ def create_all_biased_sentiment_datasets():
         for bias_method in (bias_binary_rank_gentle, bias_binary_rank_aggressive):
             df_biased = bias_method(df.copy(), label_column, bias_column,
                                     biased_label, biasing_factor).set_index(keys="id", drop=True)
-            validate_dataset(df_biased)
+            validate_dataset(df_biased, ("review_len", "num_adj", "ratio_adj"), "ratio_adj", "sentiment_label", LOGGER)
             split_data(df_biased, f"{SENTIMENT_RAW_DATA_DIR}/{domain}",
                        f"adj_bias_{bias_method.__name__.split('_')[-1]}_{bias_column}_{biased_label}", label_column)
 
