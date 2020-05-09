@@ -1,8 +1,9 @@
 from constants import SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, RANDOM_SEED
-from datasets.utils import sentiment_output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, bias_gentle, ADJ_POS_TAGS, POS_TAG_IDX_MAP, bias_aggressive, bias_ranked_sampling
-from Timer import timer
+from datasets.utils import sentiment_output_datasets, split_data, TOKEN_SEPARATOR, WORD_POS_SEPARATOR, train_test_split, \
+    bias_binary_rank_gentle, bias_binary_rank_aggressive, ADJ_POS_TAGS, POS_TAG_IDX_MAP
 from tqdm import tqdm
 from utils import init_logger
+from Timer import timer
 import pandas as pd
 
 LOGGER = init_logger("create_adj_sentiment_datasets", SENTIMENT_RAW_DATA_DIR)
@@ -33,34 +34,31 @@ def validate_dataset(df):
         if col.endswith("_label"):
             LOGGER.info(f"{df[col].value_counts(dropna=False)}\n")
     for col in ("review_len", "num_adj", "ratio_adj"):
-        col_vals = df["review_len"]
+        col_vals = df[col]
         LOGGER.info(f"{col} statistics:")
         LOGGER.info(f"Min: {col_vals.min()}")
         LOGGER.info(f"Max: {col_vals.max()}")
         LOGGER.info(f"Std: {col_vals.std()}")
         LOGGER.info(f"Mean: {col_vals.mean()}")
-        LOGGER.info(f"Median: {col_vals.median()}\n")
+        LOGGER.info(f"Median: {col_vals.median()}")
+    LOGGER.info(f"Correlation between ratio_adj and sentiment_label: {df['ratio_adj'].corr(df['sentiment_label'].astype(float))}\n")
 
 
 @timer(logger=LOGGER)
 def create_all_biased_sentiment_datasets():
     label_column = "sentiment_label"
     biased_label = 1
-    biasing_factor = 0.1
+    biasing_factor = 0.5
     bias_column = "ratio_adj"
     for domain in list(SENTIMENT_DOMAINS) + ["unified"]:
         LOGGER.info(f'Biasing dataset for {domain} domain')
         df = pd.read_csv(f"{SENTIMENT_RAW_DATA_DIR}/{domain}/adj_all.csv", header=0)
-        median = df[bias_column].median()
-        df[f"{bias_column}_label"] = (df[bias_column] >= median).astype(int)
-        df_zero = df[df[f"{bias_column}_label"] < median]
-        df_one = df[df[f"{bias_column}_label"] >= median]
-        for bias_method in (bias_gentle, bias_aggressive):
-            df_biased = bias_method(df_zero.copy(), df_one.copy(), label_column, bias_column,
-                                    biased_label, biasing_factor, bias_ranked_sampling).set_index(keys="id", drop=True)
+        for bias_method in (bias_binary_rank_gentle, bias_binary_rank_aggressive):
+            df_biased = bias_method(df.copy(), label_column, bias_column,
+                                    biased_label, biasing_factor).set_index(keys="id", drop=True)
             validate_dataset(df_biased)
             split_data(df_biased, f"{SENTIMENT_RAW_DATA_DIR}/{domain}",
-                       f"adj_{bias_method.__name__}_{bias_column}_{biased_label}", label_column)
+                       f"adj_bias_{bias_method.__name__.split('_')[-1]}_{bias_column}_{biased_label}", label_column)
 
 
 @timer(logger=LOGGER)

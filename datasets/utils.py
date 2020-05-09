@@ -126,3 +126,45 @@ def bias_gentle(df_a, df_b, label_column, bias_column,
             df_biased = df_biased.append(df_label_a, ignore_index=True)
             df_biased = df_biased.append(df_label_b, ignore_index=True)
     return df_biased
+
+
+def bias_binary_rank_aggressive(df, label_column, bias_column,
+                                biased_label=1, biasing_factor=0.5):
+    """
+    Biases selected class by biasing factor, and uses same factor to inversely bias all other classes.
+    :param df:
+    :param label_column:
+    :param bias_column:
+    :param biased_label:
+    :param biasing_factor:
+    :return:
+    """
+    df_biased = pd.DataFrame(columns=df.columns)
+    df_label = df[df[label_column] == biased_label]
+    df_not_label = df[df[label_column] != biased_label]
+    num_samples = int(len(df_label) * biasing_factor)
+    df_sampled_not_label = df_not_label.sort_values(by=bias_column, ascending=True).head(num_samples)
+    df_sampled_label = df_label.sort_values(by=bias_column, ascending=False).head(num_samples)
+    df_biased = df_biased.append(df_sampled_not_label, ignore_index=True)
+    df_biased = df_biased.append(df_sampled_label, ignore_index=True)
+    return df_biased
+
+
+def bias_binary_rank_gentle(df, label_column, bias_column, biased_label=1, biasing_factor=0.5):
+    """
+    Biases selected class by biasing factor, and leaves other classes untouched.
+    :param df:
+    :param label_column:
+    :param bias_column:
+    :param biased_label:
+    :param biasing_factor:
+    :return:
+    """
+    df_biased = pd.DataFrame(columns=df.columns)
+    df_label = df[df[label_column] == biased_label]
+    df_not_label = df[df[label_column] != biased_label]
+    num_samples = int(len(df_label) * biasing_factor)
+    df_sampled_not_label = df_not_label.sort_values(by=bias_column, ascending=True).head(num_samples)
+    df_biased = df_biased.append(df_sampled_not_label, ignore_index=True)
+    df_biased = df_biased.append(df_label, ignore_index=True)
+    return df_biased
