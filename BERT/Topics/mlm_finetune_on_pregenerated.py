@@ -16,19 +16,21 @@ from tqdm import tqdm
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from BERT.lm_finetuning.MLM.bert_mlm_pretrain import BertForMLMPreTraining
-from BERT.GendeRace.pregenerate_training_data import EPOCHS
+from BERT.lm_finetuning.MLM.pregenerate_training_data import EPOCHS
+from BERT.bert_text_dataset import BertTextDataset
 from utils import init_logger
 from Timer import timer
-from constants import RANDOM_SEED, POMS_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, POMS_GENDER_PRETRAIN_DATA_DIR
+from constants import RANDOM_SEED, BERT_PRETRAINED_MODEL, NUM_CPU, \
+    SENTIMENT_TOPICS_PRETRAIN_DATA_DIR, SENTIMENT_MLM_PRETRAIN_DATA_DIR, SENTIMENT_TOPICS_PRETRAIN_MLM_DIR
 
-BATCH_SIZE = 32
+BATCH_SIZE = 10
 FP16 = False
 
 InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids")
 
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
-logger = init_logger("MLM-pretraining", f"{POMS_MLM_DATA_DIR}")
+logger = init_logger("MLM-pretraining", f"{SENTIMENT_MLM_PRETRAIN_DATA_DIR}")
 
 
 def convert_example_to_features(example, tokenizer, max_seq_length):
@@ -46,7 +48,7 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
     mask_array = np.zeros(max_seq_length, dtype=np.bool)
     mask_array[:len(input_ids)] = 1
 
-    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
     lm_label_array[masked_lm_positions] = masked_label_ids
 
     features = InputFeatures(input_ids=input_array,
@@ -78,11 +80,11 @@ class PregeneratedDataset(Dataset):
                                     shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
             lm_label_ids = np.memmap(filename=self.working_dir/'lm_label_ids.memmap',
                                      shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
-            lm_label_ids[:] = -1
+            lm_label_ids[:] = BertTextDataset.MLM_IGNORE_LABEL_IDX
         else:
             input_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.int32)
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
-            lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
+            lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
         logging.info(f"Loading training examples for epoch {epoch}")
         with data_file.open() as f:
             for i, line in enumerate(tqdm(f, total=num_samples, desc="Training examples")):
@@ -215,14 +217,13 @@ def pretrain_on_domain(args):
     scheduler = get_linear_schedule_with_warmup(optimizer,
                                                 num_warmup_steps=args.warmup_steps,
                                                 num_training_steps=num_train_optimization_steps)
-
+    loss_dict = defaultdict(list)
     global_step = 0
     logging.info("***** Running training *****")
     logging.info(f"  Num examples = {total_train_examples}")
     logging.info("  Batch size = %d", args.train_batch_size)
     logging.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
-    loss_dict = defaultdict(list)
     for epoch in range(args.epochs):
         epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
                                             num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
@@ -330,16 +331,13 @@ def main():
                         type=int,
                         default=RANDOM_SEED,
                         help="random seed for initialization")
-    parser.add_argument("--corpus_type", type=str, required=False, default="",
-                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
+    parser.add_argument("--domain", type=str, default="books",
+                        choices=("movies", "books", "dvd", "kitchen", "electronics", "all"))
     args = parser.parse_args()
-    if args.corpus_type:
-        MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / f"model_{args.corpus_type}"
-        args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR) / args.corpus_type
-    else:
-        MODEL_OUTPUT_DIR = Path(POMS_MLM_DATA_DIR) / "model"
-        args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR)
-    args.output_dir = MODEL_OUTPUT_DIR
+
+    logger.info(f"\nPretraining on domain: {args.domain}")
+    args.pregenerated_data = Path(SENTIMENT_TOPICS_PRETRAIN_DATA_DIR) / args.domain
+    args.output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_MLM_DIR) / args.domain / "model"
     args.fp16 = FP16
     pretrain_on_domain(args)
 

@@ -11,7 +11,8 @@ import pandas as pd
 import numpy as np
 import json
 import collections
-from constants import BERT_PRETRAINED_MODEL, POMS_GENDER_PRETRAIN_DATA_DIR, POMS_RACE_PRETRAIN_DATA_DIR, MAX_POMS_SEQ_LENGTH, POMS_RAW_DATA_DIR
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_TOPICS_PRETRAIN_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH, \
+    SENTIMENT_TOPICS_DATASETS_DIR, SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, SENTIMENT_DOMAINS
 from Timer import timer
 
 from datasets.utils import WORDPIECE_PREFIX, MASK_TOKEN, CLS_TOKEN, SEP_TOKEN
@@ -33,7 +34,8 @@ class DocumentDatabase:
         else:
             self.documents = []
             self.document_ids = []
-            self.documents_labels = []
+            self.documents_treatment_labels = []
+            self.documents_control_labels = []
             self.document_shelf = None
             self.document_shelf_filepath = None
             self.temp_dir = None
@@ -42,7 +44,7 @@ class DocumentDatabase:
         self.cumsum_max = None
         self.reduce_memory = reduce_memory
 
-    def add_document(self, document, label, unique_id):
+    def add_document(self, unique_id, document, treatment_label, control_label):
         if not document:
             return
         if self.reduce_memory:
@@ -51,7 +53,8 @@ class DocumentDatabase:
         else:
             self.documents.append(document)
             self.document_ids.append(unique_id)
-            self.documents_labels.append(label)
+            self.documents_treatment_labels.append(treatment_label)
+            self.documents_control_labels.append(control_label)
         self.doc_lengths.append(len(document))
 
     def _precalculate_doc_weights(self):
@@ -84,7 +87,7 @@ class DocumentDatabase:
         if self.reduce_memory:
             return self.document_shelf[str(item)]
         else:
-            return self.documents[item], self.documents_labels[item], self.document_ids[item]
+            return self.document_ids[item], self.documents[item], self.documents_treatment_labels[item], self.documents_control_labels[item]
 
     def __enter__(self):
         return self
@@ -200,7 +203,7 @@ def create_instances_from_document(
     However, we make some changes and improvements. Sampling is improved and no longer requires a loop in this function.
     Also, documents are sampled proportionally to the number of sentences they contain, which means each sentence
     (rather than each document) has an equal chance of being sampled as a false example for the NextSentence task."""
-    document, label, unique_id = doc_database[doc_idx]
+    unique_id, document, treatment_label, control_label = doc_database[doc_idx]
     # Account for [CLS], [SEP], [SEP]
     max_num_tokens = max_seq_length - 2
 
@@ -244,7 +247,8 @@ def create_instances_from_document(
             "tokens": [str(i) for i in instance_tokens],
             "masked_lm_positions": [str(i) for i in masked_lm_positions],
             "masked_lm_labels": [str(i) for i in masked_lm_labels],
-            "genderace_label": str(label)
+            "treatment_label": str(treatment_label),
+            "control_label": str(control_label)
         }
 
         instances.append(instance)
@@ -294,61 +298,60 @@ def main():
                         help="The number of workers to use to write the files")
     parser.add_argument("--epochs_to_generate", type=int, default=EPOCHS,
                         help="Number of epochs of data to pregenerate")
-    parser.add_argument("--max_seq_len", type=int, default=MAX_POMS_SEQ_LENGTH)
+    parser.add_argument("--max_seq_len", type=int, default=MAX_SENTIMENT_SEQ_LENGTH)
     parser.add_argument("--short_seq_prob", type=float, default=0.1,
                         help="Probability of making a short sentence as a training example")
     parser.add_argument("--masked_lm_prob", type=float, default=MLM_PROB,
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=MAX_PRED_PER_SEQ,
                         help="Maximum number of tokens to mask in each sequence")
-    parser.add_argument("--treatment", type=str, required=True, default="gender",
-                        help="Treatment can be: gender or race")
-    parser.add_argument("--corpus_type", type=str, required=False, default="",
-                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
+    parser.add_argument("--domain", type=str, default="books", choices=("movies", "books", "dvd", "kitchen", "electronics", "all"))
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
         raise ValueError("Cannot use multiple workers while reducing memory")
-    args.epochs_to_generate = EPOCHS
+
+    if args.domain == "all":
+        for domain in SENTIMENT_DOMAINS:
+            generate_data_for_domain(args, domain)
+    else:
+        generate_data_for_domain(args, args.domain)
+
+
+def generate_data_for_domain(args, domain):
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
     vocab_list = list(tokenizer.vocab.keys())
 
-    if args.treatment == "gender":
-        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_GENDER_PRETRAIN_DATA_DIR)
-        treatment_column = "Gender"
-        treatment_condition = "female"
-    else:
-        PRETRAIN_DATA_OUTPUT_DIR = Path(POMS_RACE_PRETRAIN_DATA_DIR)
-        treatment_column = "Race"
-        treatment_condition = "African-American"
+    with open(SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, "r") as jsonfile:
+        domain_topic_treat_dict = json.load(jsonfile)
 
-    if "enriched" in args.corpus_type:
-        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_{args.corpus_type}.csv"
-        PRETRAIN_DATA_OUTPUT_DIR = PRETRAIN_DATA_OUTPUT_DIR / args.corpus_type
-    else:
-        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
+    treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
+    control_topic = domain_topic_treat_dict[domain]["control_topics"][0]
+
+    treatment_column = f"{treatment_topic}_bin"
+    control_column = f"{control_topic}_bin"
 
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-        if "enriched" in args.corpus_type:
-            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8').set_index(keys="ID", drop=False).sort_index()
-        else:
-            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8', converters={"ID": lambda i: int(i.split("-")[-1])}).set_index(keys="ID", drop=False).sort_index()
+        print(f"\nGenerating data for domain: {domain}")
+        DATASET_FILE = f"{SENTIMENT_TOPICS_DATASETS_DIR}/topics_all.csv"
+        output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_DATA_DIR) / domain
+        output_dir.mkdir(exist_ok=True, parents=True)
+        df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8', usecols=["id", "review", treatment_column, control_column]).set_index(keys="id", drop=False).sort_index()
         df = df[df[treatment_column].notnull()]
-        unique_ids = df["ID"]
-        documents = df["Sentence"].apply(tokenizer.tokenize)
-        genderace_labels = df[treatment_column].apply(lambda t: int(str(t) == treatment_condition))
-        for doc, label, unique_id in tqdm(zip(documents, genderace_labels, unique_ids)):
+        unique_ids = df["id"].astype(int)
+        reviews = df["review"].apply(tokenizer.tokenize)
+        treatment_labels = df[treatment_column].astype(int)
+        control_labels = df[control_column].astype(int)
+
+        for unique_id, doc, treatment_label, control_label in tqdm(zip(unique_ids, reviews, treatment_labels, control_labels)):
             if doc:
-                docs.add_document(doc, label, unique_id)  # If the last doc didn't end on a newline, make sure it still gets added
+                docs.add_document(unique_id, doc, treatment_label, control_label)  # If the last doc didn't end on a newline, make sure it still gets added
         if len(docs) <= 1:
             exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
                  "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
                  "indicate breaks between documents in your input file. If your dataset does not contain multiple "
                  "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
                  "sections or paragraphs.")
-
-        output_dir = Path(PRETRAIN_DATA_OUTPUT_DIR)
-        output_dir.mkdir(exist_ok=True, parents=True)
 
         if args.num_workers > 1:
             writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))

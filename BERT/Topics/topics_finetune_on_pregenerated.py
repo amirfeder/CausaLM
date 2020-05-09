@@ -17,25 +17,29 @@ from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from BERT.GendeRace.bert_genderace_pretrain import BertForGendeRacePreTraining
 from BERT.GendeRace.pregenerate_training_data import EPOCHS
+from Topics.bert_topics_pretrain import BertForTopicTreatControlPreTraining
+from bert_text_dataset import BertTextDataset
 from utils import init_logger
 from Timer import timer
-from constants import RANDOM_SEED, POMS_GENDER_DATA_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, POMS_GENDER_PRETRAIN_DATA_DIR, POMS_RACE_PRETRAIN_DATA_DIR, POMS_RACE_DATA_DIR
+from constants import RANDOM_SEED, SENTIMENT_TOPICS_PRETRAIN_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, \
+    SENTIMENT_TOPICS_PRETRAIN_DATA_DIR, SENTIMENT_TOPICS_PRETRAIN_ITX_DIR
 
 BATCH_SIZE = 24
 FP16 = False
 
-InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids genderace_label unique_id")
+InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids treatment_label control_label unique_id")
 
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
-logger = init_logger("GendeRace-pretraining", f"{POMS_GENDER_DATA_DIR}")
+logger = init_logger("Sentiment-Topics-pretraining", f"{SENTIMENT_TOPICS_PRETRAIN_DIR}")
 
 
 def convert_example_to_features(example, tokenizer, max_seq_length):
     tokens = example["tokens"]
     masked_lm_positions = np.array([int(i) for i in example["masked_lm_positions"]])
     masked_lm_labels = example["masked_lm_labels"]
-    genderace_label = int(example["genderace_label"])
+    treatment_label = int(example["treatment_label"])
+    control_label = int(example["control_label"])
     unique_id = int(example["unique_id"])
 
     # assert len(tokens) == len(segment_ids) <= max_seq_length  # The preprocessed data should be already truncated
@@ -48,13 +52,14 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
     mask_array = np.zeros(max_seq_length, dtype=np.bool)
     mask_array[:len(input_ids)] = 1
 
-    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
     lm_label_array[masked_lm_positions] = masked_label_ids
 
     features = InputFeatures(input_ids=input_array,
                              input_mask=mask_array,
                              lm_label_ids=lm_label_array,
-                             genderace_label=genderace_label,
+                             treatment_label=treatment_label,
+                             control_label=control_label,
                              unique_id=unique_id)
     return features
 
@@ -82,12 +87,13 @@ class PregeneratedDataset(Dataset):
                                     shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
             lm_label_ids = np.memmap(filename=self.working_dir/'lm_label_ids.memmap',
                                      shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
-            lm_label_ids[:] = -1
+            lm_label_ids[:] = BertTextDataset.MLM_IGNORE_LABEL_IDX
         else:
             input_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.int32)
             input_masks = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
-            lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
-            genderace_labels = np.zeros(shape=(num_samples,), dtype=np.int32)
+            lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=BertTextDataset.MLM_IGNORE_LABEL_IDX)
+            treatment_labels = np.zeros(shape=(num_samples,), dtype=np.int32)
+            control_labels = np.zeros(shape=(num_samples,), dtype=np.int32)
             unique_ids = np.zeros(shape=(num_samples,), dtype=np.int32)
         logging.info(f"Loading training examples for epoch {epoch}")
         with data_file.open() as f:
@@ -98,7 +104,8 @@ class PregeneratedDataset(Dataset):
                 input_ids[i] = features.input_ids
                 input_masks[i] = features.input_mask
                 lm_label_ids[i] = features.lm_label_ids
-                genderace_labels[i] = features.genderace_label
+                treatment_labels[i] = features.treatment_label
+                control_labels[i] = features.control_label
                 unique_ids[i] = features.unique_id
         assert i == num_samples - 1  # Assert that the sample count metric was true
         logging.info("Loading complete!")
@@ -107,7 +114,8 @@ class PregeneratedDataset(Dataset):
         self.input_ids = input_ids
         self.input_masks = input_masks
         self.lm_label_ids = lm_label_ids
-        self.genderace_labels = genderace_labels
+        self.treatment_labels = treatment_labels
+        self.control_labels = control_labels
         self.unique_ids = unique_ids
 
     def __len__(self):
@@ -117,7 +125,8 @@ class PregeneratedDataset(Dataset):
         return (torch.tensor(self.input_ids[item].astype(np.int64)),
                 torch.tensor(self.input_masks[item].astype(np.int64)),
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
-                torch.tensor(self.genderace_labels[item].astype(np.int64)),
+                torch.tensor(self.treatment_labels[item].astype(np.int64)),
+                torch.tensor(self.control_labels[item].astype(np.int64)),
                 torch.tensor(self.unique_ids[item].astype(np.int64)))
 
 
@@ -183,7 +192,7 @@ def pretrain_on_domain(args):
         num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
     # Prepare model
-    model = BertForGendeRacePreTraining.from_pretrained(args.bert_model)
+    model = BertForTopicTreatControlPreTraining.from_pretrained(args.bert_model)
     if args.fp16:
         model.half()
     model.to(device)
@@ -248,16 +257,15 @@ def pretrain_on_domain(args):
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, lm_label_ids, genderace_label, unique_id = batch
-                outputs = model(input_ids=input_ids, attention_mask=input_mask,
-                                masked_lm_labels=lm_label_ids, genderace_label=genderace_label)
-                loss = outputs[0]
-                mlm_loss = outputs[1]
-                adversarial_loss = outputs[2]
+                input_ids, input_mask, lm_label_ids, treatment_label, control_label, unique_id = batch
+                outputs = model(input_ids=input_ids, attention_mask=input_mask, masked_lm_labels=lm_label_ids,
+                                topic_treat_label=treatment_label, topic_control_label=control_label)
+                loss, mlm_loss, treatment_loss, control_loss = outputs[:4]
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
                     mlm_loss = mlm_loss.mean()
-                    adversarial_loss = adversarial_loss.mean()
+                    treatment_loss = treatment_loss.mean()
+                    control_loss = control_loss.mean()
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
@@ -279,8 +287,9 @@ def pretrain_on_domain(args):
                     loss_dict["epoch"].append(epoch)
                     loss_dict["unique_id"].append(unique_id[i].item())
                     loss_dict["mlm_loss"].append(mlm_loss[i].item())
-                    loss_dict["adversarial_loss"].append(adversarial_loss[i].item())
-                    loss_dict["total_loss"].append(mlm_loss[i].item() + adversarial_loss[i].item())
+                    loss_dict["treatment_loss"].append(treatment_loss[i].item())
+                    loss_dict["control_loss"].append(control_loss[i].item())
+                    loss_dict["total_loss"].append(mlm_loss[i].item() + treatment_loss[i].item() + control_loss[i].item())
         # Save a trained model
         if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
             logging.info("** ** * Saving fine-tuned model ** ** * ")
@@ -350,25 +359,15 @@ def main():
                         type=int,
                         default=RANDOM_SEED,
                         help="random seed for initialization")
-    parser.add_argument("--treatment", type=int, default=0,
-                        help="Treatment can be any topic number")
-    parser.add_argument("--control", type=int, default=1,
-                        help="Control can be any topic number different from treatment")
+    parser.add_argument("--domain", type=str, default="books",
+                        choices=("movies", "books", "dvd", "kitchen", "electronics", "all"))
     args = parser.parse_args()
 
-    if args.treatment == "gender":
-        MODEL_OUTPUT_DIR = Path(POMS_GENDER_DATA_DIR)
-        args.pregenerated_data = Path(POMS_GENDER_PRETRAIN_DATA_DIR)
-    else:
-        MODEL_OUTPUT_DIR = Path(POMS_RACE_DATA_DIR)
-        args.pregenerated_data = Path(POMS_RACE_PRETRAIN_DATA_DIR)
-    if args.corpus_type:
-        MODEL_OUTPUT_DIR = MODEL_OUTPUT_DIR / f"model_{args.corpus_type}"
-        args.pregenerated_data = args.pregenerated_data / args.corpus_type
-    else:
-        MODEL_OUTPUT_DIR = MODEL_OUTPUT_DIR / "model"
+    logger.info(f"\nPretraining on domain: {args.domain}")
 
-    args.output_dir = MODEL_OUTPUT_DIR
+    args.pregenerated_data = Path(SENTIMENT_TOPICS_PRETRAIN_DATA_DIR) / args.domain
+    args.output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_ITX_DIR) / args.domain / "model"
+
     args.fp16 = FP16
     pretrain_on_domain(args)
 
