@@ -1,6 +1,9 @@
+import json
 from argparse import ArgumentParser
 from typing import Dict
-from constants import POMS_MLM_DATA_DIR, POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR, POMS_EXPERIMENTS_DIR, MAX_POMS_SEQ_LENGTH
+from constants import SENTIMENT_TOPICS_DATASETS_DIR, SENTIMENT_EXPERIMENTS_DIR, MAX_SENTIMENT_SEQ_LENGTH, \
+    SENTIMENT_TOPICS_PRETRAIN_MLM_DIR, SENTIMENT_TOPICS_PRETRAIN_ITX_DIR, SENTIMENT_DOMAINS, \
+    SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE
 from pytorch_lightning import Trainer, LightningModule
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPretrainedClassifier
 from os import listdir, path
@@ -9,6 +12,9 @@ from copy import deepcopy
 from Timer import timer
 from utils import GoogleDriveHandler, send_email, init_logger
 import torch
+
+
+domain_topic_treat_dict = None
 
 
 def get_checkpoint_file(ckpt_dir: str):
@@ -47,17 +53,19 @@ def print_final_metrics(name: str, metrics: Dict, logger=None):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=True, default="gender",
-                        help="Specify treatment for experiments: adj, gender, gender, race")
-    parser.add_argument("--corpus_type", type=str, required=False, default="",
-                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
+    parser.add_argument("--domain", type=str, default="books",
+                        choices=("movies", "books", "dvd", "kitchen", "electronics", "all")),
     parser.add_argument("--trained_group", type=str, required=True, default="F",
                         help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
                         help="Specify epoch for pretrained models: 0-4")
     args = parser.parse_args()
-    if args.treatment in ("gender", "race"):
-        predict_all_genderace_models(args.treatment, args.corpus_type, args.trained_group, args.pretrained_epoch)
+
+    if args.domain == "all":
+        for domain in SENTIMENT_DOMAINS:
+            predict_all_models(args, domain)
+    else:
+        predict_all_models(args, args.domain)
 
 
 @timer
@@ -77,14 +85,10 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
                                                                                model.bert_classifier.bert_state_dict)
 
     # Update model hyperparameters
-    model.hparams.max_seq_len = hparams["max_seq_len"]
     model.hparams.output_path = hparams["output_path"]
     model.hparams.label_column = hparams["label_column"]
-    model.hparams.text_column = hparams["text_column"]
     model.hparams.bert_params["name"] = hparams['bert_params']['name']
-    model.hparams.bert_params["label_size"] = hparams["bert_params"]["label_size"]
     model.bert_classifier.name = hparams['bert_params']['name']
-    model.bert_classifier.label_size = hparams["bert_params"]["label_size"]
 
     model.freeze()
     trainer.test(model)
@@ -92,37 +96,26 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
 
 
 @timer
-def predict_genderace_models_unit(task, treatment, trained_group, group, model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict):
-    if "noisy" in treatment:
-        state_dict_dir = "model_enriched_noisy"
-    elif "enriched" in treatment:
-        state_dict_dir = "model_enriched"
-    else:
-        state_dict_dir = "model"
+def predict_models_unit(task, treatment, domain, trained_group, group, model_ckpt,
+                        hparams, trainer, logger, pretrained_epoch, bert_state_dict):
+
+    state_dict_dir = f"{domain}/model"
     if pretrained_epoch is not None:
         state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
-    if treatment.startswith("gender"):
-        TREATMENT = "gender"
-        pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
-    else:
-        TREATMENT = "race"
-        pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
-    label_size = 2
-    if task == "POMS":
-        label_column = f"{task}_label"
-        label_size = 5
-    elif task.split("_")[-1].lower() in treatment:
-        label_column = f"{task.split('_')[-1]}_{group}_label"
-    else:
-        label_column = f"{task.split('_')[-1]}_label"
 
-    hparams["max_seq_len"] = MAX_POMS_SEQ_LENGTH
+    # TODO: Finalize what CF is for topics and how to implement here
+
+    label_size = 2
+    if task == "Sentiment":
+        label_column = f"{task.lower()}_label"
+    elif "ITT" in task:
+        label_column = hparams['treatment_column']
+        task = "ITT"
+    else:
+        label_column = hparams['control_column']
+        task = "ITC"
+
     hparams["label_column"] = label_column
-    hparams["bert_params"]["label_size"] = label_size
-    hparams["text_column"] = f"Sentence_{group}"
-    hparams["treatment"] = treatment
-    hparams["trained_group"] = trained_group
     logger.info(f"Treatment: {treatment}")
     logger.info(f"Text Column: {hparams['text_column']}")
     logger.info(f"Label Column: {label_column}")
@@ -131,8 +124,8 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
     hparams["bert_params"]["bert_state_dict"] = bert_state_dict
 
     if not model_ckpt:
-        model_name = f"{hparams['label_column'].split('_')[0]}_{hparams['trained_group']}"
-        models_dir = f"{POMS_EXPERIMENTS_DIR}/{hparams['treatment']}/{model_name}/lightning_logs/*"
+        model_name = f"{task}_{hparams['trained_group']}"
+        models_dir = f"{SENTIMENT_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['domain']}/{model_name}/lightning_logs/*"
         model_ckpt = find_latest_model_checkpoint(models_dir)
 
     # Group Task BERT Model training
@@ -141,48 +134,48 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
 
     # Group Task BERT Model test with MLM LM
     hparams["bert_params"]["name"] = f"{task}_MLM_{group}_trained_{trained_group}"
-    hparams["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
-    logger.info(f"MLM Pretrained Model: {POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin")
+    hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_TOPICS_PRETRAIN_MLM_DIR}/{state_dict_dir}/pytorch_model.bin"
+    logger.info(f"MLM Pretrained Model: {hparams['bert_params']['bert_state_dict']}")
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
 
     if not bert_state_dict:
         # Group Task BERT Model test with Gender/Race treated LM
-        hparams["bert_params"]["name"] = f"{task}_{TREATMENT}_treated_{group}_trained_{trained_group}"
-        hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
-        logger.info(f"Treated Pretrained Model: {pretrained_treated_model_dir}/pytorch_model.bin")
+        hparams["bert_params"]["name"] = f"{task}_topic_{hparams['treatment_column'].split('')[1]}_treated_topic_{hparams['control_column'].split('')[1]}_controlled_{group}_trained_{trained_group}"
+        hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{state_dict_dir}/pytorch_model.bin"
+        logger.info(f"Treated Pretrained Model: {hparams['bert_params']['bert_state_dict']}")
         bert_treatment_test(model_ckpt, hparams, trainer, logger)
 
 
 @timer
-def predict_genderace_models(treatment="gender", trained_group="F", pretrained_epoch=None,
-                             poms_model_ckpt=None, gender_model_ckpt=None, race_model_ckpt=None,
-                             bert_state_dict=None):
+def predict_models(treatment="topics", domain="books", trained_group="F", pretrained_epoch=None,
+                   sentiment_model_ckpt=None, itt_model_ckpt=None, itc_model_ckpt=None,
+                   bert_state_dict=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
+    control_topic = domain_topic_treat_dict[domain]["control_topics"][0]
     hparams = {
         "treatment": treatment,
+        "domain": domain,
+        "trained_group": trained_group,
+        "treatment_column": f"{treatment_topic}_bin",
+        "control_column": f"{control_topic}_bin",
+        "data_path": SENTIMENT_TOPICS_DATASETS_DIR,
         "bert_params": {
             "bert_state_dict": bert_state_dict
         }
     }
-    OUTPUT_DIR = f"{POMS_EXPERIMENTS_DIR}/{treatment}/COMPARE"
+    OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{treatment}/{domain}/COMPARE"
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=OUTPUT_DIR,
                       show_progress_bar=True,
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     logger = init_logger(f"testing", hparams["output_path"])
-    predict_genderace_models_unit("POMS", treatment, trained_group, "F", poms_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit("POMS", treatment, trained_group, "CF", poms_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "F", gender_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "CF", gender_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "F", race_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "CF", race_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
+    for task, model in zip(("Sentiment", "CONTROL_ITT", "CONTROL_ITC"),
+                           (sentiment_model_ckpt, itt_model_ckpt, itc_model_ckpt)):
+        for group in ("F",): #TODO: Finalize what CF is for topics
+            predict_models_unit(task, treatment, domain, trained_group, group, model,
+                                hparams, trainer, logger, pretrained_epoch, bert_state_dict)
     handler = GoogleDriveHandler()
     push_message = handler.push_files(hparams["output_path"])
     logger.info(push_message)
@@ -190,28 +183,29 @@ def predict_genderace_models(treatment="gender", trained_group="F", pretrained_e
 
 
 @timer
-def predict_all_genderace_models(treatment: str, corpus_type: str, trained_group: str, pretrained_epoch: int = None):
-    if corpus_type:
-        treatment = f"{treatment}_{corpus_type}"
-        state_dict_dir = f"model_{corpus_type}"
-    else:
-        state_dict_dir = "model"
-    if pretrained_epoch is not None:
-        state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
-    if treatment.startswith("gender"):
-        pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
-    else:
-        pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
+def predict_all_models(args, domain: str):
 
-    predict_genderace_models(treatment, trained_group, pretrained_epoch)
-    predict_genderace_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch)
-    predict_genderace_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch)
+    treatment = "topics"
+
+    with open(SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, "r") as jsonfile:
+        domain_topic_treat_dict = json.load(jsonfile)
+
+    treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
+    control_topic = domain_topic_treat_dict[domain]["control_topics"][0]
+
+    predict_models(treatment, domain, args.trained_group, args.pretrained_epoch)
+    predict_models(f"{treatment}_bias_gentle_{treatment_topic}_1", domain, args.trained_group, args.pretrained_epoch)
+    predict_models(f"{treatment}_bias_aggressive_{treatment_topic}_1", domain, args.trained_group, args.pretrained_epoch)
+
+    pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model"
+    if args.pretrained_epoch is not None:
+        pretrained_treated_model_dir = f"{pretrained_treated_model_dir}/epoch_{args.pretrained_epoch}"
 
     bert_state_dict = f"{pretrained_treated_model_dir}/pytorch_model.bin"
-    trained_group = f"{trained_group}_{treatment.split('_')[0]}_treated"
-    predict_genderace_models(treatment, trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
-    predict_genderace_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
-    predict_genderace_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
+    trained_group = f"{args.trained_group}_{treatment_topic}_treated_{control_topic}_controlled"
+    predict_models(treatment, domain, trained_group, args.pretrained_epoch, bert_state_dict=bert_state_dict)
+    predict_models(f"{treatment}_bias_gentle_{treatment_topic}_1", domain, trained_group, args.pretrained_epoch, bert_state_dict=bert_state_dict)
+    predict_models(f"{treatment}_bias_aggressive_{treatment_topic}_1", domain, trained_group, args.pretrained_epoch, bert_state_dict=bert_state_dict)
 
 
 if __name__ == "__main__":
