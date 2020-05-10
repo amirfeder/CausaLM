@@ -3,16 +3,15 @@ from typing import List
 from torch.utils.data.dataloader import DataLoader
 from pytorch_lightning import LightningModule, data_loader
 from tqdm import tqdm
-from transformers import BertConfig, BertForTokenClassification, BertModel
-from BERT.bert_text_dataset import BERT_PRETRAINED_MODEL, BertTextDataset, InputExample, InputFeatures, InputLabel, \
-    truncate_seq_first
-from BERT.bert_text_classifier import LightningHyperparameters
+from transformers import BertConfig, BertForTokenClassification
+from BERT.bert_text_dataset import BertTextDataset, InputExample, InputFeatures, InputLabel, truncate_seq_first
+from BERT.bert_text_classifier import LightningHyperparameters, BertPretrainedClassifier
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
 from datasets.utils import CLS_TOKEN, SEP_TOKEN, TOKEN_SEPARATOR, NUM_POS_TAGS_LABELS
-from constants import NUM_CPU, MAX_SENTIMENT_SEQ_LENGTH
+from constants import NUM_CPU, MAX_SENTIMENT_SEQ_LENGTH, BERT_PRETRAINED_MODEL
 from utils import save_predictions
 
 
@@ -44,15 +43,7 @@ class LightningBertPOSTagger(LightningModule):
 
     @staticmethod
     def load_pretrained_state_dict(bert_pretrained_model: str, bert_state_dict: str = None):
-        if bert_state_dict:
-            fine_tuned_state_dict = torch.load(bert_state_dict)
-            bert = BertModel.from_pretrained(pretrained_model_name_or_path=bert_pretrained_model,
-                                             state_dict=fine_tuned_state_dict)
-        else:
-            bert = BertModel.from_pretrained(pretrained_model_name_or_path=bert_pretrained_model)
-        for p in bert.parameters():
-            p.requires_grad = False
-        return bert
+        return BertPretrainedClassifier.load_frozen_bert(bert_pretrained_model, bert_state_dict)
 
     def forward(self, input_ids=None, attention_mask=None, token_type_ids=None,
                 position_ids=None, head_mask=None, inputs_embeds=None, labels=None):
