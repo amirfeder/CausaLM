@@ -21,7 +21,7 @@ from BERT.bert_text_dataset import BertTextDataset
 from utils import init_logger
 from Timer import timer
 from constants import RANDOM_SEED, BERT_PRETRAINED_MODEL, NUM_CPU, \
-    SENTIMENT_TOPICS_PRETRAIN_DATA_DIR, SENTIMENT_MLM_PRETRAIN_DATA_DIR, SENTIMENT_TOPICS_PRETRAIN_MLM_DIR
+    SENTIMENT_TOPICS_PRETRAIN_DATA_DIR, SENTIMENT_TOPICS_PRETRAIN_MLM_DIR
 
 BATCH_SIZE = 10
 FP16 = False
@@ -30,7 +30,7 @@ InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids")
 
 # log_format = '%(asctime)-10s: %(message)s'
 # logging.basicConfig(level=logging.INFO, format=log_format)
-logger = init_logger("MLM-pretraining", f"{SENTIMENT_MLM_PRETRAIN_DATA_DIR}")
+logger = init_logger("MLM-pretraining", f"{SENTIMENT_TOPICS_PRETRAIN_MLM_DIR}")
 
 
 def convert_example_to_features(example, tokenizer, max_seq_length):
