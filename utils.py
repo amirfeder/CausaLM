@@ -26,7 +26,7 @@ def init_logger(name=None, path=None, screen=True):
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('{asctime} - {message}', datefmt="%H:%M:%S", style="{")
     if path:
-        # file = file.replace('.py', '.log')
+        Path(path).mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(f"{path}/{name}-{INIT_TIME}.log")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
