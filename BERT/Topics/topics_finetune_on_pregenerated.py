@@ -15,10 +15,9 @@ from tqdm import tqdm
 
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
-from BERT.GendeRace.bert_genderace_pretrain import BertForGendeRacePreTraining
-from BERT.GendeRace.pregenerate_training_data import EPOCHS
-from Topics.bert_topics_pretrain import BertForTopicTreatControlPreTraining
-from bert_text_dataset import BertTextDataset
+from BERT.Topics.pregenerate_training_data import EPOCHS
+from BERT.Topics.bert_topics_pretrain import BertForTopicTreatControlPreTraining
+from BERT.bert_text_dataset import BertTextDataset
 from utils import init_logger
 from Timer import timer
 from constants import RANDOM_SEED, SENTIMENT_TOPICS_PRETRAIN_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, \
