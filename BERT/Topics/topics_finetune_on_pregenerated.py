@@ -23,7 +23,7 @@ from Timer import timer
 from constants import RANDOM_SEED, SENTIMENT_TOPICS_PRETRAIN_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, \
     SENTIMENT_TOPICS_PRETRAIN_DATA_DIR, SENTIMENT_TOPICS_PRETRAIN_ITX_DIR
 
-BATCH_SIZE = 24
+BATCH_SIZE = 6
 FP16 = False
 
 InputFeatures = namedtuple("InputFeatures", "input_ids input_mask lm_label_ids treatment_label control_label unique_id")

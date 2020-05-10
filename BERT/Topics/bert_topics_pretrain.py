@@ -205,7 +205,7 @@ class BertForTopicTreatControlPreTraining(BertPreTrainedModel):
         super().__init__(config)
 
         self.bert = BertModel(config)
-        self.cls = BertTopicTreatPreTrainingHeads(config)
+        self.cls = BertTopicTreatControlPreTrainingHeads(config)
 
         self.init_weights()
         self.tie_weights()
