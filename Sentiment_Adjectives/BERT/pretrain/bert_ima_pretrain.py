@@ -1,5 +1,5 @@
 from transformers.modeling_bert import BertLMPredictionHead, BertPreTrainedModel, BertModel
-from BERT.lm_finetuning.grad_reverse_layer import GradReverseLayerFunction
+from BERT.pretrain.grad_reverse_layer import GradReverseLayerFunction
 from BERT.bert_text_dataset import BertTextDataset
 from BERT.bert_pos_tagger import BertTokenClassificationDataset
 from torch.nn import CrossEntropyLoss

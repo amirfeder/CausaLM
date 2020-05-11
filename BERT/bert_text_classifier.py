@@ -2,7 +2,7 @@ from typing import Callable, List
 from tqdm import tqdm
 from transformers import BertModel
 from torch.utils.data.dataloader import DataLoader
-from BERT.GendeRace.pregenerate_training_data import CLS_TOKEN, SEP_TOKEN
+from datasets.utils import CLS_TOKEN, SEP_TOKEN
 from constants import NUM_CPU, MAX_SENTIMENT_SEQ_LENGTH
 from BERT.bert_text_dataset import BERT_PRETRAINED_MODEL, BertTextDataset, InputExample, InputLabel, InputFeatures, \
     truncate_seq_first
