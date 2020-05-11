@@ -158,6 +158,7 @@ def predict_models(treatment="topics", domain="books", trained_group="F", pretra
         "trained_group": trained_group,
         "treatment_column": f"{treatment_topic}_bin",
         "control_column": f"{control_topic}_bin",
+        "text_column": "review",
         "data_path": SENTIMENT_TOPICS_DATASETS_DIR,
         "bert_params": {
             "bert_state_dict": bert_state_dict
