@@ -14,9 +14,6 @@ from utils import GoogleDriveHandler, send_email, init_logger
 import torch
 
 
-domain_topic_treat_dict = None
-
-
 def get_checkpoint_file(ckpt_dir: str):
     for file in sorted(listdir(ckpt_dir)):
         if file.endswith(".ckpt"):
@@ -55,7 +52,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--domain", type=str, default="books",
                         choices=("movies", "books", "dvd", "kitchen", "electronics", "all")),
-    parser.add_argument("--trained_group", type=str, required=True, default="F",
+    parser.add_argument("--trained_group", type=str, required=False, default="F",
                         help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
                         help="Specify epoch for pretrained models: 0-4")
@@ -151,6 +148,8 @@ def predict_models(treatment="topics", domain="books", trained_group="F", pretra
                    sentiment_model_ckpt=None, itt_model_ckpt=None, itc_model_ckpt=None,
                    bert_state_dict=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    with open(SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, "r") as jsonfile:
+        domain_topic_treat_dict = json.load(jsonfile)
     treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
     control_topic = domain_topic_treat_dict[domain]["control_topics"][0]
     hparams = {

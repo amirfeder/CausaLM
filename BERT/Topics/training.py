@@ -27,7 +27,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--domain", type=str, default="books",
                         choices=("movies", "books", "dvd", "kitchen", "electronics", "all")),
-    parser.add_argument("--group", type=str, required=True, default="F",
+    parser.add_argument("--group", type=str, required=False, default="F",
                         help="Specify data group for experiments: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
                         help="Specify epoch for pretrained models: 0-4")
