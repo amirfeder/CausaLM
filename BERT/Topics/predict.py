@@ -137,7 +137,7 @@ def predict_models_unit(task, treatment, domain, trained_group, group, model_ckp
 
     if not bert_state_dict:
         # Group Task BERT Model test with Gender/Race treated LM
-        hparams["bert_params"]["name"] = f"{task}_topic_{hparams['treatment_column'].split('')[1]}_treated_topic_{hparams['control_column'].split('')[1]}_controlled_{group}_trained_{trained_group}"
+        hparams["bert_params"]["name"] = f"{task}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['control_column'].split('_')[1]}_controlled_{group}_trained_{trained_group}"
         hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{state_dict_dir}/pytorch_model.bin"
         logger.info(f"Treated Pretrained Model: {hparams['bert_params']['bert_state_dict']}")
         bert_treatment_test(model_ckpt, hparams, trainer, logger)

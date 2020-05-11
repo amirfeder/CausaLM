@@ -74,7 +74,7 @@ def train_models_unit(hparams: Dict, task, group):
     hparams["label_column"] = label_column
     hparams["bert_params"]["label_size"] = label_size
     if hparams["bert_params"]["bert_state_dict"]:
-        hparams["bert_params"]["name"] = f"{task}_{group}_topic_{hparams['treatment_column'].split('')[1]}_treated_topic_{hparams['control_column'].split('')[1]}_controlled"
+        hparams["bert_params"]["name"] = f"{task}_{group}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['control_column'].split('_')[1]}_controlled"
     else:
         hparams["bert_params"]["name"] = f"{task}_{group}"
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['domain']}/{hparams['bert_params']['name']}"
@@ -89,7 +89,7 @@ def train_models(hparams: Dict, group: str, pretrained_epoch: int):
     itt_model = train_models_unit(hparams, "ITT", group)
     itc_model = train_models_unit(hparams, "ITC", group)
     if hparams["bert_params"]["bert_state_dict"]:
-        group = f"{group}_topic_{hparams['treatment_column'].split('')[1]}_treated_topic_{hparams['treatment_column'].split('')[1]}_controlled"
+        group = f"{group}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['treatment_column'].split('_')[1]}_controlled"
     predict_models(hparams['treatment'], hparams['domain'], group, pretrained_epoch,
                    sentiment_model, itt_model, itc_model, hparams["bert_params"]["bert_state_dict"])
 
