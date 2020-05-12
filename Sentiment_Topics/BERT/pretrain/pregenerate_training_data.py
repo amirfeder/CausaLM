@@ -326,7 +326,7 @@ def generate_data_for_domain(args, domain):
         domain_topic_treat_dict = json.load(jsonfile)
 
     treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
-    control_topic = domain_topic_treat_dict[domain]["control_topics"][0]
+    control_topic = domain_topic_treat_dict[domain]["control_topics"][-1]
 
     treatment_column = f"{treatment_topic}_bin"
     control_column = f"{control_topic}_bin"

@@ -1,7 +1,7 @@
 import json
 from argparse import ArgumentParser
 from typing import Dict
-from constants import SENTIMENT_TOPICS_DATASETS_DIR, SENTIMENT_EXPERIMENTS_DIR, MAX_SENTIMENT_SEQ_LENGTH, \
+from constants import SENTIMENT_TOPICS_DATASETS_DIR, SENTIMENT_EXPERIMENTS_DIR, \
     SENTIMENT_TOPICS_PRETRAIN_MLM_DIR, SENTIMENT_TOPICS_PRETRAIN_ITX_DIR, SENTIMENT_DOMAINS, \
     SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE
 from pytorch_lightning import Trainer, LightningModule
@@ -151,7 +151,7 @@ def predict_models(treatment="topics", domain="books", trained_group="F", pretra
     with open(SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, "r") as jsonfile:
         domain_topic_treat_dict = json.load(jsonfile)
     treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
-    control_topic = domain_topic_treat_dict[domain]["control_topics"][0]
+    control_topic = domain_topic_treat_dict[domain]["control_topics"][-1]
     hparams = {
         "treatment": treatment,
         "domain": domain,
@@ -191,7 +191,7 @@ def predict_all_models(args, domain: str):
         domain_topic_treat_dict = json.load(jsonfile)
 
     treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
-    control_topic = domain_topic_treat_dict[domain]["control_topics"][0]
+    control_topic = domain_topic_treat_dict[domain]["control_topics"][-1]
 
     predict_models(treatment, domain, args.trained_group, args.pretrained_epoch)
     predict_models(f"{treatment}_bias_gentle_{treatment_topic}_1", domain, args.trained_group, args.pretrained_epoch)

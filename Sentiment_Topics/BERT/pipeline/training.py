@@ -101,7 +101,7 @@ def train_all_models(args, domain: str):
         domain_topic_treat_dict = json.load(jsonfile)
 
     treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
-    control_topic = domain_topic_treat_dict[domain]["control_topics"][0]
+    control_topic = domain_topic_treat_dict[domain]["control_topics"][-1]
 
     pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model"
     if args.pretrained_epoch is not None:
