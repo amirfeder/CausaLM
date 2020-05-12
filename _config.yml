@@ -1,4 +1,6 @@
 theme: jekyll-theme-slate
+title: CausaLM
+description: Causal Model Explanation Through Counterfactual Language Models
 github:
   amir_name: Amir Feder
   amir_url: https://github.com/amirfeder
