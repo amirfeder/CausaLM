@@ -260,12 +260,11 @@ def pretrain_on_domain(args):
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
+                input_ids, input_mask, lm_label_ids, treatment_label, control_label, unique_id = batch
                 if args.control:
-                    input_ids, input_mask, lm_label_ids, treatment_label, control_label, unique_id = batch
                     outputs = model(input_ids=input_ids, attention_mask=input_mask, masked_lm_labels=lm_label_ids,
                                     topic_treat_label=treatment_label, topic_control_label=control_label)
                 else:
-                    input_ids, input_mask, lm_label_ids, treatment_label, unique_id = batch
                     outputs = model(input_ids=input_ids, attention_mask=input_mask, masked_lm_labels=lm_label_ids,
                                     topic_treat_label=treatment_label)
                 loss, mlm_loss, treatment_loss, control_loss = outputs[:4]
