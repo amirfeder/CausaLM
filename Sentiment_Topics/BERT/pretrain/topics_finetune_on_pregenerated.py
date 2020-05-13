@@ -16,7 +16,8 @@ from tqdm import tqdm
 from transformers.tokenization_bert import BertTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from Sentiment_Topics.BERT.pretrain.pregenerate_training_data import EPOCHS
-from Sentiment_Topics.BERT.pretrain.bert_topics_pretrain import BertForTopicTreatControlPreTraining
+from Sentiment_Topics.BERT.pretrain.bert_topics_pretrain import BertForTopicTreatControlPreTraining, \
+    BertForTopicTreatPreTraining
 from BERT.bert_text_dataset import BertTextDataset
 from utils import init_logger
 from Timer import timer
@@ -191,7 +192,10 @@ def pretrain_on_domain(args):
         num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
     # Prepare model
-    model = BertForTopicTreatControlPreTraining.from_pretrained(args.bert_model)
+    if args.control:
+        model = BertForTopicTreatControlPreTraining.from_pretrained(args.bert_model)
+    else:
+        model = BertForTopicTreatPreTraining.from_pretrained(args.bert_model)
     if args.fp16:
         model.half()
     model.to(device)
@@ -256,15 +260,21 @@ def pretrain_on_domain(args):
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
             for step, batch in enumerate(train_dataloader):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, lm_label_ids, treatment_label, control_label, unique_id = batch
-                outputs = model(input_ids=input_ids, attention_mask=input_mask, masked_lm_labels=lm_label_ids,
-                                topic_treat_label=treatment_label, topic_control_label=control_label)
+                if args.control:
+                    input_ids, input_mask, lm_label_ids, treatment_label, control_label, unique_id = batch
+                    outputs = model(input_ids=input_ids, attention_mask=input_mask, masked_lm_labels=lm_label_ids,
+                                    topic_treat_label=treatment_label, topic_control_label=control_label)
+                else:
+                    input_ids, input_mask, lm_label_ids, treatment_label, unique_id = batch
+                    outputs = model(input_ids=input_ids, attention_mask=input_mask, masked_lm_labels=lm_label_ids,
+                                    topic_treat_label=treatment_label)
                 loss, mlm_loss, treatment_loss, control_loss = outputs[:4]
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
                     mlm_loss = mlm_loss.mean()
                     treatment_loss = treatment_loss.mean()
-                    control_loss = control_loss.mean()
+                    if args.control:
+                        control_loss = control_loss.mean()
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
@@ -287,8 +297,11 @@ def pretrain_on_domain(args):
                     loss_dict["unique_id"].append(unique_id[i].item())
                     loss_dict["mlm_loss"].append(mlm_loss[i].item())
                     loss_dict["treatment_loss"].append(treatment_loss[i].item())
-                    loss_dict["control_loss"].append(control_loss[i].item())
-                    loss_dict["total_loss"].append(mlm_loss[i].item() + treatment_loss[i].item() + control_loss[i].item())
+                    if args.control:
+                        loss_dict["control_loss"].append(control_loss[i].item())
+                        loss_dict["total_loss"].append(mlm_loss[i].item() + treatment_loss[i].item() + control_loss[i].item())
+                    else:
+                        loss_dict["total_loss"].append(mlm_loss[i].item() + treatment_loss[i].item())
         # Save a trained model
         if epoch < num_data_epochs and (n_gpu > 1 and torch.distributed.get_rank() == 0 or n_gpu <= 1):
             logging.info("** ** * Saving fine-tuned model ** ** * ")
@@ -360,12 +373,17 @@ def main():
                         help="random seed for initialization")
     parser.add_argument("--domain", type=str, default="books",
                         choices=("movies", "books", "dvd", "kitchen", "electronics", "all"))
+    parser.add_argument("--control", action="store_true",
+                        help="Use pretraining model with control task")
     args = parser.parse_args()
 
     logger.info(f"\nPretraining on domain: {args.domain}")
 
     args.pregenerated_data = Path(SENTIMENT_TOPICS_PRETRAIN_DATA_DIR) / args.domain
-    args.output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_ITX_DIR) / args.domain / "model"
+    if args.control:
+        args.output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_DATA_DIR) / args.domain / "model_control"
+    else:
+        args.output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_ITX_DIR) / args.domain / "model"
 
     args.fp16 = FP16
     pretrain_on_domain(args)

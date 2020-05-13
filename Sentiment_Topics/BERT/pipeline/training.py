@@ -35,6 +35,8 @@ def main():
                         help="Batch size for training")
     parser.add_argument("--epochs", type=int, default=EPOCHS,
                         help="Number of epochs to train for")
+    parser.add_argument("--pretrained_control", action="store_true",
+                        help="Use pretrained model with control task")
     args = parser.parse_args()
 
     if args.domain == "all":
@@ -63,7 +65,7 @@ def bert_train_eval(hparams, output_dir):
 
 
 @timer
-def train_models_unit(hparams: Dict, task, group):
+def train_models_unit(hparams: Dict, task, group, pretrained_control):
     label_size = 2
     if task == "Sentiment":
         label_column = f"{task.lower()}_label"
@@ -74,7 +76,11 @@ def train_models_unit(hparams: Dict, task, group):
     hparams["label_column"] = label_column
     hparams["bert_params"]["label_size"] = label_size
     if hparams["bert_params"]["bert_state_dict"]:
-        hparams["bert_params"]["name"] = f"{task}_{group}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['control_column'].split('_')[1]}_controlled"
+        if pretrained_control:
+            hparams["bert_params"]["name"] = f"{task}_{group}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['control_column'].split('_')[1]}_controlled"
+        else:
+            hparams["bert_params"][
+                "name"] = f"{task}_{group}_topic_{hparams['treatment_column'].split('_')[1]}_treated"
     else:
         hparams["bert_params"]["name"] = f"{task}_{group}"
     OUTPUT_DIR = f"{SENTIMENT_EXPERIMENTS_DIR}/{hparams['treatment']}/{hparams['domain']}/{hparams['bert_params']['name']}"
@@ -83,14 +89,17 @@ def train_models_unit(hparams: Dict, task, group):
 
 
 @timer
-def train_models(hparams: Dict, group: str, pretrained_epoch: int):
+def train_models(hparams: Dict, group: str, pretrained_epoch: int, pretrained_control: bool):
     print(f"Training {hparams['treatment']} {hparams['domain']} models")
-    sentiment_model = train_models_unit(hparams, "Sentiment", group)
-    itt_model = train_models_unit(hparams, "ITT", group)
-    itc_model = train_models_unit(hparams, "ITC", group)
+    sentiment_model = train_models_unit(hparams, "Sentiment", group, pretrained_control)
+    itt_model = train_models_unit(hparams, "ITT", group, pretrained_control)
+    itc_model = train_models_unit(hparams, "ITC", group, pretrained_control)
     if hparams["bert_params"]["bert_state_dict"]:
-        group = f"{group}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['treatment_column'].split('_')[1]}_controlled"
-    predict_models(hparams['treatment'], hparams['domain'], group, pretrained_epoch,
+        if pretrained_control:
+            group = f"{group}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['control_column'].split('_')[1]}_controlled"
+        else:
+            group = f"{group}_topic_{hparams['treatment_column'].split('_')[1]}_treated"
+    predict_models(hparams['treatment'], hparams['domain'], group, pretrained_epoch, pretrained_control,
                    sentiment_model, itt_model, itc_model, hparams["bert_params"]["bert_state_dict"])
 
 
@@ -103,7 +112,10 @@ def train_all_models(args, domain: str):
     treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
     control_topic = domain_topic_treat_dict[domain]["control_topics"][-1]
 
-    pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model"
+    if args.pretrained_control:
+        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model_control"
+    else:
+        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model"
     if args.pretrained_epoch is not None:
         pretrained_treated_model_dir = f"{pretrained_treated_model_dir}/epoch_{args.pretrained_epoch}"
 
@@ -128,19 +140,19 @@ def train_all_models(args, domain: str):
             "name": f"Sentiment_{args.group}"
         }
     }
-    train_models(hparams, args.group, args.pretrained_epoch)
+    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
     hparams["treatment"] = f"{treatment}_bias_gentle_{treatment_topic}_1"
-    train_models(hparams, args.group, args.pretrained_epoch)
+    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
     hparams["treatment"] = f"{treatment}_bias_aggressive_{treatment_topic}_1"
-    train_models(hparams, args.group, args.pretrained_epoch)
+    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
 
     hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     hparams["treatment"] = treatment
-    train_models(hparams, args.group, args.pretrained_epoch)
+    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
     hparams["treatment"] = f"{treatment}_bias_gentle_{treatment_topic}_1"
-    train_models(hparams, args.group, args.pretrained_epoch)
+    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
     hparams["treatment"] = f"{treatment}_bias_aggressive_{treatment_topic}_1"
-    train_models(hparams, args.group, args.pretrained_epoch)
+    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
 
 
 if __name__ == "__main__":

@@ -56,6 +56,8 @@ def main():
                         help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
                         help="Specify epoch for pretrained models: 0-4")
+    parser.add_argument("--pretrained_control", action="store_true",
+                        help="Use pretrained model with control task")
     args = parser.parse_args()
 
     if args.domain == "all":
@@ -94,9 +96,11 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
 
 @timer
 def predict_models_unit(task, treatment, domain, trained_group, group, model_ckpt,
-                        hparams, trainer, logger, pretrained_epoch, bert_state_dict):
-
-    state_dict_dir = f"{domain}/model"
+                        hparams, trainer, logger, pretrained_epoch, pretrained_control, bert_state_dict):
+    if pretrained_control:
+        state_dict_dir = f"{domain}/model_control"
+    else:
+        state_dict_dir = f"{domain}/model"
     if pretrained_epoch is not None:
         state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
 
@@ -136,22 +140,26 @@ def predict_models_unit(task, treatment, domain, trained_group, group, model_ckp
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
 
     if not bert_state_dict:
-        # Group Task BERT Model test with Gender/Race treated LM
-        hparams["bert_params"]["name"] = f"{task}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['control_column'].split('_')[1]}_controlled_{group}_trained_{trained_group}"
+        # Group Task BERT Model test with treated LM
+        if pretrained_control:
+            hparams["bert_params"]["name"] = f"{task}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['control_column'].split('_')[1]}_controlled_{group}_trained_{trained_group}"
+        else:
+            hparams["bert_params"][
+                "name"] = f"{task}_topic_{hparams['treatment_column'].split('_')[1]}_treated_{group}_trained_{trained_group}"
         hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{state_dict_dir}/pytorch_model.bin"
         logger.info(f"Treated Pretrained Model: {hparams['bert_params']['bert_state_dict']}")
         bert_treatment_test(model_ckpt, hparams, trainer, logger)
 
 
 @timer
-def predict_models(treatment="topics", domain="books", trained_group="F", pretrained_epoch=None,
-                   sentiment_model_ckpt=None, itt_model_ckpt=None, itc_model_ckpt=None,
-                   bert_state_dict=None):
+def predict_models(treatment="topics", domain="books", trained_group="F", pretrained_epoch=None, pretrained_control=None,
+                   sentiment_model_ckpt=None, itt_model_ckpt=None, itc_model_ckpt=None, bert_state_dict=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     with open(SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, "r") as jsonfile:
         domain_topic_treat_dict = json.load(jsonfile)
     treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
     control_topic = domain_topic_treat_dict[domain]["control_topics"][-1]
+
     hparams = {
         "treatment": treatment,
         "domain": domain,
@@ -175,7 +183,7 @@ def predict_models(treatment="topics", domain="books", trained_group="F", pretra
                            (sentiment_model_ckpt, itt_model_ckpt, itc_model_ckpt)):
         for group in ("F",): #TODO: Finalize what CF is for topics
             predict_models_unit(task, treatment, domain, trained_group, group, model,
-                                hparams, trainer, logger, pretrained_epoch, bert_state_dict)
+                                hparams, trainer, logger, pretrained_epoch, pretrained_control, bert_state_dict)
     handler = GoogleDriveHandler()
     push_message = handler.push_files(hparams["output_path"])
     logger.info(push_message)
@@ -193,19 +201,25 @@ def predict_all_models(args, domain: str):
     treatment_topic = domain_topic_treat_dict[domain]["treated_topic"]
     control_topic = domain_topic_treat_dict[domain]["control_topics"][-1]
 
-    predict_models(treatment, domain, args.trained_group, args.pretrained_epoch)
-    predict_models(f"{treatment}_bias_gentle_{treatment_topic}_1", domain, args.trained_group, args.pretrained_epoch)
-    predict_models(f"{treatment}_bias_aggressive_{treatment_topic}_1", domain, args.trained_group, args.pretrained_epoch)
+    predict_models(treatment, domain, args.trained_group, args.pretrained_epoch, args.pretrained_control)
+    predict_models(f"{treatment}_bias_gentle_{treatment_topic}_1", domain, args.trained_group, args.pretrained_epoch, args.pretrained_control)
+    predict_models(f"{treatment}_bias_aggressive_{treatment_topic}_1", domain, args.trained_group, args.pretrained_epoch, args.pretrained_control)
 
-    pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model"
+    if args.pretrained_control:
+        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model_control"
+        trained_group = f"{args.trained_group}_{treatment_topic}_treated_{control_topic}_controlled"
+    else:
+        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model"
+        trained_group = f"{args.trained_group}_{treatment_topic}_treated"
+
     if args.pretrained_epoch is not None:
         pretrained_treated_model_dir = f"{pretrained_treated_model_dir}/epoch_{args.pretrained_epoch}"
 
     bert_state_dict = f"{pretrained_treated_model_dir}/pytorch_model.bin"
-    trained_group = f"{args.trained_group}_{treatment_topic}_treated_{control_topic}_controlled"
-    predict_models(treatment, domain, trained_group, args.pretrained_epoch, bert_state_dict=bert_state_dict)
-    predict_models(f"{treatment}_bias_gentle_{treatment_topic}_1", domain, trained_group, args.pretrained_epoch, bert_state_dict=bert_state_dict)
-    predict_models(f"{treatment}_bias_aggressive_{treatment_topic}_1", domain, trained_group, args.pretrained_epoch, bert_state_dict=bert_state_dict)
+
+    predict_models(treatment, domain, trained_group, args.pretrained_epoch, args.pretrained_control, bert_state_dict=bert_state_dict)
+    predict_models(f"{treatment}_bias_gentle_{treatment_topic}_1", domain, trained_group, args.pretrained_epoch, args.pretrained_control, bert_state_dict=bert_state_dict)
+    predict_models(f"{treatment}_bias_aggressive_{treatment_topic}_1", domain, trained_group, args.pretrained_epoch, args.pretrained_control, bert_state_dict=bert_state_dict)
 
 
 if __name__ == "__main__":
