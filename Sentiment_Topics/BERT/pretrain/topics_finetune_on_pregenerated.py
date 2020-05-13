@@ -380,7 +380,7 @@ def main():
 
     args.pregenerated_data = Path(SENTIMENT_TOPICS_PRETRAIN_DATA_DIR) / args.domain
     if args.control:
-        args.output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_DATA_DIR) / args.domain / "model_control"
+        args.output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_ITX_DIR) / args.domain / "model_control"
     else:
         args.output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_ITX_DIR) / args.domain / "model"
 
