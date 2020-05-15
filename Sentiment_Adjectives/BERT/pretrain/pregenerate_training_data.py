@@ -329,10 +329,12 @@ def generate_data_for_domain(domain, tokenizer, args):
                     if token_pos_match:
                         token, pos = token_pos_match.group(1), token_pos_match.group(2)
                         tagged_tokens.append((token, pos))
+                        line_tokens.append(token)
                         if pos in ADJ_POS_TAGS:
                             adj_adv_tokens.append((i, token))
-                        line_tokens.append(token)
-                        pos_tag_labels.append(POS_TAG_IDX_MAP[pos])
+                            pos_tag_labels.append(BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX)
+                        else:
+                            pos_tag_labels.append(POS_TAG_IDX_MAP[pos])
                 # line_words = re.sub("_[A-Z]+", "", line)
                 doc = tokenizer.tokenize(TOKEN_SEPARATOR.join(line_tokens))
                 if doc:
