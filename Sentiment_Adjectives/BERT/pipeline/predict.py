@@ -53,7 +53,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--treatment", type=str, default="adj", choices=("adj",),
                         help="Specify treatment for experiments: adj")
-    parser.add_argument("--domain", type=str, default="books", choices=("unified", "movies", "books", "dvd", "kitchen", "electronics", "all"),
+    parser.add_argument("--domain", type=str, default="unified", choices=("unified", "movies", "books", "dvd", "kitchen", "electronics", "all"),
                         help="Dataset Domain: unified, movies, books, dvd, kitchen, electronics")
     parser.add_argument("--group", type=str, default="F", choices=("F", "CF"),
                         help="Specify data group for experiments: F (factual) or CF (counterfactual)")
@@ -216,18 +216,12 @@ def predict_models(treatment="adj", domain="books", trained_group="F",
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     logger = init_logger(f"testing", hparams["output_path"])
-    predict_models_unit("Sentiment", trained_group, "F", sentiment_model_ckpt,
-                        hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
-    predict_models_unit("Sentiment", trained_group, "CF", sentiment_model_ckpt,
-                        hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
-    predict_models_unit(f"CONTROL_IMA", trained_group, "F", ima_model_ckpt,
-                        hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
-    predict_models_unit(f"CONTROL_IMA", trained_group, "CF", ima_model_ckpt,
-                        hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
-    predict_models_unit(f"CONTROL_POS_Tagging", trained_group, "F", pos_tagging_model_ckpt,
-                        hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
-    predict_models_unit(f"CONTROL_POS_Tagging", trained_group, "CF", pos_tagging_model_ckpt,
-                        hparams, trainer, logger, pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict)
+    for task, model in zip(("Sentiment", "CONTROL_IMA", "CONTROL_POS_Tagging"),
+                           (sentiment_model_ckpt, ima_model_ckpt, pos_tagging_model_ckpt)):
+        for group in ("F", "CF"):
+            predict_models_unit(task, treatment, trained_group, group, model,
+                                hparams, trainer, logger, pretrained_masking_method,
+                                pretrained_epoch, pretrained_control, bert_state_dict)
     handler = GoogleDriveHandler()
     push_message = handler.push_files(hparams["output_path"])
     logger.info(push_message)

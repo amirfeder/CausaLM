@@ -48,16 +48,16 @@ def print_final_metrics(name: str, metrics: Dict, logger=None):
 def main():
     parser = ArgumentParser()
     parser.add_argument("--treatment", type=str, required=True, default="gender",
-                        help="Specify treatment for experiments: adj, gender, gender, race")
-    parser.add_argument("--corpus_type", type=str, required=False, default="",
+                        help="Specify treatment for experiments: gender, race")
+    parser.add_argument("--corpus_type", type=str, required=False, default="enriched_noisy",
                         help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
-    parser.add_argument("--trained_group", type=str, required=True, default="F",
+    parser.add_argument("--trained_group", type=str, required=False, default="F",
                         help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
                         help="Specify epoch for pretrained models: 0-4")
     args = parser.parse_args()
     if args.treatment in ("gender", "race"):
-        predict_all_genderace_models(args.treatment, args.corpus_type, args.trained_group, args.pretrained_epoch)
+        predict_all_models(args.treatment, args.corpus_type, args.trained_group, args.pretrained_epoch)
 
 
 @timer
@@ -92,8 +92,8 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
 
 
 @timer
-def predict_genderace_models_unit(task, treatment, trained_group, group, model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict):
+def predict_models_unit(task, treatment, trained_group, group, model_ckpt,
+                        hparams, trainer, logger, pretrained_epoch, bert_state_dict):
     if "noisy" in treatment:
         state_dict_dir = "model_enriched_noisy"
     elif "enriched" in treatment:
@@ -154,9 +154,9 @@ def predict_genderace_models_unit(task, treatment, trained_group, group, model_c
 
 
 @timer
-def predict_genderace_models(treatment="gender", trained_group="F", pretrained_epoch=None,
-                             poms_model_ckpt=None, gender_model_ckpt=None, race_model_ckpt=None,
-                             bert_state_dict=None):
+def predict_models(treatment="gender", trained_group="F", pretrained_epoch=None,
+                   poms_model_ckpt=None, gender_model_ckpt=None, race_model_ckpt=None,
+                   bert_state_dict=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     hparams = {
         "treatment": treatment,
@@ -171,18 +171,11 @@ def predict_genderace_models(treatment="gender", trained_group="F", pretrained_e
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     logger = init_logger(f"testing", hparams["output_path"])
-    predict_genderace_models_unit("POMS", treatment, trained_group, "F", poms_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit("POMS", treatment, trained_group, "CF", poms_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "F", gender_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit(f"CONTROL_Gender", treatment, trained_group, "CF", gender_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "F", race_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
-    predict_genderace_models_unit(f"CONTROL_Race", treatment, trained_group, "CF", race_model_ckpt,
-                                  hparams, trainer, logger, pretrained_epoch, bert_state_dict)
+    for task, model in zip(("POMS", "CONTROL_Gender", "CONTROL_Race"),
+                           (poms_model_ckpt, gender_model_ckpt, race_model_ckpt)):
+        for group in ("F", "CF"):
+            predict_models_unit(task, treatment, trained_group, group, model,
+                                hparams, trainer, logger, pretrained_epoch, bert_state_dict)
     handler = GoogleDriveHandler()
     push_message = handler.push_files(hparams["output_path"])
     logger.info(push_message)
@@ -190,7 +183,7 @@ def predict_genderace_models(treatment="gender", trained_group="F", pretrained_e
 
 
 @timer
-def predict_all_genderace_models(treatment: str, corpus_type: str, trained_group: str, pretrained_epoch: int = None):
+def predict_all_models(treatment: str, corpus_type: str, trained_group: str, pretrained_epoch: int = None):
     if corpus_type:
         treatment = f"{treatment}_{corpus_type}"
         state_dict_dir = f"model_{corpus_type}"
@@ -203,15 +196,15 @@ def predict_all_genderace_models(treatment: str, corpus_type: str, trained_group
     else:
         pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
 
-    predict_genderace_models(treatment, trained_group, pretrained_epoch)
-    predict_genderace_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch)
-    predict_genderace_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch)
+    predict_models(treatment, trained_group, pretrained_epoch)
+    predict_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch)
+    predict_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch)
 
     bert_state_dict = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     trained_group = f"{trained_group}_{treatment.split('_')[0]}_treated"
-    predict_genderace_models(treatment, trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
-    predict_genderace_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
-    predict_genderace_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
+    predict_models(treatment, trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
+    predict_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
+    predict_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
 
 
 if __name__ == "__main__":
