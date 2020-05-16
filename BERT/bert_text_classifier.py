@@ -247,7 +247,17 @@ class LightningBertPretrainedClassifier(LightningModule):
 
     @data_loader
     def test_dataloader(self):
-        dataset = BertTextClassificationDataset(self.hparams.data_path, self.hparams.treatment, "test",
+        if "bias" in self.hparams.treatment:
+            treatment = []
+            for i in self.hparams.treatment.split("_"):
+                if "bias" in i:
+                    break
+                else:
+                    treatment.append(i)
+            treatment = "_".join(treatment)
+        else:
+            treatment = self.hparams.treatment
+        dataset = BertTextClassificationDataset(self.hparams.data_path, treatment, "test",
                                                 self.hparams.text_column, self.hparams.label_column,
                                                 max_seq_length=self.hparams.max_seq_len)
         dataloader = DataLoader(dataset, batch_size=self.bert_classifier.batch_size, shuffle=True, num_workers=NUM_CPU)

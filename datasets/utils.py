@@ -56,6 +56,7 @@ def split_data(df: DataFrame, path: str, prefix: str, label_column: str = "label
     train.sort_index().to_csv(f"{path}/{prefix}_train.csv")
     dev.sort_index().to_csv(f"{path}/{prefix}_dev.csv")
     test.sort_index().to_csv(f"{path}/{prefix}_test.csv")
+    return train, dev, test
 
 
 def print_text_stats(df: DataFrame, text_column: str):
