@@ -2,7 +2,7 @@ from constants import POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, \
     POMS_RACE_DATASETS_DIR, MAX_POMS_SEQ_LENGTH, POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR
 from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
-from POMS_GendeRace.BERT.pipeline.predict import print_final_metrics, predict_genderace_models
+from POMS_GendeRace.pipeline.predict import print_final_metrics, predict_genderace_models
 from Timer import timer
 from argparse import ArgumentParser
 from typing import Dict

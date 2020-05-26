@@ -4,7 +4,7 @@ from constants import SENTIMENT_EXPERIMENTS_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTI
     SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, SENTIMENT_TOPICS_DATASETS_DIR, SENTIMENT_TOPICS_PRETRAIN_ITX_DIR
 from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
-from Sentiment_Topics.BERT.pipeline.predict import print_final_metrics, predict_models
+from Sentiment_Topics.pipeline.predict import print_final_metrics, predict_models
 from Timer import timer
 from argparse import ArgumentParser
 from typing import Dict

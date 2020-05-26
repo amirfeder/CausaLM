@@ -1,7 +1,7 @@
 from os import getenv
 from utils import count_num_cpu_gpu
 
-HOME_DIR = getenv('HOME', "/home/{}".format(getenv('USER', "/home/amirf")))
+HOME_DIR = getenv('HOME', "/home/{}".format(getenv('USER')))
 CAUSALM_DIR = f"{HOME_DIR}/GoogleDrive/AmirNadav/CausaLM"
 DATA_DIR = f"{CAUSALM_DIR}/Data"
 EXPERIMENTS_DIR = f"{CAUSALM_DIR}/Experiments"
@@ -13,8 +13,6 @@ MOVIES_DATA_DIR = f"{SENTIMENT_RAW_DATA_DIR}/movies/"
 SENTIMENT_DOMAINS = ("movies", "books", "electronics", "kitchen", "dvd")
 ALL_SENTIMENT_DOMAINS = ("movies", "books", "electronics", "kitchen", "dvd", "unified")
 SENTIMENT_MODES = ["IMA", "MLM", "OOB"]
-DOMAIN = "movies"
-MODE = "OOB"
 BERT_PRETRAINED_MODEL = 'bert-base-cased'
 MAX_SENTIMENT_SEQ_LENGTH = 384
 MAX_POMS_SEQ_LENGTH = 32
@@ -25,11 +23,6 @@ SENTIMENT_IMA_DATA_DIR = f"{DATA_DIR}/Sentiment/IMA"
 SENTIMENT_IMA_PRETRAIN_DATA_DIR = f"{SENTIMENT_IMA_DATA_DIR}/Pretrain"
 SENTIMENT_MLM_DATA_DIR = f"{DATA_DIR}/Sentiment/MLM"
 SENTIMENT_MLM_PRETRAIN_DATA_DIR = f"{SENTIMENT_MLM_DATA_DIR}/Pretrain"
-IMA_PRETRAINED_MODEL = f"{SENTIMENT_IMA_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
-MLM_PRETRAINED_MODEL = f"{SENTIMENT_MLM_DATA_DIR}/{DOMAIN}/model/pytorch_model.bin"
-OOB_PRETRAINED_MODEL = BERT_PRETRAINED_MODEL
-if MODE == "OOB":
-    FINAL_PRETRAINED_MODEL = OOB_PRETRAINED_MODEL
 POMS_DATA_DIR = f"{DATA_DIR}/POMS"
 POMS_RAW_DATA_DIR = f"{POMS_DATA_DIR}/Equity-Evaluation-Corpus"
 POMS_GENDER_DATA_DIR = f"{POMS_DATA_DIR}/Gender"
