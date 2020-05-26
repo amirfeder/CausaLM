@@ -104,7 +104,6 @@ def predict_models_unit(task, treatment, domain, trained_group, group, model_ckp
     if pretrained_epoch is not None:
         state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
 
-    # TODO: Finalize what CF is for topics and how to implement here
 
     label_size = 2
     if task == "Sentiment":
@@ -181,7 +180,7 @@ def predict_models(treatment="topics", domain="books", trained_group="F", pretra
     logger = init_logger(f"testing", hparams["output_path"])
     for task, model in zip(("Sentiment", "CONTROL_ITT", "CONTROL_ITC"),
                            (sentiment_model_ckpt, itt_model_ckpt, itc_model_ckpt)):
-        for group in ("F",): #TODO: Finalize what CF is for topics
+        for group in ("F",):
             predict_models_unit(task, treatment, domain, trained_group, group, model,
                                 hparams, trainer, logger, pretrained_epoch, pretrained_control, bert_state_dict)
     handler = GoogleDriveHandler()

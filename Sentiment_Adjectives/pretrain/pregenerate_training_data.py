@@ -175,7 +175,6 @@ def mlm_prob(num_adj: int, num_tokens: int, masked_lm_prob: float) -> int:
     return min(num_adj * 2, max(1, int(round(num_tokens * masked_lm_prob))))
 
 
-# TODO: Experiment with num_adj * 2 (or num_adj*1.X if num_adj*2>=num_tokens)
 def double_num_adj(num_adj: int, num_tokens: int, masked_adj_ratio: float) -> int:
     adj_ratio = float(num_adj) / num_tokens
     if adj_ratio <= masked_adj_ratio:
