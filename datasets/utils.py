@@ -2,14 +2,13 @@ from constants import RANDOM_SEED
 from sklearn.model_selection import train_test_split
 from pandas import DataFrame
 from spacy.lang.tag_map import TAG_MAP
+from utils import init_logger
 import spacy
 import re
 import numpy as np
 import pandas as pd
 
 ### BERT constants
-from utils import init_logger
-
 WORDPIECE_PREFIX = "##"
 CLS_TOKEN = "[CLS]"
 SEP_TOKEN = "[SEP]"
@@ -39,6 +38,7 @@ def clean_review(text: str) -> str:
 
 class PretrainedPOSTagger:
 
+    """This module requires en_core_web_lg model to be installed"""
     tagger = spacy.load("en_core_web_lg")
 
     @staticmethod

@@ -1,22 +1,13 @@
 from datetime import datetime
-from os import getenv
-from smtplib import SMTP
-from os import environ
-from email.message import EmailMessage
+from constants import HOME_DIR
 from subprocess import Popen, PIPE, run
 from multiprocessing import cpu_count
 from pathlib import Path
-from Timer import timer
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import torch
 import logging
-import sys
 
 INIT_TIME = datetime.now().strftime('%e-%m-%y_%H-%M-%S').lstrip()
-HOME_DIR = getenv('HOME', "/home/{}".format(getenv('USER', "/home/amirf")))
-PROJECT_DIR = f"{HOME_DIR}/GoogleDrive/AmirNadav/CausaLM"
 
 
 def init_logger(name=None, path=None, screen=True):
@@ -63,24 +54,6 @@ def count_num_cpu_gpu():
     return num_cpu_cores, num_gpu_cores
 
 
-def send_email(message, module_name):
-    """utility function to send an email with results from a training run"""
-    message_string = '\n'.join(message)
-    recipients = ['nadavo@campus.technion.ac.il', 'feder@campus.technion.ac.il']
-    msg = EmailMessage()
-    msg['Subject'] = f"Finished {module_name} on {environ['HOSTNAME']}"
-    msg['From'] = 'someserver@technion.ac.il'
-    msg['To'] = ', '.join(recipients)
-    msg.set_content(message_string)
-    try:
-        sender = SMTP('localhost')
-        sender.send_message(msg)
-        sender.quit()
-        print(f"Email successfully sent to {recipients}")
-    except Exception as e:
-        print(f"ERROR: Failed to send email to {recipients}\n{e}")
-
-
 class StreamToLogger:
     """
    Fake file-like stream object that redirects writes to a logger instance.
@@ -95,70 +68,6 @@ class StreamToLogger:
     def write(self, buf):
         for line in buf.rstrip().splitlines():
             self.logger.log(self.log_level, line.rstrip())
-
-
-class PyTorchTrainer:
-    init_time = INIT_TIME
-
-    def __init__(self, name, logger=None, server_mode=None, save_path=None):
-        self.name = name
-        self.folder = Path(f"{save_path}{self.name}-{PyTorchTrainer.init_time}/")
-        self.folder.mkdir(parents=True, exist_ok=True)
-        self.model_file_name = self.folder / "model.pt"
-        self.results_file_name = self.folder / "results.pkl"
-        self.log_file_name = self.folder / "output.log"
-        if logger is None:
-            self.logger = self.init_logger(server_mode)
-        else:
-            self.logger = logger
-
-    def init_logger(self, server_mode):
-        global loggers
-        existing_logger = loggers.get(self.name, False)
-        if existing_logger:
-            return existing_logger
-        logger = logging.getLogger(self.name)
-        logger.setLevel(logging.INFO)
-        file_formatter = logging.Formatter("{levelname}@{asctime} - {message}", datefmt="%H:%M:%S", style="{")
-        console_formatter = logging.Formatter("{asctime} - {message}", datefmt="%H:%M:%S", style="{")
-        fh = logging.FileHandler(self.log_file_name)
-        fh.setFormatter(file_formatter)
-        logger.addHandler(fh)
-        if server_mode:
-            sys.stderr = StreamToLogger(logger, logging.ERROR)
-        else:
-            sh = logging.StreamHandler()
-            sh.setFormatter(console_formatter)
-            logger.addHandler(sh)
-        loggers[self.name] = logger
-        return logger
-
-    def print_or_log(self, message=""):
-        if self.logger:
-            self.logger.info(message)
-        else:
-            print(message)
-
-    def save_plot(self, label, fold=1, iterables_dict={}):
-        for metric, metric_dict in iterables_dict.items():
-            for dataset, values in metric_dict.items():
-                plt.plot(values, label=dataset)
-            plt.xlabel("Epochs")
-            plt.ylabel(metric)
-            plt.title(f"{label} {metric} by Epochs for Fold {fold}")
-            plt.legend()
-            plt.savefig(self.folder / f"graph-{metric}-fold{fold}")
-            plt.clf()
-
-    def save_scores(self, scores_list, scores_dataset, scores_metric):
-        scores_array = np.array(scores_list, dtype=np.float32)
-        rounded_scores_array = scores_array.round(decimals=6)
-        np.save(self.folder / f"{scores_dataset}-{scores_metric}-scores", rounded_scores_array)
-
-    def save_predictions(self, sample_idx_list, predictions_list, true_list, dataset):
-        df = pd.DataFrame.from_dict({"sample_index": sample_idx_list, "prediction": predictions_list, "true": true_list})
-        df = df.set_index("sample_index")
-        df.to_csv(self.folder / f"{dataset}-predictions.csv")
 
 
 def save_predictions(folder, sample_idx_list, predictions_list, true_list, correct_list, class_probs, name):
@@ -191,7 +100,6 @@ class GoogleDriveHandler:
         cmd_return = run(cmd, capture_output=True, text=True, timeout=self.default_timeout, cwd=HOME_DIR)
         return cmd_return.returncode, cmd_return.stdout, cmd_return.stderr
 
-    @timer
     def push_files(self, path: str, cmd_args: list = []):
         try:
             push_return = self._execute_drive_cmd("push", path, ["-files"] + cmd_args)
