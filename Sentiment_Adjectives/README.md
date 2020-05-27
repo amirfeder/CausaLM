@@ -1,7 +1,7 @@
 ## Sentiment Adjectives Experimental Pipeline
 #### Prerequisites
 - Create the CausaLM conda environment: `conda env create --file causalm_gpu_env.yml`
-- Install the `en_core_web_lg` spaCy model.
+- Install the [`en_core_web_lg`](https://spacy.io/models/en#en_core_web_lg) spaCy model.
 - Make sure to set the `CAUSALM_DIR` variable in `constants.py` to point to the path where the CausaLM datasets are located.
 #### Stage 2 training
 Run the following scripts in sequence:
