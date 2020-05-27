@@ -1,5 +1,3 @@
-# CausaLM_private
-=======
 ## CausaLM: Causal Model Explanation Through Counterfactual Language Models
 
 ### Authors: 
