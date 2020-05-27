@@ -12,7 +12,7 @@ import numpy as np
 import json
 import collections
 from constants import BERT_PRETRAINED_MODEL, POMS_GENDER_PRETRAIN_DATA_DIR, POMS_RACE_PRETRAIN_DATA_DIR, MAX_POMS_SEQ_LENGTH, POMS_RAW_DATA_DIR
-from Timer import timer
+
 
 from datasets.utils import WORDPIECE_PREFIX, MASK_TOKEN, CLS_TOKEN, SEP_TOKEN
 
@@ -276,7 +276,7 @@ def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
         metrics_file.write(json.dumps(metrics))
 
 
-@timer
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--train_corpus', type=Path, required=False)

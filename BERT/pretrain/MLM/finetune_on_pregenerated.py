@@ -20,7 +20,7 @@ from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from BERT.pretrain.MLM.bert_mlm_pretrain import BertForMLMPreTraining
 from BERT.pretrain.MLM.pregenerate_training_data import EPOCHS
 from utils import init_logger, INIT_TIME
-from Timer import timer
+
 from constants import RANDOM_SEED, SENTIMENT_MLM_DATA_DIR, BERT_PRETRAINED_MODEL, SENTIMENT_DOMAINS, NUM_CPU
 
 BATCH_SIZE = 8
@@ -267,7 +267,7 @@ def pretrain_on_domain(args):
         tokenizer.save_pretrained(args.output_dir)
 
 
-@timer(logger=logger)
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--pregenerated_data', type=Path, required=False)

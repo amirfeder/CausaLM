@@ -4,7 +4,7 @@ from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
 from BERT.bert_pos_tagger import LightningBertPOSTagger
 from Sentiment_Adjectives.pipeline.predict import print_final_metrics, predict_models
-from Timer import timer
+
 from argparse import ArgumentParser
 from typing import Dict
 import torch
@@ -49,7 +49,7 @@ def main():
         train_all_models(args, args.domain)
 
 
-@timer
+
 def bert_train_eval(hparams, task, output_dir):
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=output_dir,
@@ -71,7 +71,7 @@ def bert_train_eval(hparams, task, output_dir):
     return model
 
 
-@timer
+
 def train_models_unit(hparams: Dict, task, group, pretrained_control):
     label_size = 2
     if task == "POS_Tagging":
@@ -99,7 +99,7 @@ def train_models_unit(hparams: Dict, task, group, pretrained_control):
     return model
 
 
-@timer
+
 def train_models(hparams: Dict, group: str, pretrained_masking_method, pretrained_epoch: int, pretrained_control: bool):
     print(f"Training {hparams['treatment']} {hparams['domain']} models")
     sentiment_model = train_models_unit(hparams, "Sentiment", group, pretrained_control)
@@ -116,7 +116,7 @@ def train_models(hparams: Dict, group: str, pretrained_masking_method, pretraine
                    hparams["bert_params"]["bert_state_dict"])
 
 
-@timer
+
 def train_all_models(args, domain: str):
 
     if args.group == "F":

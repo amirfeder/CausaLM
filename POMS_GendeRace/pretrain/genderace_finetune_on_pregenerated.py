@@ -18,7 +18,7 @@ from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from POMS_GendeRace.pretrain.bert_genderace_pretrain import BertForGendeRacePreTraining
 from POMS_GendeRace.pretrain.pregenerate_training_data import EPOCHS
 from utils import init_logger
-from Timer import timer
+
 from constants import RANDOM_SEED, POMS_GENDER_DATA_DIR, BERT_PRETRAINED_MODEL, NUM_CPU, POMS_GENDER_PRETRAIN_DATA_DIR, POMS_RACE_PRETRAIN_DATA_DIR, POMS_RACE_DATA_DIR
 
 BATCH_SIZE = 24
@@ -298,7 +298,7 @@ def pretrain_on_domain(args):
         df.to_csv(args.output_dir/"losses.csv")
 
 
-@timer(logger=logger)
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--pregenerated_data', type=Path, required=False)

@@ -9,7 +9,7 @@ from constants import SENTIMENT_EXPERIMENTS_DIR, SENTIMENT_MLM_DATA_DIR, \
 from pytorch_lightning import Trainer, LightningModule
 from os import listdir, path
 from glob import glob
-from Timer import timer
+
 from datasets.utils import NUM_POS_TAGS_LABELS
 from utils import GoogleDriveHandler, send_email, init_logger
 import torch
@@ -72,7 +72,7 @@ def main():
         predict_all_models(args.treatment, args.domain, args.group, args.masking_method, args.pretrained_epoch, args.pretrained_control)
 
 
-@timer
+
 def bert_treatment_test(model_ckpt, hparams, trainer, logger=None, task="Sentiment"):
     if task == "Sentiment":
         if isinstance(model_ckpt, LightningModule):
@@ -124,7 +124,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None, task="Sentime
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
 
 
-@timer
+
 def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer, logger,
                         pretrained_masking_method, pretrained_epoch, pretrained_control, bert_state_dict):
 
@@ -194,7 +194,7 @@ def predict_models_unit(task, trained_group, group, model_ckpt, hparams, trainer
         bert_treatment_test(model_ckpt, hparams, trainer, logger, task)
 
 
-@timer
+
 def predict_models(treatment="adj", domain="books", trained_group="F",
                    pretrained_masking_method="double_num_adj", pretrained_epoch=0, pretrained_control=False,
                    sentiment_model_ckpt=None, ima_model_ckpt=None, pos_tagging_model_ckpt=None,
@@ -228,7 +228,7 @@ def predict_models(treatment="adj", domain="books", trained_group="F",
     send_email(push_message, f"{treatment}_{domain}")
 
 
-@timer
+
 def predict_all_models(treatment: str, domain: str, trained_group: str, masking_method: str, pretrained_epoch: int, pretrained_control: bool):
 
     predict_models(treatment, domain, trained_group, masking_method, pretrained_epoch, pretrained_control)

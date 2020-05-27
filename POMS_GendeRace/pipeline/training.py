@@ -3,7 +3,7 @@ from constants import POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, \
 from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
 from POMS_GendeRace.pipeline.predict import print_final_metrics, predict_genderace_models
-from Timer import timer
+
 from argparse import ArgumentParser
 from typing import Dict
 import torch
@@ -36,7 +36,7 @@ def main():
         train_all_genderace_models(args.treatment, args.corpus_type, args.group, args.pretrained_epoch)
 
 
-@timer
+
 def bert_train_eval(hparams, output_dir):
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=output_dir,
@@ -54,7 +54,7 @@ def bert_train_eval(hparams, output_dir):
     return model
 
 
-@timer
+
 def train_genderace_models_unit(hparams: Dict, task, group):
     label_column = f"{task}_label"
     label_size = 2
@@ -74,7 +74,7 @@ def train_genderace_models_unit(hparams: Dict, task, group):
     return model
 
 
-@timer
+
 def train_genderace_models(hparams: Dict, group: str, pretrained_epoch: int):
     print(f"Training {hparams['treatment']} models")
     poms_model = train_genderace_models_unit(hparams, "POMS", group)
@@ -86,7 +86,7 @@ def train_genderace_models(hparams: Dict, group: str, pretrained_epoch: int):
                              poms_model, gender_model, race_model, hparams["bert_params"]["bert_state_dict"])
 
 
-@timer
+
 def train_all_genderace_models(treatment: str, corpus_type: str, group: str, pretrained_epoch: int):
     if corpus_type:
         treatment = f"{treatment}_{corpus_type}"

@@ -19,7 +19,7 @@ from BERT.pretrain.MLM.bert_mlm_pretrain import BertForMLMPreTraining
 from BERT.pretrain.MLM.pregenerate_training_data import EPOCHS
 from BERT.bert_text_dataset import BertTextDataset
 from utils import init_logger
-from Timer import timer
+
 from constants import RANDOM_SEED, BERT_PRETRAINED_MODEL, NUM_CPU, \
     SENTIMENT_TOPICS_PRETRAIN_DATA_DIR, SENTIMENT_TOPICS_PRETRAIN_MLM_DIR
 
@@ -279,7 +279,7 @@ def pretrain_on_domain(args):
         df.to_csv(args.output_dir/"losses.csv")
 
 
-@timer(logger=logger)
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--pregenerated_data', type=Path, required=False)

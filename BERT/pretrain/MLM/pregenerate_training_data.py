@@ -11,7 +11,7 @@ import numpy as np
 import json
 import collections
 from constants import BERT_PRETRAINED_MODEL, SENTIMENT_MLM_DATA_DIR, SENTIMENT_RAW_DATA_DIR, SENTIMENT_DOMAINS, MAX_SENTIMENT_SEQ_LENGTH
-from Timer import timer
+
 
 WORDPIECE_PREFIX = "##"
 CLS_TOKEN = "[CLS]"
@@ -277,7 +277,7 @@ def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
         metrics_file.write(json.dumps(metrics))
 
 
-@timer
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--train_corpus', type=Path, required=False)

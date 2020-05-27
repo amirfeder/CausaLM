@@ -12,7 +12,7 @@ from multiprocessing import Pool
 from random import random, randrange, choice
 from transformers.tokenization_bert import BertTokenizer
 from itertools import zip_longest
-from Timer import timer
+
 from typing import List
 import numpy as np
 import json
@@ -309,7 +309,7 @@ def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
     print("\nTotal Number of training instances:", num_instances)
 
 
-@timer
+
 def generate_data_for_domain(domain, tokenizer, args):
     print(f"\nGenerating data for domain: {domain}")
     DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
@@ -373,7 +373,7 @@ def generate_data_for_domain(domain, tokenizer, args):
             create_training_file(docs, vocab_list, args, epoch, output_dir)
 
 
-@timer
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--train_corpus', type=Path, required=False)

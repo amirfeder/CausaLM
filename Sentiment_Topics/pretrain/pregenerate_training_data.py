@@ -13,7 +13,7 @@ import json
 import collections
 from constants import BERT_PRETRAINED_MODEL, SENTIMENT_TOPICS_PRETRAIN_DATA_DIR, MAX_SENTIMENT_SEQ_LENGTH, \
     SENTIMENT_TOPICS_DATASETS_DIR, SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, SENTIMENT_DOMAINS
-from Timer import timer
+
 
 from datasets.utils import WORDPIECE_PREFIX, MASK_TOKEN, CLS_TOKEN, SEP_TOKEN
 
@@ -280,7 +280,7 @@ def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
         metrics_file.write(json.dumps(metrics))
 
 
-@timer
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--train_corpus', type=Path, required=False)

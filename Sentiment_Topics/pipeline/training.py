@@ -5,7 +5,7 @@ from constants import SENTIMENT_EXPERIMENTS_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTI
 from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
 from Sentiment_Topics.pipeline.predict import print_final_metrics, predict_models
-from Timer import timer
+
 from argparse import ArgumentParser
 from typing import Dict
 import torch
@@ -46,7 +46,7 @@ def main():
         train_all_models(args, args.domain)
 
 
-@timer
+
 def bert_train_eval(hparams, output_dir):
     trainer = Trainer(gpus=1 if DEVICE.type == "cuda" else 0,
                       default_save_path=output_dir,
@@ -64,7 +64,7 @@ def bert_train_eval(hparams, output_dir):
     return model
 
 
-@timer
+
 def train_models_unit(hparams: Dict, task, group, pretrained_control):
     label_size = 2
     if task == "Sentiment":
@@ -88,7 +88,7 @@ def train_models_unit(hparams: Dict, task, group, pretrained_control):
     return model
 
 
-@timer
+
 def train_models(hparams: Dict, group: str, pretrained_epoch: int, pretrained_control: bool):
     print(f"Training {hparams['treatment']} {hparams['domain']} models")
     sentiment_model = train_models_unit(hparams, "Sentiment", group, pretrained_control)
@@ -103,7 +103,7 @@ def train_models(hparams: Dict, group: str, pretrained_epoch: int, pretrained_co
                    sentiment_model, itt_model, itc_model, hparams["bert_params"]["bert_state_dict"])
 
 
-@timer
+
 def train_all_models(args, domain: str):
 
     with open(SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, "r") as jsonfile:

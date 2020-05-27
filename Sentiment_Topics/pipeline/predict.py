@@ -9,7 +9,7 @@ from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPre
 from os import listdir, path
 from glob import glob
 from copy import deepcopy
-from Timer import timer
+
 from utils import GoogleDriveHandler, send_email, init_logger
 import torch
 
@@ -67,7 +67,7 @@ def main():
         predict_all_models(args, args.domain)
 
 
-@timer
+
 def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     if isinstance(model_ckpt, LightningModule):
         model = LightningBertPretrainedClassifier(deepcopy(model_ckpt.hparams))
@@ -94,7 +94,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
 
 
-@timer
+
 def predict_models_unit(task, treatment, domain, trained_group, group, model_ckpt,
                         hparams, trainer, logger, pretrained_epoch, pretrained_control, bert_state_dict):
     if pretrained_control:
@@ -150,7 +150,7 @@ def predict_models_unit(task, treatment, domain, trained_group, group, model_ckp
         bert_treatment_test(model_ckpt, hparams, trainer, logger)
 
 
-@timer
+
 def predict_models(treatment="topics", domain="books", trained_group="F", pretrained_epoch=None, pretrained_control=None,
                    sentiment_model_ckpt=None, itt_model_ckpt=None, itc_model_ckpt=None, bert_state_dict=None):
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -189,7 +189,7 @@ def predict_models(treatment="topics", domain="books", trained_group="F", pretra
     send_email(push_message, treatment)
 
 
-@timer
+
 def predict_all_models(args, domain: str):
 
     treatment = "topics"

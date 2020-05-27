@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
-from Timer import timer
+
 from transformers import BertConfig
 
 from utils import init_logger
@@ -144,7 +144,7 @@ class PregeneratedPOSTaggedDataset(Dataset):
         return features
 
 
-@timer(logger=logger)
+
 def pretrain_on_domain(args):
     assert args.pregenerated_data.is_dir(), \
         "--pregenerated_data should point to the folder of files made by pregenerate_training_data.py!"
@@ -337,7 +337,6 @@ def pretrain_on_domain(args):
         df.to_csv(args.output_dir/"losses.csv")
 
 
-@timer(logger=logger)
 def main():
     parser = ArgumentParser()
     parser.add_argument('--pregenerated_data', type=Path, required=False)

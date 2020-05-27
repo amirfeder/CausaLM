@@ -6,7 +6,7 @@ from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPre
 from os import listdir, path
 from glob import glob
 from copy import deepcopy
-from Timer import timer
+
 from utils import GoogleDriveHandler, send_email, init_logger
 import torch
 
@@ -60,7 +60,7 @@ def main():
         predict_all_models(args.treatment, args.corpus_type, args.trained_group, args.pretrained_epoch)
 
 
-@timer
+
 def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     if isinstance(model_ckpt, LightningModule):
         model = LightningBertPretrainedClassifier(deepcopy(model_ckpt.hparams))
@@ -91,7 +91,7 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
 
 
-@timer
+
 def predict_models_unit(task, treatment, trained_group, group, model_ckpt,
                         hparams, trainer, logger, pretrained_epoch, bert_state_dict):
     if "noisy" in treatment:
@@ -153,7 +153,7 @@ def predict_models_unit(task, treatment, trained_group, group, model_ckpt,
         bert_treatment_test(model_ckpt, hparams, trainer, logger)
 
 
-@timer
+
 def predict_models(treatment="gender", trained_group="F", pretrained_epoch=None,
                    poms_model_ckpt=None, gender_model_ckpt=None, race_model_ckpt=None,
                    bert_state_dict=None):
@@ -182,7 +182,7 @@ def predict_models(treatment="gender", trained_group="F", pretrained_epoch=None,
     send_email(push_message, treatment)
 
 
-@timer
+
 def predict_all_models(treatment: str, corpus_type: str, trained_group: str, pretrained_epoch: int = None):
     if corpus_type:
         treatment = f"{treatment}_{corpus_type}"
