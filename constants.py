@@ -2,14 +2,14 @@ from os import getenv
 from utils import count_num_cpu_gpu
 
 HOME_DIR = getenv('HOME', "/home/{}".format(getenv('USER')))
-CAUSALM_DIR = f"{HOME_DIR}/GoogleDrive/AmirNadav/CausaLM"
+
+CAUSALM_DIR = "" # This must be set to the path where the CausaLM project and datasets reside
+
 DATA_DIR = f"{CAUSALM_DIR}/Data"
 EXPERIMENTS_DIR = f"{CAUSALM_DIR}/Experiments"
 SENTIMENT_DATA_DIR = f"{DATA_DIR}/Sentiment"
 SENTIMENT_EXPERIMENTS_DIR = f"{EXPERIMENTS_DIR}/Sentiment"
 SENTIMENT_RAW_DATA_DIR = f"{SENTIMENT_DATA_DIR}/Raw"
-AMAZON_DATA_DIR = f"{DATA_DIR}/Amazon"
-MOVIES_DATA_DIR = f"{SENTIMENT_RAW_DATA_DIR}/movies/"
 SENTIMENT_DOMAINS = ("movies", "books", "electronics", "kitchen", "dvd")
 ALL_SENTIMENT_DOMAINS = ("movies", "books", "electronics", "kitchen", "dvd", "unified")
 SENTIMENT_MODES = ["IMA", "MLM", "OOB"]
