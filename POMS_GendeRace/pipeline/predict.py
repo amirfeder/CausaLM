@@ -7,7 +7,7 @@ from os import listdir, path
 from glob import glob
 from copy import deepcopy
 
-from utils import GoogleDriveHandler, send_email, init_logger
+from utils import GoogleDriveHandler,  init_logger
 import torch
 
 
@@ -179,7 +179,7 @@ def predict_models(treatment="gender", trained_group="F", pretrained_epoch=None,
     handler = GoogleDriveHandler()
     push_message = handler.push_files(hparams["output_path"])
     logger.info(push_message)
-    send_email(push_message, treatment)
+
 
 
 

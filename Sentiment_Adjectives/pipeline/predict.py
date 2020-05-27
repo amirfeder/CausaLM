@@ -11,7 +11,7 @@ from os import listdir, path
 from glob import glob
 
 from datasets.utils import NUM_POS_TAGS_LABELS
-from utils import GoogleDriveHandler, send_email, init_logger
+from utils import GoogleDriveHandler,  init_logger
 import torch
 
 
@@ -225,7 +225,6 @@ def predict_models(treatment="adj", domain="books", trained_group="F",
     handler = GoogleDriveHandler()
     push_message = handler.push_files(hparams["output_path"])
     logger.info(push_message)
-    send_email(push_message, f"{treatment}_{domain}")
 
 
 
