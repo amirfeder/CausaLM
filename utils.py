@@ -1,5 +1,4 @@
 from datetime import datetime
-from constants import HOME_DIR
 from subprocess import Popen, PIPE, run
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -7,6 +6,7 @@ import pandas as pd
 import torch
 import logging
 
+HOME_DIR = str(Path.home())
 INIT_TIME = datetime.now().strftime('%e-%m-%y_%H-%M-%S').lstrip()
 
 
