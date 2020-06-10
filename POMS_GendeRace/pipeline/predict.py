@@ -1,64 +1,23 @@
 from argparse import ArgumentParser
-from typing import Dict
-from constants import POMS_MLM_DATA_DIR, POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR, POMS_EXPERIMENTS_DIR, MAX_POMS_SEQ_LENGTH
+from constants import POMS_MLM_DIR, POMS_GENDER_MODEL_DIR, POMS_RACE_MODEL_DIR, POMS_EXPERIMENTS_DIR, MAX_POMS_SEQ_LENGTH
 from pytorch_lightning import Trainer, LightningModule
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPretrainedClassifier
-from os import listdir, path
-from glob import glob
 from copy import deepcopy
-
-from utils import GoogleDriveHandler,  init_logger
+from utils import GoogleDriveHandler,  init_logger, print_final_metrics, find_latest_model_checkpoint
 import torch
-
-
-def get_checkpoint_file(ckpt_dir: str):
-    for file in sorted(listdir(ckpt_dir)):
-        if file.endswith(".ckpt"):
-            return f"{ckpt_dir}/{file}"
-    else:
-        return None
-
-
-def find_latest_model_checkpoint(models_dir: str):
-    model_ckpt = None
-    while not model_ckpt:
-        model_versions = sorted(glob(models_dir), key=path.getctime)
-        if model_versions:
-            latest_model = model_versions.pop()
-            model_ckpt_dir = f"{latest_model}/checkpoints"
-            model_ckpt = get_checkpoint_file(model_ckpt_dir)
-        else:
-            raise FileNotFoundError(f"Couldn't find a model checkpoint in {models_dir}")
-    return model_ckpt
-
-
-def print_final_metrics(name: str, metrics: Dict, logger=None):
-    if logger:
-        logger.info(f"{name} Metrics:")
-        for metric, val in metrics.items():
-            logger.info(f"{metric}: {val:.4f}")
-        logger.info("\n")
-    else:
-        print(f"{name} Metrics:")
-        for metric, val in metrics.items():
-            print(f"{metric}: {val:.4f}")
-        print()
-
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=True, default="gender",
-                        help="Specify treatment for experiments: gender, race")
-    parser.add_argument("--corpus_type", type=str, required=False, default="enriched_noisy",
-                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
+    parser.add_argument("--treatment", type=str, required=True, default="gender", choices=("gender", "race"),
+                        help="Treatment variable")
+    parser.add_argument("--corpus_type", type=str, required=False, default="")
     parser.add_argument("--trained_group", type=str, required=False, default="F",
                         help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
                         help="Specify epoch for pretrained models: 0-4")
     args = parser.parse_args()
-    if args.treatment in ("gender", "race"):
-        predict_all_models(args.treatment, args.corpus_type, args.trained_group, args.pretrained_epoch)
 
+    predict_all_models(args.treatment, args.corpus_type, args.trained_group, args.pretrained_epoch)
 
 
 def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
@@ -91,7 +50,6 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
 
 
-
 def predict_models_unit(task, treatment, trained_group, group, model_ckpt,
                         hparams, trainer, logger, pretrained_epoch, bert_state_dict):
     if "noisy" in treatment:
@@ -104,10 +62,10 @@ def predict_models_unit(task, treatment, trained_group, group, model_ckpt,
         state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
     if treatment.startswith("gender"):
         TREATMENT = "gender"
-        pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
+        pretrained_treated_model_dir = f"{POMS_GENDER_MODEL_DIR}/{state_dict_dir}"
     else:
         TREATMENT = "race"
-        pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
+        pretrained_treated_model_dir = f"{POMS_RACE_MODEL_DIR}/{state_dict_dir}"
     label_size = 2
     if task == "POMS":
         label_column = f"{task}_label"
@@ -141,8 +99,8 @@ def predict_models_unit(task, treatment, trained_group, group, model_ckpt,
 
     # Group Task BERT Model test with MLM LM
     hparams["bert_params"]["name"] = f"{task}_MLM_{group}_trained_{trained_group}"
-    hparams["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin"
-    logger.info(f"MLM Pretrained Model: {POMS_MLM_DATA_DIR}/{state_dict_dir}/pytorch_model.bin")
+    hparams["bert_params"]["bert_state_dict"] = f"{POMS_MLM_DIR}/{state_dict_dir}/pytorch_model.bin"
+    logger.info(f"MLM Pretrained Model: {POMS_MLM_DIR}/{state_dict_dir}/pytorch_model.bin")
     bert_treatment_test(model_ckpt, hparams, trainer, logger)
 
     if not bert_state_dict:
@@ -151,7 +109,6 @@ def predict_models_unit(task, treatment, trained_group, group, model_ckpt,
         hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
         logger.info(f"Treated Pretrained Model: {pretrained_treated_model_dir}/pytorch_model.bin")
         bert_treatment_test(model_ckpt, hparams, trainer, logger)
-
 
 
 def predict_models(treatment="gender", trained_group="F", pretrained_epoch=None,
@@ -181,8 +138,6 @@ def predict_models(treatment="gender", trained_group="F", pretrained_epoch=None,
     logger.info(push_message)
 
 
-
-
 def predict_all_models(treatment: str, corpus_type: str, trained_group: str, pretrained_epoch: int = None):
     if corpus_type:
         treatment = f"{treatment}_{corpus_type}"
@@ -192,19 +147,15 @@ def predict_all_models(treatment: str, corpus_type: str, trained_group: str, pre
     if pretrained_epoch is not None:
         state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
     if treatment.startswith("gender"):
-        pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
+        pretrained_treated_model_dir = f"{POMS_GENDER_MODEL_DIR}/{state_dict_dir}"
     else:
-        pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
+        pretrained_treated_model_dir = f"{POMS_RACE_MODEL_DIR}/{state_dict_dir}"
 
     predict_models(treatment, trained_group, pretrained_epoch)
-    predict_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch)
-    predict_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch)
 
     bert_state_dict = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     trained_group = f"{trained_group}_{treatment.split('_')[0]}_treated"
     predict_models(treatment, trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
-    predict_models(f"{treatment}_bias_gentle_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
-    predict_models(f"{treatment}_bias_aggressive_3", trained_group, pretrained_epoch, bert_state_dict=bert_state_dict)
 
 
 if __name__ == "__main__":

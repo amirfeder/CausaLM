@@ -1,7 +1,10 @@
+from os import listdir, path
+from glob import glob
 from datetime import datetime
 from subprocess import Popen, PIPE, run
 from multiprocessing import cpu_count
 from pathlib import Path
+from typing import Dict
 import pandas as pd
 import torch
 import logging
@@ -113,3 +116,37 @@ class GoogleDriveHandler:
 
     def pull_files(self, path: str, cmd_args: list = []):
         return self._execute_drive_cmd("pull", path, ["-files"] + cmd_args)
+
+
+def get_checkpoint_file(ckpt_dir: str):
+    for file in sorted(listdir(ckpt_dir)):
+        if file.endswith(".ckpt"):
+            return f"{ckpt_dir}/{file}"
+    else:
+        return None
+
+
+def find_latest_model_checkpoint(models_dir: str):
+    model_ckpt = None
+    while not model_ckpt:
+        model_versions = sorted(glob(models_dir), key=path.getctime)
+        if model_versions:
+            latest_model = model_versions.pop()
+            model_ckpt_dir = f"{latest_model}/checkpoints"
+            model_ckpt = get_checkpoint_file(model_ckpt_dir)
+        else:
+            raise FileNotFoundError(f"Couldn't find a model checkpoint in {models_dir}")
+    return model_ckpt
+
+
+def print_final_metrics(name: str, metrics: Dict, logger=None):
+    if logger:
+        logger.info(f"{name} Metrics:")
+        for metric, val in metrics.items():
+            logger.info(f"{metric}: {val:.4f}")
+        logger.info("\n")
+    else:
+        print(f"{name} Metrics:")
+        for metric, val in metrics.items():
+            print(f"{metric}: {val:.4f}")
+        print()

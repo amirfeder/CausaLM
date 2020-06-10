@@ -11,8 +11,8 @@ import pandas as pd
 import numpy as np
 import json
 import collections
-from constants import BERT_PRETRAINED_MODEL, POMS_GENDER_PRETRAIN_DATA_DIR, POMS_RACE_PRETRAIN_DATA_DIR, MAX_POMS_SEQ_LENGTH, POMS_RAW_DATA_DIR
-
+from constants import BERT_PRETRAINED_MODEL, POMS_GENDER_PRETRAIN_DATA_DIR, POMS_RACE_PRETRAIN_DATA_DIR, \
+    MAX_POMS_SEQ_LENGTH, POMS_GENDERACE_DATASETS_DIR
 
 from datasets.utils import WORDPIECE_PREFIX, MASK_TOKEN, CLS_TOKEN, SEP_TOKEN
 
@@ -301,10 +301,9 @@ def main():
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=MAX_PRED_PER_SEQ,
                         help="Maximum number of tokens to mask in each sequence")
-    parser.add_argument("--treatment", type=str, required=True, default="gender",
-                        help="Treatment can be: gender or race")
-    parser.add_argument("--corpus_type", type=str, required=False, default="",
-                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
+    parser.add_argument("--corpus_type", type=str, required=False, default="")
+    parser.add_argument("--treatment", type=str, required=True, default="gender", choices=("gender", "race"),
+                        help="Treatment variable")
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
@@ -322,30 +321,27 @@ def main():
         treatment_column = "Race"
         treatment_condition = "African-American"
 
-    if "enriched" in args.corpus_type:
-        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus_{args.corpus_type}.csv"
-        PRETRAIN_DATA_OUTPUT_DIR = PRETRAIN_DATA_OUTPUT_DIR / args.corpus_type
-    else:
-        DATASET_FILE = f"{POMS_RAW_DATA_DIR}/Equity-Evaluation-Corpus.csv"
-
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-        if "enriched" in args.corpus_type:
-            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8').set_index(keys="ID", drop=False).sort_index()
-        else:
-            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8', converters={"ID": lambda i: int(i.split("-")[-1])}).set_index(keys="ID", drop=False).sort_index()
-        df = df[df[treatment_column].notnull()]
-        unique_ids = df["ID"]
-        documents = df["Sentence"].apply(tokenizer.tokenize)
-        genderace_labels = df[treatment_column].apply(lambda t: int(str(t) == treatment_condition))
-        for doc, label, unique_id in tqdm(zip(documents, genderace_labels, unique_ids)):
-            if doc:
-                docs.add_document(doc, label, unique_id)  # If the last doc didn't end on a newline, make sure it still gets added
-        if len(docs) <= 1:
-            exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
-                 "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
-                 "indicate breaks between documents in your input file. If your dataset does not contain multiple "
-                 "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
-                 "sections or paragraphs.")
+        for dataset in ("train", "dev"):
+            DATASET_FILE = f"{POMS_GENDERACE_DATASETS_DIR}/{args.treatment}_{dataset}.csv"
+            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8')
+            for group in ("F", "CF"):
+                group_id = f"ID_{group}"
+                group_treatment_column = f"{treatment_column}_{group}_label"
+                group_df = df.set_index(keys=group_id, drop=False).sort_index()
+                group_df = group_df[group_df[group_treatment_column].notnull()]
+                unique_ids = group_df[group_id]
+                documents = group_df[f"Sentence_{group}"].apply(tokenizer.tokenize)
+                genderace_labels = group_df[group_treatment_column].apply(lambda t: int(str(t) == treatment_condition))
+                for doc, label, unique_id in tqdm(zip(documents, genderace_labels, unique_ids)):
+                    if doc:
+                        docs.add_document(doc, label, unique_id)  # If the last doc didn't end on a newline, make sure it still gets added
+            if len(docs) <= 1:
+                exit("ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
+                     "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
+                     "indicate breaks between documents in your input file. If your dataset does not contain multiple "
+                     "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
+                     "sections or paragraphs.")
 
         output_dir = Path(PRETRAIN_DATA_OUTPUT_DIR)
         output_dir.mkdir(exist_ok=True, parents=True)

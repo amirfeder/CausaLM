@@ -1,8 +1,7 @@
-from constants import POMS_EXPERIMENTS_DIR, POMS_GENDER_DATASETS_DIR, \
-    POMS_RACE_DATASETS_DIR, MAX_POMS_SEQ_LENGTH, POMS_GENDER_DATA_DIR, POMS_RACE_DATA_DIR
+from constants import POMS_EXPERIMENTS_DIR, POMS_GENDERACE_DATASETS_DIR, MAX_POMS_SEQ_LENGTH, POMS_GENDER_MODEL_DIR, POMS_RACE_MODEL_DIR
 from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
-from POMS_GendeRace.pipeline.predict import print_final_metrics, predict_genderace_models
+from POMS_GendeRace.pipeline.predict import print_final_metrics, predict_models
 
 from argparse import ArgumentParser
 from typing import Dict
@@ -23,18 +22,20 @@ FP16 = False
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--treatment", type=str, required=True, default="gender",
-                        help="Specify treatment for experiments: gender, race")
-    parser.add_argument("--corpus_type", type=str, required=False, default="",
-                        help="Corpus type can be: '', enriched, enriched_noisy, enriched_full")
+    parser.add_argument("--treatment", type=str, required=True, default="gender", choices=("gender", "race"),
+                        help="Treatment variable")
+    parser.add_argument("--corpus_type", type=str, required=False, default="")
     parser.add_argument("--group", type=str, required=False, default="F",
                         help="Specify data group for experiments: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
                         help="Specify epoch for pretrained models: 0-4")
+    parser.add_argument("--batch_size", type=int, default=BATCH_SIZE,
+                        help="Batch size for training")
+    parser.add_argument("--epochs", type=int, default=EPOCHS,
+                        help="Number of epochs to train for")
     args = parser.parse_args()
-    if args.treatment in ("gender", "race"):
-        train_all_genderace_models(args.treatment, args.corpus_type, args.group, args.pretrained_epoch)
 
+    train_all_genderace_models(args.treatment, args.corpus_type, args.group, args.pretrained_epoch, args.batch_size, args.epochs)
 
 
 def bert_train_eval(hparams, output_dir):
@@ -52,7 +53,6 @@ def bert_train_eval(hparams, output_dir):
     trainer.test()
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
     return model
-
 
 
 def train_genderace_models_unit(hparams: Dict, task, group):
@@ -74,7 +74,6 @@ def train_genderace_models_unit(hparams: Dict, task, group):
     return model
 
 
-
 def train_genderace_models(hparams: Dict, group: str, pretrained_epoch: int):
     print(f"Training {hparams['treatment']} models")
     poms_model = train_genderace_models_unit(hparams, "POMS", group)
@@ -82,12 +81,11 @@ def train_genderace_models(hparams: Dict, group: str, pretrained_epoch: int):
     race_model = train_genderace_models_unit(hparams, "Race", group)
     if hparams["bert_params"]["bert_state_dict"]:
         group = f"{group}_{hparams['treatment'].split('_')[0]}_treated"
-    predict_genderace_models(hparams['treatment'], group, pretrained_epoch,
-                             poms_model, gender_model, race_model, hparams["bert_params"]["bert_state_dict"])
+    predict_models(hparams['treatment'], group, pretrained_epoch,
+                   poms_model, gender_model, race_model, hparams["bert_params"]["bert_state_dict"])
 
 
-
-def train_all_genderace_models(treatment: str, corpus_type: str, group: str, pretrained_epoch: int):
+def train_all_genderace_models(treatment: str, corpus_type: str, group: str, pretrained_epoch: int, batch_size: int, epochs: int):
     if corpus_type:
         treatment = f"{treatment}_{corpus_type}"
         state_dict_dir = f"model_{corpus_type}"
@@ -96,22 +94,20 @@ def train_all_genderace_models(treatment: str, corpus_type: str, group: str, pre
     if pretrained_epoch is not None:
         state_dict_dir = f"{state_dict_dir}/epoch_{pretrained_epoch}"
     if treatment.startswith("gender"):
-        data_path = POMS_GENDER_DATASETS_DIR
-        pretrained_treated_model_dir = f"{POMS_GENDER_DATA_DIR}/{state_dict_dir}"
+        pretrained_treated_model_dir = f"{POMS_GENDER_MODEL_DIR}/{state_dict_dir}"
     else:
-        data_path = POMS_RACE_DATASETS_DIR
-        pretrained_treated_model_dir = f"{POMS_RACE_DATA_DIR}/{state_dict_dir}"
+        pretrained_treated_model_dir = f"{POMS_RACE_MODEL_DIR}/{state_dict_dir}"
 
     hparams = {
-        "data_path": data_path,
+        "data_path": POMS_GENDERACE_DATASETS_DIR,
         "treatment": treatment,
         "text_column": f"Sentence_{group}",
         "label_column": "POMS_label",
-        "epochs": EPOCHS,
+        "epochs": epochs,
         "accumulate": ACCUMULATE,
         "max_seq_len": MAX_POMS_SEQ_LENGTH,
         "bert_params": {
-            "batch_size": BATCH_SIZE,
+            "batch_size": batch_size,
             "dropout": DROPOUT,
             "bert_state_dict": None,
             "label_size": 5,
@@ -119,17 +115,9 @@ def train_all_genderace_models(treatment: str, corpus_type: str, group: str, pre
         }
     }
     train_genderace_models(hparams, group, pretrained_epoch)
-    hparams["treatment"] = f"{treatment}_bias_gentle_3"
-    train_genderace_models(hparams, group, pretrained_epoch)
-    hparams["treatment"] = f"{treatment}_bias_aggressive_3"
-    train_genderace_models(hparams, group, pretrained_epoch)
 
     hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     hparams["treatment"] = treatment
-    train_genderace_models(hparams, group, pretrained_epoch)
-    hparams["treatment"] = f"{treatment}_bias_gentle_3"
-    train_genderace_models(hparams, group, pretrained_epoch)
-    hparams["treatment"] = f"{treatment}_bias_aggressive_3"
     train_genderace_models(hparams, group, pretrained_epoch)
 
 
