@@ -1,3 +1,4 @@
+from BERT.bert_text_dataset import BertTextDataset
 from transformers.modeling_bert import BertLMPredictionHead, BertPreTrainedModel, BertModel
 from torch.nn import CrossEntropyLoss
 import torch.nn as nn
@@ -81,7 +82,7 @@ class BertForMLMPreTraining(BertPreTrainedModel):
         outputs = (lm_prediction_scores,) + outputs[2:]  # add hidden states and attention if they are here
 
         if masked_lm_labels is not None:
-            loss_fct = CrossEntropyLoss(ignore_index=-1)
+            loss_fct = CrossEntropyLoss(ignore_index=BertTextDataset.MLM_IGNORE_LABEL_IDX)
             masked_lm_loss = loss_fct(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
             loss = masked_lm_loss
             outputs = (loss,) + outputs

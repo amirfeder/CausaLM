@@ -1,4 +1,4 @@
-# Taken from https://github.com/fungtion/DANN_py3
+# Adapted from https://github.com/fungtion/DANN_py3/blob/master/functions.py
 
 from torch.autograd import Function
 
