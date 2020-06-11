@@ -3,18 +3,18 @@ from pathlib import Path
 from tqdm import tqdm, trange
 from tempfile import TemporaryDirectory
 import shelve
-from constants import BERT_PRETRAINED_MODEL, SENTIMENT_RAW_DATA_DIR, SENTIMENT_IMA_PRETRAIN_DATA_DIR, \
-    MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_DOMAINS, NUM_CPU
+from constants import BERT_PRETRAINED_MODEL, SENTIMENT_ADJECTIVES_PRETRAIN_DATA_DIR, \
+    MAX_SENTIMENT_SEQ_LENGTH, NUM_CPU, SENTIMENT_ADJECTIVES_DATASETS_DIR
 from datasets.utils import TOKEN_SEPARATOR, ADJ_POS_TAGS, MASK_TOKEN, CLS_TOKEN, SEP_TOKEN, WORDPIECE_PREFIX, \
     POS_TAG_IDX_MAP
 from BERT.bert_pos_tagger import BertTokenClassificationDataset
-from multiprocessing import Pool
 from random import random, randrange, choice
 from transformers.tokenization_bert import BertTokenizer
 from itertools import zip_longest
 
 from typing import List
 import numpy as np
+import pandas as pd
 import json
 import collections
 import re
@@ -309,65 +309,69 @@ def create_training_file(docs, vocab_list, args, epoch_num, output_dir):
     print("\nTotal Number of training instances:", num_instances)
 
 
-
-def generate_data_for_domain(domain, tokenizer, args):
-    print(f"\nGenerating data for domain: {domain}")
-    DATASET_FILE = f"{SENTIMENT_RAW_DATA_DIR}/{domain}/{domain}UN_tagged.txt"
-    output_dir = Path(SENTIMENT_IMA_PRETRAIN_DATA_DIR) / args.masking_method / domain
+def generate_data_for_treatment(tokenizer, args):
+    print(f"\nGenerating data for adjectives")
+    output_dir = Path(SENTIMENT_ADJECTIVES_PRETRAIN_DATA_DIR) / args.masking_method
     output_dir.mkdir(exist_ok=True, parents=True)
     with POSTaggedDocumentDatabase(reduce_memory=args.reduce_memory) as docs:
-        with open(DATASET_FILE, "r") as dataset:
-            for idx, line in enumerate(dataset):
-                tagged_tokens = []
-                adj_adv_idx = []
-                adj_adv_tokens = []
-                line_tokens = []
-                pos_tag_labels = []
-                for i, token_pos in enumerate(line.strip().split(TOKEN_SEPARATOR)):
-                    token_pos_match = re.match("(.*)_([A-Z]+)", token_pos)
-                    if token_pos_match:
-                        token, pos = token_pos_match.group(1), token_pos_match.group(2)
-                        tagged_tokens.append((token, pos))
-                        line_tokens.append(token)
-                        if pos in ADJ_POS_TAGS:
-                            adj_adv_tokens.append((i, token))
-                            pos_tag_labels.append(BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX)
-                        else:
-                            pos_tag_labels.append(POS_TAG_IDX_MAP[pos])
-                # line_words = re.sub("_[A-Z]+", "", line)
-                doc = tokenizer.tokenize(TOKEN_SEPARATOR.join(line_tokens))
-                if doc:
-                    pos_tag_labels = BertTokenClassificationDataset.align_labels_to_bert_tokenization(tokenizer,
-                                                                                                      doc,
-                                                                                                      line_tokens,
-                                                                                                      pos_tag_labels)
-                    if len(doc) == len(tagged_tokens):
-                        adj_adv_idx = [i for i, _ in adj_adv_tokens]
+        id_reviews = list()
+        tagged_reviews = list()
+        for dataset in ("train", "dev"):
+            DATASET_FILE = f"{SENTIMENT_ADJECTIVES_DATASETS_DIR}/adjectives_{dataset}.csv"
+            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8')
+            id_reviews += df["id"].tolist()
+            tagged_reviews += df["tagged_review"].tolist()
+        for idx, review in zip(id_reviews, tagged_reviews):
+            tagged_tokens = []
+            adj_adv_idx = []
+            adj_adv_tokens = []
+            review_tokens = []
+            pos_tag_labels = []
+            for i, token_pos in enumerate(review.strip().split(TOKEN_SEPARATOR)):
+                token_pos_match = re.match("(.*)_([A-Z]+)", token_pos)
+                if token_pos_match:
+                    token, pos = token_pos_match.group(1), token_pos_match.group(2)
+                    tagged_tokens.append((token, pos))
+                    review_tokens.append(token)
+                    if pos in ADJ_POS_TAGS:
+                        adj_adv_tokens.append((i, token))
+                        pos_tag_labels.append(BertTokenClassificationDataset.POS_IGNORE_LABEL_IDX)
                     else:
-                        adj_token_idx = 0
-                        for j, bert_token in enumerate(doc):
-                            if adj_token_idx == len(adj_adv_tokens):
-                                break
-                            adj_token = adj_adv_tokens[adj_token_idx][1]
-                            if bert_token == adj_token:
-                                adj_adv_idx.append(j)
-                                adj_token_idx += 1
-                            elif bert_token in adj_token:
-                                adj_adv_idx.append(j)
-                                # if args.do_whole_word_mask:
-                                k = 1
-                                while j + k < len(doc) and doc[j + k].startswith(WORDPIECE_PREFIX):
-                                    adj_adv_idx.append(j + k)
-                                    k += 1
-                                adj_token_idx += 1
-                    docs.add_document(tuple(doc), tuple(adj_adv_idx), tuple(pos_tag_labels), idx + 1)  # If the last doc didn't end on a newline, make sure it still gets added
-            if len(docs) <= 1:
-                exit(
-                    "ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
-                    "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
-                    "indicate breaks between documents in your input file. If your dataset does not contain multiple "
-                    "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
-                    "sections or paragraphs.")
+                        pos_tag_labels.append(POS_TAG_IDX_MAP[pos])
+            # line_words = re.sub("_[A-Z]+", "", line)
+            doc = tokenizer.tokenize(TOKEN_SEPARATOR.join(review_tokens))
+            if doc:
+                pos_tag_labels = BertTokenClassificationDataset.align_labels_to_bert_tokenization(tokenizer,
+                                                                                                  doc,
+                                                                                                  review_tokens,
+                                                                                                  pos_tag_labels)
+                if len(doc) == len(tagged_tokens):
+                    adj_adv_idx = [i for i, _ in adj_adv_tokens]
+                else:
+                    adj_token_idx = 0
+                    for j, bert_token in enumerate(doc):
+                        if adj_token_idx == len(adj_adv_tokens):
+                            break
+                        adj_token = adj_adv_tokens[adj_token_idx][1]
+                        if bert_token == adj_token:
+                            adj_adv_idx.append(j)
+                            adj_token_idx += 1
+                        elif bert_token in adj_token:
+                            adj_adv_idx.append(j)
+                            # if args.do_whole_word_mask:
+                            k = 1
+                            while j + k < len(doc) and doc[j + k].startswith(WORDPIECE_PREFIX):
+                                adj_adv_idx.append(j + k)
+                                k += 1
+                            adj_token_idx += 1
+                docs.add_document(tuple(doc), tuple(adj_adv_idx), tuple(pos_tag_labels), idx)  # If the last doc didn't end on a newline, make sure it still gets added
+        if len(docs) <= 1:
+            exit(
+                "ERROR: No document breaks were found in the input file! These are necessary to allow the script to "
+                "ensure that random NextSentences are not sampled from the same document. Please add blank lines to "
+                "indicate breaks between documents in your input file. If your dataset does not contain multiple "
+                "documents, blank lines can be inserted at any natural boundary, such as the ends of chapters, "
+                "sections or paragraphs.")
         vocab_list = list(tokenizer.vocab.keys())
         for epoch in trange(args.epochs_to_generate, desc="Epoch"):
             create_training_file(docs, vocab_list, args, epoch, output_dir)
@@ -398,23 +402,16 @@ def main():
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=MAX_PRED_PER_SEQ,
                         help="Maximum number of tokens to mask in each sequence")
-    parser.add_argument("--masking_method", type=str, default="double_num_adj",
-                        help="Method of determining num masked tokens in sentence: mlm_prob or double_num_adj")
+    parser.add_argument("--masking_method", type=str, default="double_num_adj", choices=("mlm_prob", "double_num_adj"),
+                        help="Method of determining num masked tokens in sentence")
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
         raise ValueError("Cannot use multiple workers while reducing memory")
 
     tokenizer = BertTokenizer.from_pretrained(BERT_PRETRAINED_MODEL, do_lower_case=bool(BERT_PRETRAINED_MODEL.endswith("uncased")))
-    domains_list = list(SENTIMENT_DOMAINS) + ["unified"]
 
-    if args.num_workers > 1:
-        writer_workers = Pool(min(args.num_workers, len(domains_list)))
-        arguments = [(domain, tokenizer, args) for domain in domains_list]
-        writer_workers.starmap(generate_data_for_domain, arguments)
-    else:
-        for domain in domains_list:
-            generate_data_for_domain(domain, tokenizer, args)
+    generate_data_for_treatment(tokenizer, args)
 
 
 if __name__ == '__main__':
