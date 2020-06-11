@@ -305,17 +305,13 @@ def main():
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=MAX_PRED_PER_SEQ,
                         help="Maximum number of tokens to mask in each sequence")
-    parser.add_argument("--domain", type=str, default="books", choices=("movies", "books", "dvd", "kitchen", "electronics", "all"))
+    parser.add_argument("--domain", type=str, default="books", choices=SENTIMENT_DOMAINS)
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
         raise ValueError("Cannot use multiple workers while reducing memory")
 
-    if args.domain == "all":
-        for domain in SENTIMENT_DOMAINS:
-            generate_data_for_domain(args, domain)
-    else:
-        generate_data_for_domain(args, args.domain)
+    generate_data_for_domain(args, args.domain)
 
 
 def generate_data_for_domain(args, domain):
@@ -333,15 +329,17 @@ def generate_data_for_domain(args, domain):
 
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
         print(f"\nGenerating data for domain: {domain}")
-        DATASET_FILE = f"{SENTIMENT_TOPICS_DATASETS_DIR}/topics_all.csv"
         output_dir = Path(SENTIMENT_TOPICS_PRETRAIN_DATA_DIR) / domain
         output_dir.mkdir(exist_ok=True, parents=True)
-        df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8', usecols=["id", "review", treatment_column, control_column]).set_index(keys="id", drop=False).sort_index()
-        df = df[df[treatment_column].notnull()]
-        unique_ids = df["id"].astype(int)
-        reviews = df["review"].apply(tokenizer.tokenize)
-        treatment_labels = df[treatment_column].astype(int)
-        control_labels = df[control_column].astype(int)
+        unique_ids, reviews, treatment_labels, control_labels = list(), list(), list(), list()
+        for dataset in ("train", "dev"):
+            DATASET_FILE = f"{SENTIMENT_TOPICS_DATASETS_DIR}/topics_{dataset}.csv"
+            df = pd.read_csv(DATASET_FILE, header=0, encoding='utf-8', usecols=["id", "review", treatment_column, control_column]).set_index(keys="id", drop=False).sort_index()
+            df = df[df[treatment_column].notnull()]
+            unique_ids += df["id"].astype(int).tolist()
+            reviews += df["review"].apply(tokenizer.tokenize).tolist()
+            treatment_labels += df[treatment_column].astype(int).tolist()
+            control_labels += df[control_column].astype(int).tolist()
 
         for unique_id, doc, treatment_label, control_label in tqdm(zip(unique_ids, reviews, treatment_labels, control_labels)):
             if doc:

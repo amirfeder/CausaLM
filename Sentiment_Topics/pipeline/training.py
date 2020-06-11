@@ -1,7 +1,7 @@
 import json
 
 from constants import SENTIMENT_EXPERIMENTS_DIR, MAX_SENTIMENT_SEQ_LENGTH, SENTIMENT_DOMAINS, \
-    SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, SENTIMENT_TOPICS_DATASETS_DIR, SENTIMENT_TOPICS_PRETRAIN_ITX_DIR
+    SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, SENTIMENT_TOPICS_DATASETS_DIR, SENTIMENT_TOPICS_PRETRAIN_IXT_DIR
 from pytorch_lightning import Trainer
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, LightningHyperparameters
 from Sentiment_Topics.pipeline.predict import print_final_metrics, predict_models
@@ -10,10 +10,8 @@ from argparse import ArgumentParser
 from typing import Dict
 import torch
 
-# LOGGER = init_logger("OOB_training")
 from utils import init_logger
 
-# DEVICE = get_free_gpu()
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ### Constants
 BATCH_SIZE = 128
@@ -25,8 +23,7 @@ FP16 = False
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--domain", type=str, default="books",
-                        choices=("movies", "books", "dvd", "kitchen", "electronics", "all")),
+    parser.add_argument("--domain", type=str, default="books", choices=SENTIMENT_DOMAINS),
     parser.add_argument("--group", type=str, required=False, default="F",
                         help="Specify data group for experiments: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
@@ -39,12 +36,7 @@ def main():
                         help="Use pretrained model with control task")
     args = parser.parse_args()
 
-    if args.domain == "all":
-        for domain in SENTIMENT_DOMAINS:
-            train_all_models(args, domain)
-    else:
-        train_all_models(args, args.domain)
-
+    train_all_models(args, args.domain)
 
 
 def bert_train_eval(hparams, output_dir):
@@ -62,7 +54,6 @@ def bert_train_eval(hparams, output_dir):
     trainer.test()
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
     return model
-
 
 
 def train_models_unit(hparams: Dict, task, group, pretrained_control):
@@ -88,12 +79,11 @@ def train_models_unit(hparams: Dict, task, group, pretrained_control):
     return model
 
 
-
 def train_models(hparams: Dict, group: str, pretrained_epoch: int, pretrained_control: bool):
     print(f"Training {hparams['treatment']} {hparams['domain']} models")
     sentiment_model = train_models_unit(hparams, "Sentiment", group, pretrained_control)
     itt_model = train_models_unit(hparams, "ITT", group, pretrained_control)
-    itc_model = train_models_unit(hparams, "ITC", group, pretrained_control)
+    itc_model = train_models_unit(hparams, "ICT", group, pretrained_control)
     if hparams["bert_params"]["bert_state_dict"]:
         if pretrained_control:
             group = f"{group}_topic_{hparams['treatment_column'].split('_')[1]}_treated_topic_{hparams['control_column'].split('_')[1]}_controlled"
@@ -103,9 +93,7 @@ def train_models(hparams: Dict, group: str, pretrained_epoch: int, pretrained_co
                    sentiment_model, itt_model, itc_model, hparams["bert_params"]["bert_state_dict"])
 
 
-
 def train_all_models(args, domain: str):
-
     with open(SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, "r") as jsonfile:
         domain_topic_treat_dict = json.load(jsonfile)
 
@@ -113,9 +101,9 @@ def train_all_models(args, domain: str):
     control_topic = domain_topic_treat_dict[domain]["control_topics"][-1]
 
     if args.pretrained_control:
-        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model_control"
+        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_IXT_DIR}/{domain}/model_control"
     else:
-        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model"
+        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_IXT_DIR}/{domain}/model"
     if args.pretrained_epoch is not None:
         pretrained_treated_model_dir = f"{pretrained_treated_model_dir}/epoch_{args.pretrained_epoch}"
 
@@ -141,17 +129,9 @@ def train_all_models(args, domain: str):
         }
     }
     train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
-    hparams["treatment"] = f"{treatment}_bias_gentle_{treatment_topic}_1"
-    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
-    hparams["treatment"] = f"{treatment}_bias_aggressive_{treatment_topic}_1"
-    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
 
     hparams["bert_params"]["bert_state_dict"] = f"{pretrained_treated_model_dir}/pytorch_model.bin"
     hparams["treatment"] = treatment
-    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
-    hparams["treatment"] = f"{treatment}_bias_gentle_{treatment_topic}_1"
-    train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
-    hparams["treatment"] = f"{treatment}_bias_aggressive_{treatment_topic}_1"
     train_models(hparams, args.group, args.pretrained_epoch, args.pretrained_control)
 
 

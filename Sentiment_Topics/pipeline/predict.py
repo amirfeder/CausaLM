@@ -1,57 +1,18 @@
 import json
 from argparse import ArgumentParser
-from typing import Dict
 from constants import SENTIMENT_TOPICS_DATASETS_DIR, SENTIMENT_EXPERIMENTS_DIR, \
-    SENTIMENT_TOPICS_PRETRAIN_MLM_DIR, SENTIMENT_TOPICS_PRETRAIN_ITX_DIR, SENTIMENT_DOMAINS, \
+    SENTIMENT_TOPICS_PRETRAIN_MLM_DIR, SENTIMENT_TOPICS_PRETRAIN_IXT_DIR, SENTIMENT_DOMAINS, \
     SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE
 from pytorch_lightning import Trainer, LightningModule
 from BERT.bert_text_classifier import LightningBertPretrainedClassifier, BertPretrainedClassifier
-from os import listdir, path
-from glob import glob
 from copy import deepcopy
-
-from utils import GoogleDriveHandler,  init_logger
+from utils import GoogleDriveHandler, init_logger, print_final_metrics, find_latest_model_checkpoint
 import torch
-
-
-def get_checkpoint_file(ckpt_dir: str):
-    for file in sorted(listdir(ckpt_dir)):
-        if file.endswith(".ckpt"):
-            return f"{ckpt_dir}/{file}"
-    else:
-        return None
-
-
-def find_latest_model_checkpoint(models_dir: str):
-    model_ckpt = None
-    while not model_ckpt:
-        model_versions = sorted(glob(models_dir), key=path.getctime)
-        if model_versions:
-            latest_model = model_versions.pop()
-            model_ckpt_dir = f"{latest_model}/checkpoints"
-            model_ckpt = get_checkpoint_file(model_ckpt_dir)
-        else:
-            raise FileNotFoundError(f"Couldn't find a model checkpoint in {models_dir}")
-    return model_ckpt
-
-
-def print_final_metrics(name: str, metrics: Dict, logger=None):
-    if logger:
-        logger.info(f"{name} Metrics:")
-        for metric, val in metrics.items():
-            logger.info(f"{metric}: {val:.4f}")
-        logger.info("\n")
-    else:
-        print(f"{name} Metrics:")
-        for metric, val in metrics.items():
-            print(f"{metric}: {val:.4f}")
-        print()
 
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--domain", type=str, default="books",
-                        choices=("movies", "books", "dvd", "kitchen", "electronics", "all")),
+    parser.add_argument("--domain", type=str, default="books", choices=SENTIMENT_DOMAINS),
     parser.add_argument("--trained_group", type=str, required=False, default="F",
                         help="Specify data group for trained_models: F (factual) or CF (counterfactual)")
     parser.add_argument("--pretrained_epoch", type=int, required=False, default=0,
@@ -60,12 +21,7 @@ def main():
                         help="Use pretrained model with control task")
     args = parser.parse_args()
 
-    if args.domain == "all":
-        for domain in SENTIMENT_DOMAINS:
-            predict_all_models(args, domain)
-    else:
-        predict_all_models(args, args.domain)
-
+    predict_all_models(args, args.domain)
 
 
 def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
@@ -94,7 +50,6 @@ def bert_treatment_test(model_ckpt, hparams, trainer, logger=None):
     print_final_metrics(hparams['bert_params']['name'], trainer.tqdm_metrics, logger)
 
 
-
 def predict_models_unit(task, treatment, domain, trained_group, group, model_ckpt,
                         hparams, trainer, logger, pretrained_epoch, pretrained_control, bert_state_dict):
     if pretrained_control:
@@ -113,7 +68,7 @@ def predict_models_unit(task, treatment, domain, trained_group, group, model_ckp
         task = "ITT"
     else:
         label_column = hparams['control_column']
-        task = "ITC"
+        task = "ICT"
 
     hparams["label_column"] = label_column
     logger.info(f"Treatment: {treatment}")
@@ -145,10 +100,9 @@ def predict_models_unit(task, treatment, domain, trained_group, group, model_ckp
         else:
             hparams["bert_params"][
                 "name"] = f"{task}_topic_{hparams['treatment_column'].split('_')[1]}_treated_{group}_trained_{trained_group}"
-        hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{state_dict_dir}/pytorch_model.bin"
+        hparams["bert_params"]["bert_state_dict"] = f"{SENTIMENT_TOPICS_PRETRAIN_IXT_DIR}/{state_dict_dir}/pytorch_model.bin"
         logger.info(f"Treated Pretrained Model: {hparams['bert_params']['bert_state_dict']}")
         bert_treatment_test(model_ckpt, hparams, trainer, logger)
-
 
 
 def predict_models(treatment="topics", domain="books", trained_group="F", pretrained_epoch=None, pretrained_control=None,
@@ -178,7 +132,7 @@ def predict_models(treatment="topics", domain="books", trained_group="F", pretra
                       early_stop_callback=None)
     hparams["output_path"] = trainer.logger.experiment.log_dir.rstrip('tf')
     logger = init_logger(f"testing", hparams["output_path"])
-    for task, model in zip(("Sentiment", "CONTROL_ITT", "CONTROL_ITC"),
+    for task, model in zip(("Sentiment", "CONTROL_ITT", "CONTROL_ICT"),
                            (sentiment_model_ckpt, itt_model_ckpt, itc_model_ckpt)):
         for group in ("F",):
             predict_models_unit(task, treatment, domain, trained_group, group, model,
@@ -188,10 +142,7 @@ def predict_models(treatment="topics", domain="books", trained_group="F", pretra
     logger.info(push_message)
 
 
-
-
 def predict_all_models(args, domain: str):
-
     treatment = "topics"
 
     with open(SENTIMENT_TOPICS_DOMAIN_TREAT_CONTROL_MAP_FILE, "r") as jsonfile:
@@ -201,14 +152,12 @@ def predict_all_models(args, domain: str):
     control_topic = domain_topic_treat_dict[domain]["control_topics"][-1]
 
     predict_models(treatment, domain, args.trained_group, args.pretrained_epoch, args.pretrained_control)
-    predict_models(f"{treatment}_bias_gentle_{treatment_topic}_1", domain, args.trained_group, args.pretrained_epoch, args.pretrained_control)
-    predict_models(f"{treatment}_bias_aggressive_{treatment_topic}_1", domain, args.trained_group, args.pretrained_epoch, args.pretrained_control)
 
     if args.pretrained_control:
-        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model_control"
+        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_IXT_DIR}/{domain}/model_control"
         trained_group = f"{args.trained_group}_{treatment_topic}_treated_{control_topic}_controlled"
     else:
-        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_ITX_DIR}/{domain}/model"
+        pretrained_treated_model_dir = f"{SENTIMENT_TOPICS_PRETRAIN_IXT_DIR}/{domain}/model"
         trained_group = f"{args.trained_group}_{treatment_topic}_treated"
 
     if args.pretrained_epoch is not None:
@@ -217,8 +166,6 @@ def predict_all_models(args, domain: str):
     bert_state_dict = f"{pretrained_treated_model_dir}/pytorch_model.bin"
 
     predict_models(treatment, domain, trained_group, args.pretrained_epoch, args.pretrained_control, bert_state_dict=bert_state_dict)
-    predict_models(f"{treatment}_bias_gentle_{treatment_topic}_1", domain, trained_group, args.pretrained_epoch, args.pretrained_control, bert_state_dict=bert_state_dict)
-    predict_models(f"{treatment}_bias_aggressive_{treatment_topic}_1", domain, trained_group, args.pretrained_epoch, args.pretrained_control, bert_state_dict=bert_state_dict)
 
 
 if __name__ == "__main__":

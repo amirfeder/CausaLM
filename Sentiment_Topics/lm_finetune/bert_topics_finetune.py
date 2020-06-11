@@ -1,5 +1,6 @@
 from transformers.modeling_bert import BertLMPredictionHead, BertPreTrainedModel, BertModel
-from BERT.pretrain.grad_reverse_layer import GradReverseLayerFunction
+from BERT.bert_text_dataset import BertTextDataset
+from BERT.lm_finetune.grad_reverse_layer import GradReverseLayerFunction
 from torch.nn import CrossEntropyLoss
 import torch.nn as nn
 import torch
@@ -233,12 +234,12 @@ class BertForTopicTreatControlPreTraining(BertPreTrainedModel):
         outputs = (lm_prediction_scores, topic_treat_prediction_score, topic_treat_prediction_score,) + outputs[2:]  # add hidden states and attention if they are here
 
         if masked_lm_labels is not None and topic_treat_label is not None and topic_control_label is not None:
-            loss_fct = CrossEntropyLoss(ignore_index=-1)
+            loss_fct = CrossEntropyLoss(ignore_index=BertTextDataset.MLM_IGNORE_LABEL_IDX)
             masked_lm_loss = loss_fct(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
             topic_treat_loss = loss_fct(topic_treat_prediction_score.view(-1, 2), topic_treat_label.view(-1))
             topic_control_loss = loss_fct(topic_control_prediction_score.view(-1, 2), topic_control_label.view(-1))
             loss = masked_lm_loss + topic_treat_loss + topic_control_loss
-            loss_fct_per_sample = CrossEntropyLoss(ignore_index=-1, reduction='none')
+            loss_fct_per_sample = CrossEntropyLoss(ignore_index=BertTextDataset.MLM_IGNORE_LABEL_IDX, reduction='none')
             outputs = (loss,
                        torch.stack([loss_fct_per_sample(lm_prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
                                    .view_as(masked_lm_labels)[i,:].masked_select(masked_lm_labels[i,:] > -1).mean() for i in range(masked_lm_labels.size(0))]),
